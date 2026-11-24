@@ -1,0 +1,10 @@
+node_modules
+.next
+.vercel
+.firecrawl
+out
+dist
+.env*.local
+data/local-db.json
+*.tsbuildinfo
+next-env.d.ts
