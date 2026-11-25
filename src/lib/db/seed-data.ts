@@ -121,6 +121,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#181615",
       price: 75,
       currency: "USD",
+      imageUrl:
+        "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=640&q=85",
       occasions: ["Coffee Run", "Campus / Class", "Weekend Trip", "Gym / Pilates"],
       vibes: ["Clean Girl Athleisure", "Streetwear Luxe"],
       availableSizes: ["XS", "S", "M", "L", "XL"],
@@ -144,6 +146,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#181615",
       price: 40,
       currency: "USD",
+      imageUrl:
+        "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=640&q=85",
       occasions: ["Coffee Run", "Gym / Pilates", "Campus / Class", "Weekend Trip"],
       vibes: ["Clean Girl Athleisure", "Model Off-Duty"],
       availableSizes: ["XS", "S", "M", "L"],
@@ -167,6 +171,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#FAF8F5",
       price: 42,
       currency: "USD",
+      imageUrl:
+        "https://images.unsplash.com/photo-1571945153237-4929e783af4a?auto=format&fit=crop&w=640&q=85",
       occasions: ["Gym / Pilates", "Coffee Run"],
       vibes: ["Clean Girl Athleisure"],
       availableSizes: ["XS", "S", "M", "L", "XL"],
@@ -190,6 +196,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#EDE6DF",
       price: 100,
       currency: "USD",
+      imageUrl:
+        "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?auto=format&fit=crop&w=640&q=85",
       occasions: ["Gym / Pilates", "Coffee Run", "Campus / Class", "Weekend Trip"],
       vibes: ["Clean Girl Athleisure"],
       availableSizes: ["XS", "S", "M", "L", "XL"],
@@ -213,6 +221,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#181615",
       price: 90,
       currency: "USD",
+      imageUrl:
+        "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=640&q=85",
       occasions: ["Campus / Class", "Concert", "Weekend Trip", "Coffee Run"],
       vibes: ["Streetwear Luxe", "Model Off-Duty"],
       availableSizes: ["XS", "S", "M", "L"],
@@ -236,6 +246,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#2B5942",
       price: 95,
       currency: "USD",
+      imageUrl:
+        "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=640&q=85",
       occasions: ["Coffee Run", "Campus / Class", "Weekend Trip", "Gym / Pilates", "Concert"],
       vibes: ["Clean Girl Athleisure", "Model Off-Duty", "Streetwear Luxe"],
       availableSizes: ["6", "6.5", "7", "7.5", "8", "8.5", "9"],
@@ -259,6 +271,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#7C858E",
       price: 120,
       currency: "USD",
+      imageUrl:
+        "https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?auto=format&fit=crop&w=640&q=85",
       occasions: ["Gym / Pilates", "Coffee Run", "Campus / Class"],
       vibes: ["Clean Girl Athleisure", "Streetwear Luxe"],
       availableSizes: ["6", "6.5", "7", "7.5", "8", "8.5", "9"],
@@ -284,6 +298,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#FAF8F5",
       price: 248,
       currency: "USD",
+      imageUrl:
+        "https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=640&q=85",
       occasions: ["Date Night", "Concert"],
       vibes: ["Model Off-Duty", "Soft Romantic"],
       availableSizes: ["XS", "S", "M", "L"],
@@ -308,6 +324,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#FAF8F5",
       price: 48,
       currency: "USD",
+      imageUrl:
+        "https://cdn.shopify.com/s/files/1/0259/5448/4284/files/SKIMS-LOUNGEWEAR-AP-TSH-0638-SOT-FLT_337890eb-b813-4d8c-b4fd-b94fb1ae7e59.jpg?v=1767136369",
       occasions: ["Coffee Run", "Date Night", "Concert", "Campus / Class"],
       vibes: ["Model Off-Duty", "Clean Girl Athleisure", "Streetwear Luxe"],
       availableSizes: ["XS", "S", "M", "L", "XL"],
@@ -332,6 +350,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#FAF8F5",
       price: 68,
       currency: "USD",
+      imageUrl:
+        "https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?auto=format&fit=crop&w=640&q=85",
       occasions: ["Date Night", "Concert", "Campus / Class"],
       vibes: ["Model Off-Duty", "Soft Romantic"],
       availableSizes: ["XS", "S", "M", "L"],
@@ -356,6 +376,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#E8DFD5",
       price: 72,
       currency: "USD",
+      imageUrl:
+        "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=640&q=85",
       occasions: ["Coffee Run", "Campus / Class", "Concert", "Date Night", "Weekend Trip"],
       vibes: ["Model Off-Duty", "Streetwear Luxe"],
       availableSizes: ["XS", "S", "M", "L"],
@@ -380,6 +402,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#D4AF37",
       price: 268,
       currency: "USD",
+      imageUrl:
+        "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=640&q=85",
       occasions: ["Date Night", "Coffee Run", "Weekend Trip"],
       vibes: ["Model Off-Duty", "Soft Romantic"],
       availableSizes: ["6", "6.5", "7", "7.5", "8", "8.5", "9"],

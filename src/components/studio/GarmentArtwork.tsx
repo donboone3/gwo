@@ -9,20 +9,34 @@ interface GarmentArtworkProps {
 }
 
 export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps) {
+  const [useProxyFallback, setUseProxyFallback] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const isNike = product.brand.toLowerCase() === "nike";
 
   if (product.imageUrl && !imgFailed) {
+    const src =
+      useProxyFallback &&
+      !product.imageUrl.includes("wsrv.nl") &&
+      !product.imageUrl.startsWith("data:")
+        ? `https://wsrv.nl/?url=${encodeURIComponent(product.imageUrl)}&w=640&output=webp`
+        : product.imageUrl;
+
     return (
       <div
-        className={`relative overflow-hidden bg-[#F3EFEA] flex items-center justify-center ${className}`}
+        className={`relative overflow-hidden bg-[#F6F7F9] flex items-center justify-center ${className}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={product.imageUrl}
+          src={src}
           alt={product.title}
-          onError={() => setImgFailed(true)}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          onError={() => {
+            if (!useProxyFallback && !product.imageUrl?.includes("wsrv.nl")) {
+              setUseProxyFallback(true);
+            } else {
+              setImgFailed(true);
+            }
+          }}
+          className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
         />
       </div>
     );

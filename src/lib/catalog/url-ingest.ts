@@ -361,13 +361,89 @@ async function extractLiveProduct(
   // Tier 2B: Authenticated local Firecrawl CLI (uses ~/.firecrawl session automatically!)
   if (!process.env.VITEST) {
     try {
-      const cmd = process.platform === "win32" ? "firecrawl.cmd" : "firecrawl";
-      const { stdout } = await execFileAsync(cmd, ["scrape", "-H", canonicalUrl], {
-        timeout: 12000,
-        maxBuffer: 8 * 1024 * 1024,
-      });
-      if (stdout && stdout.includes("<")) {
-        return parseProductFromHtml(stdout, canonicalUrl);
+      const { stdout } =
+        process.platform === "win32"
+          ? await execFileAsync(
+              "cmd.exe",
+              ["/d", "/s", "/c", "firecrawl.cmd", "scrape", "-f", "images", "--json", canonicalUrl],
+              { timeout: 14000, maxBuffer: 8 * 1024 * 1024 }
+            )
+          : await execFileAsync(
+              "firecrawl",
+              ["scrape", "-f", "images", "--json", canonicalUrl],
+              { timeout: 14000, maxBuffer: 8 * 1024 * 1024 }
+            );
+
+      const jsonStart = stdout.indexOf("{");
+      if (jsonStart >= 0) {
+        const fc = JSON.parse(stdout.slice(jsonStart));
+        const meta = fc?.metadata || {};
+        const fcTitle = String(meta.ogTitle || meta["og:title"] || meta.title || "");
+        const statusCode = Number(meta.statusCode || 200);
+        if (
+          statusCode < 400 &&
+          !/404 not found|verify you are human|just a moment/i.test(fcTitle)
+        ) {
+          let fcImg: string | undefined =
+            meta["og:image:secure_url"] ||
+            meta["og:image:url"] ||
+            meta.ogImage ||
+            meta["og:image"];
+
+          if (
+            fcImg &&
+            /favicon|android-chrome|apple-touch-icon|logo|\.svg/i.test(fcImg)
+          ) {
+            fcImg = undefined;
+          }
+
+          if (!fcImg && Array.isArray(fc.images)) {
+            fcImg = fc.images.find(
+              (u: string) =>
+                typeof u === "string" &&
+                u.startsWith("http") &&
+                !/favicon|logo|flags\/|\.svg|w=1&|h=10|100x100|200x200/i.test(u)
+            );
+          }
+
+          if (fcImg || fcTitle) {
+            const cleanTitle =
+              fcTitle.split(/\s+[|\-–—]\s+/)[0].trim() || "Imported Store Piece";
+            const { category, silhouette } = inferCategoryAndSilhouette(
+              `${cleanTitle} ${urlObj.pathname}`
+            );
+            const { colorName, colorHex, accentHex } = inferColorPalette(
+              `${cleanTitle} ${urlObj.pathname}`
+            );
+            const rawPrice = Number(
+              meta["product:price:amount"] || meta["og:price:amount"] || 68
+            );
+            return {
+              canonicalUrl,
+              brand: formatBrandFromDomain(urlObj.hostname),
+              storeDomain: urlObj.hostname.replace(/^www\./, ""),
+              title: cleanTitle,
+              category,
+              silhouette,
+              colorName,
+              colorHex,
+              accentHex,
+              price: rawPrice > 0 ? rawPrice : 68,
+              currency: "USD",
+              imageUrl: fcImg,
+              occasions: ["Coffee Run", "Weekend Trip", "Date Night"],
+              vibes: ["Model Off-Duty", "Clean Girl Athleisure"],
+              availableSizes:
+                category === "shoes"
+                  ? ["6", "6.5", "7", "7.5", "8", "8.5", "9"]
+                  : ["XS", "S", "M", "L", "XL"],
+              sizeChartInches:
+                category === "shoes" ? {} : DEFAULT_WOMEN_SIZE_CHART,
+              estDeliveryDays: 4,
+              inStock: true,
+            };
+          }
+        }
       }
     } catch {
       // Proceed to Tier 3 direct fetch if CLI is unavailable in serverless prod
@@ -422,7 +498,7 @@ export async function ingestProductUrlToSharedCatalog(
   const canonicalUrl = normalizeCanonicalProductUrl(rawUrl);
   const existing = await getProductByCanonicalUrl(canonicalUrl);
 
-  if (existing && !isProductStale(existing.staleAfter, now)) {
+  if (existing && existing.imageUrl && !isProductStale(existing.staleAfter, now)) {
     return {
       product: existing,
       status: "shared_cache_hit",

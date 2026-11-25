@@ -14,6 +14,7 @@ import {
   Ruler,
   ShoppingBag,
   Sparkles,
+  X,
   ZoomIn,
 } from "lucide-react";
 import {
@@ -22,7 +23,9 @@ import {
   LOFT_BG_URL,
   STUDIO_LOOKS,
 } from "./vell-data";
+import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { useGwo } from "@/context/GwoAppContext";
+import { Product } from "@/lib/types";
 
 type SimpleCategory = "all" | "everyday" | "athletic" | "going-out" | "accessories";
 
@@ -32,6 +35,7 @@ interface DragPayload {
   price: number;
   lookIndex?: number;
   accessoryName?: string;
+  product?: Product;
 }
 
 export function VellGwoStudio() {
@@ -44,6 +48,8 @@ export function VellGwoStudio() {
     updateProfilePatch,
     shareMyClosetAndClaimBonus,
     setAddUrlModalOpen,
+    activeImportedProduct,
+    setActiveImportedProduct,
     customAvatar,
     setAvatarModalOpen,
     showToast,
@@ -70,6 +76,16 @@ export function VellGwoStudio() {
 
   const [dragItem, setDragItem] = useState<DragPayload | null>(null);
   const [overAvatar, setOverAvatar] = useState(false);
+  const [drapeFlatLay, setDrapeFlatLay] = useState(false);
+
+  useEffect(() => {
+    setDrapeFlatLay(
+      Boolean(
+        activeImportedProduct?.imageUrl &&
+          /flt|flat/i.test(activeImportedProduct.imageUrl)
+      )
+    );
+  }, [activeImportedProduct]);
 
   // Measurement inputs
   const [waistIn, setWaistIn] = useState<number | null>(null);
@@ -240,6 +256,9 @@ export function VellGwoStudio() {
           triggerScanLine();
           showToast(`Added ${accName} to your look`);
         } else if (dragItem.kind === "scraped") {
+          if (dragItem.product) {
+            setActiveImportedProduct(dragItem.product);
+          }
           triggerScanLine();
           showToast(`Styled ${dragItem.label} onto your avatar`);
         }
@@ -254,7 +273,7 @@ export function VellGwoStudio() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [dragItem, isOverModel, showToast, swapToLook, triggerScanLine]);
+  }, [dragItem, isOverModel, setActiveImportedProduct, showToast, swapToLook, triggerScanLine]);
 
   const startDrag = useCallback((e: React.PointerEvent, payload: DragPayload) => {
     setDragItem(payload);
@@ -664,6 +683,32 @@ export function VellGwoStudio() {
               {/* Stacked Outfit Cutout Layers */}
               <div ref={figsRef} className="absolute inset-0 pointer-events-none" />
 
+              {/* Live Imported URL Garment Draped on Avatar Torso/Legs when Flat-Lay Mode Active */}
+              {activeImportedProduct?.imageUrl && drapeFlatLay && (
+                <img
+                  src={activeImportedProduct.imageUrl}
+                  alt={activeImportedProduct.title}
+                  style={{
+                    left: "50%",
+                    top:
+                      activeImportedProduct.category === "bottom"
+                        ? "58%"
+                        : activeImportedProduct.category === "dress"
+                        ? "46%"
+                        : activeImportedProduct.category === "shoes"
+                        ? "88%"
+                        : "34%",
+                    width:
+                      activeImportedProduct.category === "shoes"
+                        ? "32%"
+                        : activeImportedProduct.category === "dress"
+                        ? "48%"
+                        : "44%",
+                  }}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 object-contain mix-blend-multiply pointer-events-none z-14"
+                />
+              )}
+
               {/* Customer Uploaded Photo Avatar Face Overlay (Exact 1360x2048 Head Coordinates) */}
               {customAvatar && (
                 <img
@@ -682,6 +727,55 @@ export function VellGwoStudio() {
 
               <div ref={scanRef} className="gwo-scan-beam" />
             </div>
+
+            {/* Floating Imported Store Clothing Card Right Beside Avatar Stage */}
+            {activeImportedProduct && (
+              <div
+                id="gwo-stage-imported-card"
+                onPointerDown={(e) => e.stopPropagation()}
+                className="absolute right-2 sm:right-4 top-10 z-25 w-40 sm:w-44 rounded-2xl bg-white/95 backdrop-blur-md border border-black/[0.09] shadow-xl p-2.5 space-y-2"
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#244B3B] truncate">
+                    {activeImportedProduct.brand}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveImportedProduct(null)}
+                    className="p-1 rounded-full hover:bg-[#F1F2F5] text-[#686D76] cursor-pointer"
+                    title="Clear imported store piece"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="w-full h-36 rounded-xl overflow-hidden bg-[#F6F7F9] border border-black/[0.05]">
+                  <GarmentArtwork
+                    product={activeImportedProduct}
+                    className="w-full h-full"
+                  />
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-bold text-[#141518] line-clamp-2 leading-tight">
+                    {activeImportedProduct.title}
+                  </p>
+                  <p className="text-[11px] font-semibold text-[#686D76] mt-0.5">
+                    ${activeImportedProduct.price} • Size S
+                  </p>
+                </div>
+
+                {activeImportedProduct.imageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setDrapeFlatLay((v) => !v)}
+                    className="w-full py-1.5 rounded-full text-[10px] font-bold bg-[#F1F2F5] hover:bg-[#E4E7EC] text-[#141518] cursor-pointer transition"
+                  >
+                    {drapeFlatLay ? "Hide On-Body Overlay" : "Overlay on Avatar"}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Clean Minimal Bottom Stage Controls */}
@@ -873,38 +967,69 @@ export function VellGwoStudio() {
               </div>
             )}
 
-            {/* Imported Store Links */}
+            {/* Imported Store Links (Visual Clothing Image Cards!) */}
             {scrapedCommunityItems.length > 0 && category === "all" && (
               <div className="space-y-1.5">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[#686D76]">
-                  Saved Store Links ({scrapedCommunityItems.length})
-                </p>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {scrapedCommunityItems.map((prod) => (
-                    <button
-                      key={prod.id}
-                      type="button"
-                      onPointerDown={(e) =>
-                        startDrag(e, {
-                          kind: "scraped",
-                          label: `${prod.brand} ${prod.title}`,
-                          price: prod.price,
-                        })
-                      }
-                      onClick={() => {
-                        triggerScanLine();
-                        showToast(`Tried on ${prod.brand} ${prod.title}`);
-                      }}
-                      className="shrink-0 px-3 py-2 rounded-xl bg-[#F7F8FA] hover:bg-[#EFF1F5] border border-black/[0.06] text-left cursor-grab"
-                    >
-                      <p className="text-[10px] font-bold text-[#686D76] uppercase">
-                        {prod.brand} • ${prod.price}
-                      </p>
-                      <p className="text-xs font-semibold text-[#141518] max-w-[140px] truncate">
-                        {prod.title}
-                      </p>
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#686D76]">
+                    Saved Store Links ({scrapedCommunityItems.length})
+                  </p>
+                  <span className="text-[10px] text-[#244B3B] font-semibold">
+                    Tap to wear
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {scrapedCommunityItems.slice(0, 3).map((prod) => {
+                    const isWornUrl = activeImportedProduct?.id === prod.id;
+                    return (
+                      <button
+                        key={prod.id}
+                        type="button"
+                        onPointerDown={(e) =>
+                          startDrag(e, {
+                            kind: "scraped",
+                            label: `${prod.brand} ${prod.title}`,
+                            price: prod.price,
+                            product: prod,
+                          })
+                        }
+                        onClick={() => {
+                          setActiveImportedProduct(
+                            isWornUrl ? null : prod
+                          );
+                          triggerScanLine();
+                          showToast(
+                            isWornUrl
+                              ? `Removed ${prod.title}`
+                              : `Trying on ${prod.brand} ${prod.title}`
+                          );
+                        }}
+                        className={`group rounded-2xl overflow-hidden border text-left cursor-grab transition bg-white ${
+                          isWornUrl
+                            ? "border-[#141518] ring-2 ring-[#141518]/20"
+                            : "border-black/[0.08] hover:-translate-y-0.5"
+                        }`}
+                      >
+                        <div className="relative h-20 w-full bg-[#F6F7F9] overflow-hidden">
+                          <GarmentArtwork
+                            product={prod}
+                            className="w-full h-full"
+                          />
+                          <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-white/92 text-[10px] font-bold text-[#141518]">
+                            ${prod.price}
+                          </span>
+                        </div>
+                        <div className="p-1.5">
+                          <p className="text-[9px] font-bold text-[#686D76] uppercase truncate">
+                            {prod.brand}
+                          </p>
+                          <p className="text-[11px] font-semibold text-[#141518] truncate">
+                            {prod.title}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -192,7 +192,7 @@ export function CustomerAvatarModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[85] bg-black/45 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-[125] bg-black/45 backdrop-blur-xs flex items-center justify-center p-4"
       onClick={() => setAvatarModalOpen(false)}
     >
       <div

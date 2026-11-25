@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
+  ArrowRight,
   Camera,
   Check,
   ExternalLink,
+  ImagePlus,
   Link2,
   Loader2,
   Plus,
@@ -18,7 +20,9 @@ import {
 } from "lucide-react";
 import { GwoLogo } from "../brand/GwoLogo";
 import { CustomerAvatarModal } from "../avatar/CustomerAvatarModal";
+import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { useGwo } from "@/context/GwoAppContext";
+import { Product } from "@/lib/types";
 
 const STEPS = [
   { href: "/", match: ["/", "/closet"], label: "Closet & Try-On" },
@@ -26,8 +30,24 @@ const STEPS = [
   { href: "/product", match: ["/product"], label: "360° Fit View" },
 ];
 
+const QUICK_SAMPLE_LINKS = [
+  {
+    label: "SKIMS Cotton Tee",
+    url: "https://skims.com/products/cotton-jersey-t-shirt-soot",
+  },
+  {
+    label: "OV Exercise Dress",
+    url: "https://www.outdoorvoices.com/products/w-the-exercise-dress",
+  },
+  {
+    label: "Vuori Halo Hoodie",
+    url: "https://www.vuoriclothing.com/products/womens-halo-performance-hoodie-pale-grey-heather",
+  },
+];
+
 export function UnifiedGwoNav() {
   const pathname = usePathname() || "/";
+  const router = useRouter();
   const cleanPath = pathname.replace(/\/+$/, "") || "/";
 
   const {
@@ -38,6 +58,8 @@ export function UnifiedGwoNav() {
     removeFromBag,
     addUrlModalOpen,
     setAddUrlModalOpen,
+    setActiveImportedProduct,
+    updateImportedProductImage,
     customAvatar,
     setAvatarModalOpen,
     ingestUrlToSharedCatalog,
@@ -45,9 +67,12 @@ export function UnifiedGwoNav() {
     toastMessage,
   } = useGwo();
 
+  const photoFileRef = useRef<HTMLInputElement | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [importing, setImporting] = useState(false);
+  const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
+  const [manualImgUrl, setManualImgUrl] = useState("");
 
   const bagTotal = bagItems.reduce((sum, item) => sum + item.price, 0);
 
@@ -55,14 +80,57 @@ export function UnifiedGwoNav() {
     const target = (sample ?? urlInput).trim();
     if (!target) return;
     setImporting(true);
+    setPreviewProduct(null);
     try {
       const res = await ingestUrlToSharedCatalog(target);
       if (res?.product) {
+        setPreviewProduct(res.product);
         setUrlInput("");
-        setAddUrlModalOpen(false);
       }
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleManualPhotoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !previewProduct) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      if (dataUrl) {
+        updateImportedProductImage(previewProduct.id, dataUrl);
+        setPreviewProduct((prev) =>
+          prev ? { ...prev, imageUrl: dataUrl } : null
+        );
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handlePasteClipboardImage = (e: React.ClipboardEvent) => {
+    if (!previewProduct) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        const blob = items[i].getAsFile();
+        if (!blob) continue;
+        e.preventDefault();
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = String(reader.result || "");
+          if (dataUrl) {
+            updateImportedProductImage(previewProduct.id, dataUrl);
+            setPreviewProduct((prev) =>
+              prev ? { ...prev, imageUrl: dataUrl } : null
+            );
+          }
+        };
+        reader.readAsDataURL(blob);
+        break;
+      }
     }
   };
 
@@ -91,7 +159,7 @@ export function UnifiedGwoNav() {
               <Link
                 key={step.href}
                 href={step.href}
-                className={`px-3.5 sm:px-5 py-1.5 rounded-full text-xs sm:text-[13px] font-semibold transition-all whitespace-nowrap ${
+                className={`px-3 sm:px-5 py-1.5 rounded-full text-xs sm:text-[13px] font-semibold transition-all whitespace-nowrap ${
                   active
                     ? "bg-white text-[#141518] shadow-[0_2px_8px_rgba(20,21,24,0.08)]"
                     : "text-[#686D76] hover:text-[#141518]"
@@ -103,7 +171,7 @@ export function UnifiedGwoNav() {
           })}
         </nav>
 
-        {/* Right: My Photo Avatar, + Add Link, Share Closet, Unified Bag */}
+        {/* Right: My Photo Avatar, + Add Store Link, Share Closet, Unified Bag */}
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
@@ -122,22 +190,28 @@ export function UnifiedGwoNav() {
                   alt="My Avatar"
                   className="w-5 h-5 rounded-full object-cover border border-[#244B3B]/30"
                 />
-                <span className="hidden sm:inline">My Avatar ✓</span>
+                <span className="hidden md:inline">My Avatar ✓</span>
               </>
             ) : (
               <>
                 <Camera className="w-3.5 h-3.5 text-[#244B3B]" />
-                <span className="hidden sm:inline">My Photo Avatar</span>
+                <span className="hidden md:inline">My Photo Avatar</span>
               </>
             )}
           </button>
 
           <button
             type="button"
-            onClick={() => setAddUrlModalOpen(true)}
-            className="hidden lg:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold bg-[#F1F2F5] hover:bg-[#E6E8ED] text-[#141518] transition cursor-pointer"
+            id="gwo-add-url-btn"
+            onClick={() => {
+              setPreviewProduct(null);
+              setAddUrlModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-full text-xs font-semibold bg-[#F1F2F5] hover:bg-[#E6E8ED] text-[#141518] transition cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" /> Add Store Link
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Add Store Link</span>
+            <span className="sm:hidden">URL</span>
           </button>
 
           <button
@@ -175,10 +249,10 @@ export function UnifiedGwoNav() {
         </div>
       </header>
 
-      {/* ==================== UNIFIED SLIDE-OVER BAG DRAWER ==================== */}
+      {/* ==================== UNIFIED SLIDE-OVER BAG DRAWER (WITH GARMENT THUMBNAILS) ==================== */}
       {bagOpen && (
         <div
-          className="fixed inset-0 z-[70] bg-black/30 backdrop-blur-xs flex justify-end"
+          className="fixed inset-0 z-[120] bg-black/30 backdrop-blur-xs flex justify-end"
           onClick={() => setBagOpen(false)}
         >
           <div
@@ -211,29 +285,44 @@ export function UnifiedGwoNav() {
                     Your bag is empty
                   </p>
                   <p className="text-xs text-[#686D76]">
-                    Tap + Bag on any outfit piece in Closet, Runway, or 360° View.
+                    Tap + Bag on any outfit piece or paste a store URL.
                   </p>
                 </div>
               ) : (
                 bagItems.map((item) => (
                   <div
                     key={item.id}
-                    className="p-4 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] flex items-center justify-between gap-3"
+                    className="p-3.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] flex items-center justify-between gap-3"
                   >
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#686D76]">
-                        {item.brand} • Size {item.size}
-                      </p>
-                      <p className="text-sm font-semibold text-[#141518] truncate mt-0.5">
-                        {item.title}
-                      </p>
-                      {item.friendRef && (
-                        <p className="text-[11px] text-[#244B3B] font-medium mt-0.5">
-                          Friend Closet Credit: {item.friendRef}
-                        </p>
+                    <div className="flex items-center gap-3 min-w-0">
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.title}
+                          className="w-14 h-16 rounded-xl object-cover bg-white border border-black/[0.06] shrink-0"
+                        />
+                      ) : (
+                        <div className="w-14 h-16 rounded-xl bg-[#EAECEF] flex items-center justify-center text-[10px] font-bold text-[#686D76] shrink-0">
+                          {item.brand.slice(0, 4).toUpperCase()}
+                        </div>
                       )}
+
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-[#686D76]">
+                          {item.brand} • Size {item.size}
+                        </p>
+                        <p className="text-sm font-semibold text-[#141518] truncate mt-0.5">
+                          {item.title}
+                        </p>
+                        {item.friendRef && (
+                          <p className="text-[11px] text-[#244B3B] font-medium mt-0.5">
+                            Friend Closet Credit: {item.friendRef}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
+
+                    <div className="flex items-center gap-2.5 shrink-0">
                       <span className="text-sm font-bold text-[#141518]">
                         ${item.price}
                       </span>
@@ -261,7 +350,7 @@ export function UnifiedGwoNav() {
                   </span>
                 </div>
                 <a
-                  href={bagItems[0]?.storeUrl || "https://www.nike.com/w/womens-clothing-5e1x6z6ymx6"}
+                  href={bagItems[bagItems.length - 1]?.storeUrl || "https://skims.com"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full py-3.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold flex items-center justify-center gap-2 transition"
@@ -274,14 +363,15 @@ export function UnifiedGwoNav() {
         </div>
       )}
 
-      {/* ==================== SIMPLE 1-STEP "ADD STORE LINK" MODAL ==================== */}
+      {/* ==================== "ADD STORE LINK" MODAL WITH LIVE CLOTHING IMAGE PREVIEW ==================== */}
       {addUrlModalOpen && (
         <div
-          className="fixed inset-0 z-[70] bg-black/35 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-[120] bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
           onClick={() => setAddUrlModalOpen(false)}
+          onPaste={handlePasteClipboardImage}
         >
           <div
-            className="w-full max-w-lg rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-black/[0.08] space-y-4"
+            className="w-full max-w-xl rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-black/[0.08] space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -290,7 +380,7 @@ export function UnifiedGwoNav() {
                   Add Any Store Piece to GWO
                 </h3>
                 <p className="text-xs text-[#686D76] mt-1">
-                  Paste a product link from Nike, Skims, Reformation, or any boutique. Once added, it&apos;s saved in GWO&apos;s shared closet for you and your friends.
+                  Paste a product link (or direct clothing image link) from SKIMS, Reformation, Princess Polly, Nike, or any store to pull its photo into your Closet &amp; Avatar.
                 </p>
               </div>
               <button
@@ -306,55 +396,165 @@ export function UnifiedGwoNav() {
               <div className="relative flex-1">
                 <Link2 className="w-4 h-4 text-[#8A9099] absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
+                  id="gwo-url-input"
                   type="url"
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
-                  placeholder="https://www.nike.com/t/..."
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && urlInput.trim() && !importing) {
+                      void handleImportSubmit();
+                    }
+                  }}
+                  placeholder="Paste product URL or image URL..."
                   className="w-full pl-10 pr-4 py-2.5 rounded-full text-xs sm:text-sm bg-[#F4F5F7] border border-black/[0.08] focus:outline-none focus:border-[#141518]"
                 />
               </div>
               <button
                 type="button"
+                id="gwo-url-submit-btn"
                 disabled={importing || !urlInput.trim()}
-                onClick={() => handleImportSubmit()}
-                className="px-5 py-2.5 rounded-full text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer"
+                onClick={() => void handleImportSubmit()}
+                className="px-5 py-2.5 rounded-full text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer shrink-0"
               >
                 {importing ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Adding...
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Fetching Photo...
                   </>
                 ) : (
-                  "Add Piece"
+                  "Import Piece"
                 )}
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] text-[#686D76]">
-              <span>Try a quick link:</span>
-              {[
-                {
-                  label: "Nike Phoenix Hoodie",
-                  url: "https://www.nike.com/t/sportswear-phoenix-fleece-womens-oversized-pullover-hoodie",
-                },
-                {
-                  label: "Alo Airlift Legging",
-                  url: "https://www.aloyoga.com/products/w5766r-high-waist-airlift-legging-espresso",
-                },
-                {
-                  label: "SKIMS Cotton Tee",
-                  url: "https://skims.com/products/cotton-jersey-t-shirt-soot",
-                },
-              ].map((s) => (
+            {/* Quick Verified Sample Store Links */}
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[#686D76]">
+              <span>Try a live store link:</span>
+              {QUICK_SAMPLE_LINKS.map((s) => (
                 <button
                   key={s.label}
                   type="button"
-                  onClick={() => handleImportSubmit(s.url)}
-                  className="px-2.5 py-1 rounded-full bg-[#F1F2F5] hover:bg-[#E5E7EC] text-[#141518] font-medium cursor-pointer"
+                  disabled={importing}
+                  onClick={() => void handleImportSubmit(s.url)}
+                  className="px-2.5 py-1 rounded-full bg-[#F1F2F5] hover:bg-[#E5E7EC] text-[#141518] font-semibold cursor-pointer"
                 >
                   + {s.label}
                 </button>
               ))}
             </div>
+
+            {/* ==================== IMPORTED CLOTHING PHOTO PREVIEW CARD ==================== */}
+            {previewProduct && (
+              <div
+                id="gwo-imported-preview-card"
+                className="rounded-2xl bg-[#F6F7F9] border border-black/[0.08] p-4 space-y-3"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-28 h-36 rounded-2xl overflow-hidden bg-white border border-black/[0.07] shrink-0 shadow-xs">
+                    <GarmentArtwork product={previewProduct} className="w-full h-full" />
+                  </div>
+
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#E7F3EE] text-[#244B3B]">
+                        {previewProduct.brand} • {previewProduct.category}
+                      </span>
+                      <span className="text-sm font-bold text-[#141518]">
+                        ${previewProduct.price}
+                      </span>
+                    </div>
+
+                    <h4 className="text-sm font-bold text-[#141518] leading-snug">
+                      {previewProduct.title}
+                    </h4>
+
+                    <p className="text-xs text-[#686D76]">
+                      Saved to your Shared Closet &amp; Outfit Bag • Recommended Size:{" "}
+                      <strong className="text-[#141518]">S</strong>
+                    </p>
+
+                    {/* Optional 1-Click Photo Override if a bot-protected site (e.g. SHEIN) hid its og:image */}
+                    {!previewProduct.imageUrl && (
+                      <div className="p-2.5 rounded-xl bg-white border border-black/[0.08] space-y-2">
+                        <p className="text-[11px] text-[#5C5550] leading-snug">
+                          <strong>{previewProduct.brand}</strong> blocked auto-photo scraping—paste{" "}
+                          <kbd className="px-1 py-0.5 rounded bg-[#F1F2F5] text-[10px]">Ctrl+V</kbd>{" "}
+                          a screenshot, upload a photo, or paste the image address:
+                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            ref={photoFileRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleManualPhotoFile}
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => photoFileRef.current?.click()}
+                            className="px-2.5 py-1.5 rounded-lg bg-[#141518] text-white text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer shrink-0"
+                          >
+                            <ImagePlus className="w-3 h-3" /> Upload Photo
+                          </button>
+                          <input
+                            type="url"
+                            value={manualImgUrl}
+                            onChange={(e) => setManualImgUrl(e.target.value)}
+                            placeholder="Or paste image address..."
+                            className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-[#F4F5F7] border border-black/10 text-[11px]"
+                          />
+                          {manualImgUrl.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateImportedProductImage(
+                                  previewProduct.id,
+                                  manualImgUrl.trim()
+                                );
+                                setPreviewProduct((prev) =>
+                                  prev
+                                    ? { ...prev, imageUrl: manualImgUrl.trim() }
+                                    : null
+                                );
+                                setManualImgUrl("");
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg bg-[#244B3B] text-white text-[11px] font-semibold cursor-pointer"
+                            >
+                              Apply
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        id="gwo-try-imported-on-avatar-btn"
+                        onClick={() => {
+                          setActiveImportedProduct(previewProduct);
+                          setAddUrlModalOpen(false);
+                          if (cleanPath !== "/" && cleanPath !== "/closet") {
+                            router.push("/");
+                          }
+                        }}
+                        className="px-4 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" />
+                        Try On My Avatar <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setAddUrlModalOpen(false)}
+                        className="px-3.5 py-2 rounded-full bg-white hover:bg-[#ECEEF2] border border-black/10 text-xs font-semibold text-[#141518] cursor-pointer"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

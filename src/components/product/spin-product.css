@@ -5,6 +5,8 @@
   --line: #b9bcc2;
 
   position: relative;
+  isolation: isolate;
+  z-index: 1;
   height: calc(100svh - 64px);
   width: 100%;
   overflow: hidden;

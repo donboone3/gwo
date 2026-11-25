@@ -24,6 +24,10 @@ import {
   loadStoredCustomerAvatar,
   saveStoredCustomerAvatar,
 } from "@/lib/avatar/customer-avatar";
+import {
+  getSafeClothingImageUrl,
+  scrapeProductInBrowser,
+} from "@/lib/catalog/client-url-scraper";
 
 interface TelemetryData {
   ledger: ComputeBudgetLedger;
@@ -40,6 +44,7 @@ export interface UnifiedBagItem {
   brand: string;
   price: number;
   size: string;
+  imageUrl?: string;
   friendRef?: string;
   storeUrl?: string;
 }
@@ -77,6 +82,9 @@ interface GwoContextValue {
   removeFromBag: (id: string) => void;
   addUrlModalOpen: boolean;
   setAddUrlModalOpen: (open: boolean) => void;
+  activeImportedProduct: Product | null;
+  setActiveImportedProduct: (prod: Product | null) => void;
+  updateImportedProductImage: (productId: string, imageUrl: string) => void;
   customAvatar: CustomerAvatarData | null;
   saveCustomAvatar: (avatar: CustomerAvatarData) => void;
   clearCustomAvatar: () => void;
@@ -130,12 +138,16 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       brand: "GWO Studio",
       price: 38,
       size: "S",
+      imageUrl:
+        "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=320&q=80",
       friendRef: "MAYA-GWO",
     },
   ]);
   const [bagOpen, setBagOpen] = useState(false);
   const [bagBump, setBagBump] = useState(false);
   const [addUrlModalOpen, setAddUrlModalOpen] = useState(false);
+  const [activeImportedProduct, setActiveImportedProduct] =
+    useState<Product | null>(null);
   const [customAvatar, setCustomAvatar] = useState<CustomerAvatarData | null>(null);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
 
@@ -387,9 +399,31 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeProductIds, refreshState, showToast, user?.username]);
 
+  const updateImportedProductImage = useCallback(
+    (productId: string, rawImgUrl: string) => {
+      const safeImg = getSafeClothingImageUrl(rawImgUrl, 720) || rawImgUrl;
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, imageUrl: safeImg } : p))
+      );
+      setActiveImportedProduct((prev) =>
+        prev && prev.id === productId ? { ...prev, imageUrl: safeImg } : prev
+      );
+      setBagItems((prev) =>
+        prev.map((b, idx) =>
+          idx === prev.length - 1 ? { ...b, imageUrl: safeImg } : b
+        )
+      );
+      showToast("Attached clothing photo to your piece!");
+    },
+    [showToast]
+  );
+
   const ingestUrlToSharedCatalog = useCallback(
     async (url: string) => {
       const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      let serverProduct: Product | null = null;
+      let serverStatus = "newly_scraped_to_shared_db";
+
       try {
         const res = await fetch(`${base}/api/catalog/ingest`, {
           method: "POST",
@@ -399,68 +433,87 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         if (res.ok) {
           const data = await res.json();
           await refreshState();
-          const label =
-            data.status === "shared_cache_hit"
-              ? "Instant Shared-DB Hit ($0 scrape cost)!"
-              : data.status === "refreshed_after_3_days"
-              ? "Refreshed stale (>3d) catalog item for all girls!"
-              : `Saved ${data.product.brand} piece to GWO Shared Closet!`;
-          showToast(label);
-          return data as { product: Product; status: string };
+          serverProduct = data.product as Product;
+          serverStatus = data.status;
         }
       } catch {
-        // Static export fallback below
+        // Static export mode: proceed to live browser scraper
       }
 
-      // Client-side fallback for static GitHub Pages preview
-      let parsedHost = "store.com";
-      let slugTitle = "Imported Store Piece";
-      try {
-        const u = new URL(url);
-        parsedHost = u.hostname.replace(/^www\./, "");
-        const lastSeg = u.pathname.split("/").filter(Boolean).pop() || "";
-        if (lastSeg) {
-          slugTitle = lastSeg
-            .replace(/[-_]+/g, " ")
-            .replace(/\b\w/g, (c) => c.toUpperCase());
-        }
-      } catch {
-        // Keep defaults
-      }
-      const brandGuess = parsedHost.split(".")[0]?.toUpperCase() || "STORE";
-      const existing = products.find((p) => p.canonicalUrl === url);
-      if (existing) {
+      if (serverProduct && serverProduct.imageUrl) {
+        const hydrated: Product = {
+          ...serverProduct,
+          imageUrl: getSafeClothingImageUrl(serverProduct.imageUrl, 720),
+        };
+        setProducts((prev) => [
+          hydrated,
+          ...prev.filter((p) => p.id !== hydrated.id),
+        ]);
+        setActiveImportedProduct(hydrated);
         addToBag({
-          brand: existing.brand,
-          title: existing.title,
-          price: existing.price,
+          brand: hydrated.brand,
+          title: hydrated.title,
+          price: hydrated.price,
           size: "S",
-          storeUrl: existing.canonicalUrl,
+          imageUrl: hydrated.imageUrl,
+          storeUrl: hydrated.canonicalUrl,
         });
-        showToast(`Instant Shared-Closet Hit: ${existing.brand} ${existing.title} added!`);
-        return { product: existing, status: "shared_cache_hit" };
+        showToast(`Imported ${hydrated.brand} ${hydrated.title} with photo!`);
+        return { product: hydrated, status: serverStatus };
       }
 
-      const fallbackProduct: Product = {
-        ...(INITIAL_SEED_DB.products[0] as Product),
-        id: `prod_client_${Date.now()}`,
-        canonicalUrl: url,
-        storeDomain: parsedHost,
-        brand: brandGuess,
-        title: slugTitle,
-        price: 78,
-        sourceType: "scraped_url",
-      };
-      setProducts((prev) => [fallbackProduct, ...prev]);
+      // Live Browser Scraper (works on static GitHub Pages AND when server lacked image!)
+      const existingWithImg = products.find(
+        (p) => p.canonicalUrl === url.trim() && Boolean(p.imageUrl)
+      );
+      if (existingWithImg) {
+        setActiveImportedProduct(existingWithImg);
+        addToBag({
+          brand: existingWithImg.brand,
+          title: existingWithImg.title,
+          price: existingWithImg.price,
+          size: "S",
+          imageUrl: existingWithImg.imageUrl,
+          storeUrl: existingWithImg.canonicalUrl,
+        });
+        showToast(
+          `Shared-Closet Hit: ${existingWithImg.brand} ${existingWithImg.title}!`
+        );
+        return { product: existingWithImg, status: "shared_cache_hit" };
+      }
+
+      const browserScraped = await scrapeProductInBrowser(url);
+      const mergedProduct: Product = serverProduct
+        ? {
+            ...serverProduct,
+            title:
+              browserScraped.product.title || serverProduct.title,
+            price:
+              browserScraped.product.price || serverProduct.price,
+            imageUrl:
+              browserScraped.product.imageUrl || serverProduct.imageUrl,
+          }
+        : browserScraped.product;
+
+      setProducts((prev) => [
+        mergedProduct,
+        ...prev.filter((p) => p.canonicalUrl !== mergedProduct.canonicalUrl),
+      ]);
+      setActiveImportedProduct(mergedProduct);
       addToBag({
-        brand: fallbackProduct.brand,
-        title: fallbackProduct.title,
-        price: fallbackProduct.price,
+        brand: mergedProduct.brand,
+        title: mergedProduct.title,
+        price: mergedProduct.price,
         size: "S",
-        storeUrl: url,
+        imageUrl: mergedProduct.imageUrl,
+        storeUrl: mergedProduct.canonicalUrl,
       });
-      showToast(`Added ${brandGuess} ${slugTitle} to GWO Closet & Bag!`);
-      return { product: fallbackProduct, status: "fresh_scrape_saved" };
+      showToast(
+        mergedProduct.imageUrl
+          ? `Imported ${mergedProduct.brand} ${mergedProduct.title}!`
+          : `Added ${mergedProduct.brand} piece—paste or upload its photo if blocked by store`
+      );
+      return { product: mergedProduct, status: "newly_scraped_to_shared_db" };
     },
     [addToBag, products, refreshState, showToast, user?.username]
   );
@@ -589,6 +642,9 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         removeFromBag,
         addUrlModalOpen,
         setAddUrlModalOpen,
+        activeImportedProduct,
+        setActiveImportedProduct,
+        updateImportedProductImage,
         customAvatar,
         saveCustomAvatar,
         clearCustomAvatar,
