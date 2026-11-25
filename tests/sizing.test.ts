@@ -15,8 +15,9 @@ describe("Exact Profile Sizing & Body-Twin Friend Engine", () => {
     resetTestMemoryDb();
   });
 
-  it("defaults the Signature Avatar profile to 32.25 bust, 27 waist, and 34 hips", async () => {
+  it("defaults the Signature Avatar profile to 5'2\" (62 in), 32.25 bust, 27 waist, and 34 hips", async () => {
     const mila = await getActiveUser("mila");
+    expect(mila.heightInches).toBe(62);
     expect(mila.bustInches).toBe(32.25);
     expect(mila.waistInches).toBe(27);
     expect(mila.hipsInches).toBe(34);

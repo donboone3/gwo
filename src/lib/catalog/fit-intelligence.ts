@@ -955,7 +955,11 @@ export function analyzeExactAvatarFit(
       proportionNote = `${curveComparison}${meta.inseamInches}" inseam: at ${avatarHeightStr} (vs ${modelHeightLabel} model), hem falls ~${legShift}" ${lowerOrHigher} at the ankle/shoe.`;
     } else {
       const cfInfo = sizeLen ? ` (${sizeLen}" CF length)` : "";
-      proportionNote = `${curveComparison}At ${avatarHeightStr} vs the ${modelHeightLabel} model${cfInfo}, expect the skirt/dress hem to sit ~${legShift}" ${lowerOrHigher} on the thigh/leg.`;
+      const petiteStrapTip =
+        avatar.heightInches <= 63 && meta.hasAdjustableBack
+          ? ` Shorten the adjustable straps ~0.75" so the waist seam aligns with your ${avatarHeightStr} petite torso.`
+          : "";
+      proportionNote = `${curveComparison}At ${avatarHeightStr} vs the ${modelHeightLabel} model${cfInfo}, expect the skirt/dress hem to sit ~${legShift}" ${lowerOrHigher} on the thigh/leg.${petiteStrapTip}`;
     }
   }
 

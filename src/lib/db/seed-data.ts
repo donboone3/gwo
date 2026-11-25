@@ -31,7 +31,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       bio: "Pilates mornings, iced matcha & neutral capsule layers.",
       skinTone: "#D9A482",
       hairStyle: "waves-espresso",
-      heightInches: 65, // 5'5"
+      heightInches: 62, // 5'2"
       bustInches: 32.25,
       waistInches: 27,
       hipsInches: 34,
@@ -50,7 +50,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       bio: "Sneaker collector + vintage Reformation dresses. Borrow anytime!",
       skinTone: "#E7BA9E",
       hairStyle: "sleek-bun-blonde",
-      heightInches: 65, // 5'5" — 98% Body Twin to Signature Avatar!
+      heightInches: 62, // 5'2" — 98% Body Twin to Signature Avatar!
       bustInches: 32.5,
       waistInches: 27,
       hipsInches: 34.5,
@@ -632,7 +632,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       productId: "prod-pp-denim",
       purchasedSize: "S",
       fitRating: "true_to_size",
-      reviewNote: "Perfect puddle drape with sneakers at 5'5\".",
+      reviewNote: "Perfect puddle drape with platform sneakers at 5'2\".",
       isPublic: true,
       timesWorn: 14,
       createdAt: nowIso,
@@ -644,7 +644,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       productId: "prod-nike-phoenix-hoodie",
       purchasedSize: "XS",
       fitRating: "runs_large",
-      reviewNote: "Super oversized drop shoulder! Size down to XS if you're ~5'5\" so sleeves don't swallow your hands.",
+      reviewNote: "Super oversized drop shoulder! Size down to XS if you're ~5'2\" so sleeves don't swallow your hands.",
       isPublic: true,
       timesWorn: 18,
       createdAt: nowIso,

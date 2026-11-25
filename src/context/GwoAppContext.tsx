@@ -213,7 +213,7 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
     let savedPatch: Partial<UserProfile> = {};
     if (typeof window !== "undefined") {
       try {
-        const raw = window.localStorage.getItem("gwo_fit_profile_v2");
+        const raw = window.localStorage.getItem("gwo_fit_profile_v3");
         if (raw) savedPatch = JSON.parse(raw) as Partial<UserProfile>;
       } catch {
         // Ignore storage parse error
@@ -611,10 +611,10 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
     async (patch: Partial<UserProfile>) => {
       if (typeof window !== "undefined") {
         try {
-          const prevRaw = window.localStorage.getItem("gwo_fit_profile_v2");
+          const prevRaw = window.localStorage.getItem("gwo_fit_profile_v3");
           const prevObj = prevRaw ? (JSON.parse(prevRaw) as Partial<UserProfile>) : {};
           window.localStorage.setItem(
-            "gwo_fit_profile_v2",
+            "gwo_fit_profile_v3",
             JSON.stringify({ ...prevObj, ...patch })
           );
         } catch {

@@ -10,7 +10,7 @@ export const DEFAULT_AVATAR_MEASUREMENTS = {
   bustInches: 32.25,
   waistInches: 27,
   hipsInches: 34,
-  heightInches: 65,
+  heightInches: 62, // 5'2"
 } as const;
 
 export function deriveStandardApparelSize(

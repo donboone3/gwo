@@ -93,9 +93,9 @@ function buildDefaultTurntableProduct(name: string, price: number): Product {
       storeFitTendency: "true_to_size",
       hemLanding: "cropped",
       modelStats: {
-        rawText: "Studio 360° Avatar is 5'5\" wearing Size S (32.25\" B • 27\" W • 34\" H)",
-        heightInches: 65,
-        heightDisplay: "5'5\"",
+        rawText: "Studio 360° Avatar is 5'2\" wearing Size S (32.25\" B • 27\" W • 34\" H)",
+        heightInches: 62,
+        heightDisplay: "5'2\"",
         wornSize: "S",
         bustInches: 32.25,
         waistInches: 27,
@@ -646,8 +646,8 @@ export function GwoSpinProduct() {
     activeHeight % 12
   )}"`;
 
-  const avatarScaleRatio = clamp(activeHeight / Math.max(modelHeightIn, activeHeight), 0.84, 1);
-  const modelScaleRatio = clamp(modelHeightIn / Math.max(modelHeightIn, activeHeight), 0.84, 1);
+  const avatarScaleRatio = clamp(activeHeight / Math.max(modelHeightIn, activeHeight), 0.78, 1);
+  const modelScaleRatio = clamp(modelHeightIn / Math.max(modelHeightIn, activeHeight), 0.78, 1);
 
   return (
     <div className="sp-root" ref={rootRef}>
@@ -1269,21 +1269,27 @@ export function GwoSpinProduct() {
                 Best Match: Size {liveFitReport.recommendedSize}
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-1.5 text-center">
-              <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+            <div className="grid grid-cols-4 gap-1.5 text-center">
+              <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
+                  Height
+                </p>
+                <p className="text-xs font-bold text-[#141518]">{avatarHeightDisp}</p>
+              </div>
+              <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
                   Bust
                 </p>
                 <p className="text-xs font-bold text-[#141518]">{activeBust}&quot;</p>
               </div>
-              <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+              <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
                   Waist
                 </p>
                 <p className="text-xs font-bold text-[#141518]">{activeWaist}&quot;</p>
               </div>
-              <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+              <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
                   Hips
                 </p>
                 <p className="text-xs font-bold text-[#141518]">{activeHips}&quot;</p>

@@ -10,7 +10,7 @@ const SIGNATURE_AVATAR = {
   bustInches: 32.25,
   waistInches: 27,
   hipsInches: 34,
-  heightInches: 65, // 5'5"
+  heightInches: 62, // 5'2"
   shoeSize: "7.5",
 };
 
@@ -96,7 +96,7 @@ describe("Live Store PDP Fit, Model Stats & Exact Avatar Fit Engine", () => {
     // Recommended size must be S (fits 27" waist inside 25.75-27.25" spec)
     const recReport = analyzeExactAvatarFit(SIGNATURE_AVATAR, rigidDress);
     expect(recReport.recommendedSize).toBe("S");
-    expect(recReport.lengthComparison.heightDiffInches).toBe(-4);
+    expect(recReport.lengthComparison.heightDiffInches).toBe(-7);
 
     // Simulating XS on rigid silk must flag Waist as too_tight!
     const xsReport = analyzeExactAvatarFit(SIGNATURE_AVATAR, rigidDress, "XS");

@@ -581,25 +581,33 @@ export function VellGwoStudio() {
 
               {!editingFit ? (
                 <div className="space-y-1.5">
-                  <div className="grid grid-cols-3 gap-1.5 text-center">
-                    <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+                  <div className="grid grid-cols-4 gap-1.5 text-center">
+                    <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
+                        Height
+                      </p>
+                      <p className="text-xs font-bold text-[#141518]">
+                        {Math.floor(activeHeight / 12)}&apos;{Math.round(activeHeight % 12)}&quot;
+                      </p>
+                    </div>
+                    <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
                         Bust
                       </p>
                       <p className="text-xs font-bold text-[#141518]">
                         {activeBust}&quot;
                       </p>
                     </div>
-                    <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+                    <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
                         Waist
                       </p>
                       <p className="text-xs font-bold text-[#141518]">
                         {activeWaist}&quot;
                       </p>
                     </div>
-                    <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+                    <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
                         Hips
                       </p>
                       <p className="text-xs font-bold text-[#141518]">
@@ -608,8 +616,7 @@ export function VellGwoStudio() {
                     </div>
                   </div>
                   <p className="text-[11px] text-[#686D76]">
-                    {Math.floor(activeHeight / 12)}&apos;{Math.round(activeHeight % 12)}&quot; • Shoe{" "}
-                    {user?.shoeSize || "7.5"} • Best Fit:{" "}
+                    Petite Frame ({activeHeight}&quot;) • Shoe {user?.shoeSize || "7.5"} • Best Fit:{" "}
                     <strong className="text-[#244B3B]">Size {recSize}</strong>
                   </p>
                 </div>

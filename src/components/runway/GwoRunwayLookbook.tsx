@@ -127,6 +127,10 @@ export function GwoRunwayLookbook() {
   const activeBust = user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches;
   const activeWaist = user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches;
   const activeHips = user?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches;
+  const activeHeight = user?.heightInches ?? DEFAULT_AVATAR_MEASUREMENTS.heightInches;
+  const activeHeightStr = `${Math.floor(activeHeight / 12)}'${Math.round(
+    activeHeight % 12
+  )}"`;
   const recSize = deriveStandardApparelSize({
     bustInches: activeBust,
     waistInches: activeWaist,
@@ -529,8 +533,8 @@ export function GwoRunwayLookbook() {
           <div className="mv-intro space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 border border-black/[0.06] text-[11px] font-bold text-[#244B3B]">
-                <Ruler className="w-3 h-3" /> {activeBust}&quot; B • {activeWaist}&quot; W •{" "}
-                {activeHips}&quot; H (Size {recSize})
+                <Ruler className="w-3 h-3" /> {activeHeightStr} • {activeBust}&quot; B •{" "}
+                {activeWaist}&quot; W • {activeHips}&quot; H (Size {recSize})
               </div>
               <button
                 type="button"
