@@ -28,6 +28,7 @@ import {
   getSafeClothingImageUrl,
   scrapeProductInBrowser,
 } from "@/lib/catalog/client-url-scraper";
+import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 
 interface TelemetryData {
   ledger: ComputeBudgetLedger;
@@ -452,11 +453,30 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         // Static export mode: proceed to live browser scraper
       }
 
-      if (serverProduct && serverProduct.imageUrl) {
+      const activeProfile = user || INITIAL_SEED_DB.profiles[0];
+
+      // Only short-circuit before Jina browser enrichment if serverProduct already has verified /products/ gallery + modelStats!
+      if (
+        serverProduct &&
+        serverProduct.imageUrl &&
+        /\/products\/|\/files\//i.test(serverProduct.imageUrl) &&
+        (serverProduct.fitMetadata?.galleryImages?.length || 0) >= 2 &&
+        Boolean(serverProduct.fitMetadata?.modelStats)
+      ) {
         const hydrated: Product = {
           ...serverProduct,
-          imageUrl: getSafeClothingImageUrl(serverProduct.imageUrl, 720),
+          imageUrl: getSafeClothingImageUrl(serverProduct.imageUrl, 960),
+          fitMetadata: serverProduct.fitMetadata
+            ? {
+                ...serverProduct.fitMetadata,
+                galleryImages: serverProduct.fitMetadata.galleryImages?.map((g) => ({
+                  ...g,
+                  url: getSafeClothingImageUrl(g.url, 960) || g.url,
+                })),
+              }
+            : undefined,
         };
+        const fitRec = analyzeExactAvatarFit(activeProfile, hydrated);
         setProducts((prev) => [
           hydrated,
           ...prev.filter((p) => p.id !== hydrated.id),
@@ -466,30 +486,36 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
           brand: hydrated.brand,
           title: hydrated.title,
           price: hydrated.price,
-          size: "S",
+          size: fitRec.recommendedSize,
           imageUrl: hydrated.imageUrl,
           storeUrl: hydrated.canonicalUrl,
         });
-        showToast(`Imported ${hydrated.brand} ${hydrated.title} with photo!`);
+        showToast(
+          `Matched ${hydrated.brand} ${hydrated.title} → Size ${fitRec.recommendedSize} (${fitRec.confidencePct}% Fit)`
+        );
         return { product: hydrated, status: serverStatus };
       }
 
-      // Live Browser Scraper (works on static GitHub Pages AND when server lacked image!)
+      // Live Browser Scraper (runs on static GitHub Pages AND enriches server scrape with multi-angle Jina markdown!)
       const existingWithImg = products.find(
-        (p) => p.canonicalUrl === url.trim() && Boolean(p.imageUrl)
+        (p) =>
+          p.canonicalUrl === url.trim() &&
+          Boolean(p.imageUrl) &&
+          Boolean(p.fitMetadata)
       );
       if (existingWithImg) {
+        const fitRec = analyzeExactAvatarFit(activeProfile, existingWithImg);
         setActiveImportedProduct(existingWithImg);
         addToBag({
           brand: existingWithImg.brand,
           title: existingWithImg.title,
           price: existingWithImg.price,
-          size: "S",
+          size: fitRec.recommendedSize,
           imageUrl: existingWithImg.imageUrl,
           storeUrl: existingWithImg.canonicalUrl,
         });
         showToast(
-          `Shared-Closet Hit: ${existingWithImg.brand} ${existingWithImg.title}!`
+          `${existingWithImg.brand} ${existingWithImg.title} → Size ${fitRec.recommendedSize} (${fitRec.confidencePct}% Exact Fit)`
         );
         return { product: existingWithImg, status: "shared_cache_hit" };
       }
@@ -498,14 +524,22 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       const mergedProduct: Product = serverProduct
         ? {
             ...serverProduct,
-            title:
-              browserScraped.product.title || serverProduct.title,
-            price:
-              browserScraped.product.price || serverProduct.price,
+            brand: browserScraped.product.brand || serverProduct.brand,
+            title: browserScraped.product.title || serverProduct.title,
+            price: browserScraped.product.price || serverProduct.price,
             imageUrl:
-              browserScraped.product.imageUrl || serverProduct.imageUrl,
+              browserScraped.product.imageUrl ||
+              getSafeClothingImageUrl(serverProduct.imageUrl, 960),
+            sizeChartInches:
+              Object.keys(browserScraped.product.sizeChartInches || {}).length > 0
+                ? browserScraped.product.sizeChartInches
+                : serverProduct.sizeChartInches,
+            fitMetadata:
+              browserScraped.product.fitMetadata || serverProduct.fitMetadata,
           }
         : browserScraped.product;
+
+      const fitRec = analyzeExactAvatarFit(activeProfile, mergedProduct);
 
       setProducts((prev) => [
         mergedProduct,
@@ -516,18 +550,18 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         brand: mergedProduct.brand,
         title: mergedProduct.title,
         price: mergedProduct.price,
-        size: "S",
+        size: fitRec.recommendedSize,
         imageUrl: mergedProduct.imageUrl,
         storeUrl: mergedProduct.canonicalUrl,
       });
       showToast(
         mergedProduct.imageUrl
-          ? `Imported ${mergedProduct.brand} ${mergedProduct.title}!`
-          : `Added ${mergedProduct.brand} piece—paste or upload its photo if blocked by store`
+          ? `Extracted Fit & Photos: Size ${fitRec.recommendedSize} (${fitRec.confidencePct}% Match)`
+          : `Calculated Size ${fitRec.recommendedSize} Fit—paste or upload photo if store blocked image`
       );
       return { product: mergedProduct, status: "newly_scraped_to_shared_db" };
     },
-    [addToBag, products, refreshState, showToast, user?.username]
+    [addToBag, products, refreshState, showToast, user]
   );
 
   const addToMyCloset = useCallback(

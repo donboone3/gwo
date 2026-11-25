@@ -25,6 +25,49 @@ export type GarmentSilhouette =
 
 export type FitRating = "runs_small" | "true_to_size" | "runs_large";
 
+export type FabricStretchLevel = "rigid" | "low" | "medium" | "high";
+
+export type GarmentCutType = "body-hugging" | "fitted" | "regular" | "oversized";
+
+export type HemLandingType =
+  | "cropped"
+  | "natural-waist"
+  | "hip"
+  | "mini"
+  | "midi"
+  | "maxi"
+  | "ankle"
+  | "full-length";
+
+export interface StoreModelStats {
+  rawText?: string;
+  heightInches?: number;
+  heightDisplay?: string;
+  wornSize?: string;
+  bustInches?: number;
+  waistInches?: number;
+  hipsInches?: number;
+}
+
+export interface ProductGalleryAngle {
+  url: string;
+  label: string;
+}
+
+export interface ProductFitMetadata {
+  descriptionSummary?: string;
+  fitNotes: string[];
+  fabricComposition?: string;
+  elastanePct?: number;
+  stretchLevel: FabricStretchLevel;
+  cutType: GarmentCutType;
+  storeFitTendency: FitRating;
+  hemLanding?: HemLandingType;
+  inseamInches?: number;
+  modelStats?: StoreModelStats;
+  galleryImages?: ProductGalleryAngle[];
+}
+
 export interface SizeMeasurementSpec {
   bustMin?: number;
   bustMax?: number;
@@ -48,6 +91,7 @@ export interface Product {
   price: number;
   currency: string;
   imageUrl?: string;
+  fitMetadata?: ProductFitMetadata;
   occasions: string[];
   vibes: string[];
   availableSizes: string[];

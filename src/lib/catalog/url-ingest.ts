@@ -5,8 +5,13 @@ import {
   GarmentCategory,
   GarmentSilhouette,
   Product,
+  ProductGalleryAngle,
   SizeMeasurementSpec,
 } from "../types";
+import {
+  extractProductFitProfile,
+  upgradeCdnImageResolution,
+} from "./fit-intelligence";
 import {
   getProductByCanonicalUrl,
   upsertSharedProduct,
@@ -141,13 +146,24 @@ export function inferColorPalette(text: string): {
 
 function formatBrandFromDomain(hostname: string): string {
   const clean = hostname
-    .replace(/^(www\.|us\.|shop\.|store\.)/i, "")
+    .replace(/^(www\.|us\.|m\.|shop\.|store\.)/i, "")
     .split(".")[0];
-  if (clean.toLowerCase() === "thereformation") return "Reformation";
-  if (clean.toLowerCase() === "princesspolly") return "Princess Polly";
-  if (clean.toLowerCase() === "skims") return "SKIMS";
-  if (clean.toLowerCase() === "nike") return "Nike";
-  return clean.charAt(0).toUpperCase() + clean.slice(1);
+  const map: Record<string, string> = {
+    thereformation: "Reformation",
+    princesspolly: "Princess Polly",
+    skims: "SKIMS",
+    nike: "Nike",
+    vuoriclothing: "Vuori",
+    outdoorvoices: "Outdoor Voices",
+    aloyoga: "Alo Yoga",
+    aritzia: "Aritzia",
+    lululemon: "Lululemon",
+    shein: "SHEIN",
+    zara: "Zara",
+    revolve: "Revolve",
+    gymshark: "Gymshark",
+  };
+  return map[clean.toLowerCase()] || clean.charAt(0).toUpperCase() + clean.slice(1);
 }
 
 export function parseProductFromHtml(
@@ -250,6 +266,27 @@ export function parseProductFromHtml(
     `${title} ${urlObj.pathname}`
   );
 
+  const metaDesc =
+    $('meta[property="og:description"]').attr("content") ||
+    $('meta[name="description"]').attr("content") ||
+    "";
+  const bodySnippet = $("main, article, [class*='product'], body")
+    .first()
+    .text()
+    .replace(/\s+/g, " ")
+    .slice(0, 6000);
+  const galleryImages: ProductGalleryAngle[] | undefined = imageUrl
+    ? [{ url: upgradeCdnImageResolution(imageUrl), label: "Model Front" }]
+    : undefined;
+  const { fitMetadata, calibratedChart } = extractProductFitProfile({
+    rawText: `${metaDesc}\n${bodySnippet}`,
+    title,
+    brand,
+    category,
+    silhouette,
+    galleryImages,
+  });
+
   return {
     canonicalUrl,
     brand,
@@ -262,14 +299,16 @@ export function parseProductFromHtml(
     accentHex,
     price,
     currency: "USD",
-    imageUrl,
+    imageUrl: imageUrl ? upgradeCdnImageResolution(imageUrl) : undefined,
+    fitMetadata,
     occasions: ["Coffee Run", "Weekend Trip", "Date Night"],
     vibes: ["Model Off-Duty", "Clean Girl Athleisure"],
     availableSizes:
       category === "shoes"
         ? ["6", "6.5", "7", "7.5", "8", "8.5", "9"]
         : ["XS", "S", "M", "L", "XL"],
-    sizeChartInches: category === "shoes" ? {} : DEFAULT_WOMEN_SIZE_CHART,
+    sizeChartInches:
+      category === "shoes" ? {} : calibratedChart || DEFAULT_WOMEN_SIZE_CHART,
     estDeliveryDays: 4,
     inStock,
   };
@@ -301,6 +340,23 @@ async function extractLiveProduct(
           const { colorName, colorHex, accentHex } = inferColorPalette(
             `${title} ${variant?.title || ""}`
           );
+          const bodyPlain = p.body_html
+            ? cheerio.load(String(p.body_html)).text()
+            : "";
+          const shopifyGallery: ProductGalleryAngle[] = Array.isArray(p.images)
+            ? p.images.slice(0, 5).map((im: { src?: string }, idx: number) => ({
+                url: upgradeCdnImageResolution(String(im?.src || "")),
+                label: idx === 0 ? "Model Front" : `Model Angle ${idx + 1}`,
+              }))
+            : [];
+          const { fitMetadata, calibratedChart } = extractProductFitProfile({
+            rawText: `${bodyPlain}\n${Array.isArray(p.tags) ? p.tags.join(", ") : p.tags || ""}`,
+            title,
+            brand: p.vendor || formatBrandFromDomain(urlObj.hostname),
+            category,
+            silhouette,
+            galleryImages: shopifyGallery.length > 0 ? shopifyGallery : undefined,
+          });
           return {
             canonicalUrl,
             brand: p.vendor || formatBrandFromDomain(urlObj.hostname),
@@ -313,21 +369,166 @@ async function extractLiveProduct(
             accentHex,
             price: Number(variant?.price || 68),
             currency: "USD",
-            imageUrl: p.image?.src || p.images?.[0]?.src,
+            imageUrl: shopifyGallery[0]?.url || p.image?.src || p.images?.[0]?.src,
+            fitMetadata,
             occasions: ["Coffee Run", "Date Night", "Campus / Class"],
             vibes: ["Model Off-Duty", "Clean Girl Athleisure"],
             availableSizes:
               category === "shoes"
                 ? ["6.5", "7", "7.5", "8", "8.5"]
-                : ["XS", "S", "M", "L"],
-            sizeChartInches: category === "shoes" ? {} : DEFAULT_WOMEN_SIZE_CHART,
+                : ["XS", "S", "M", "L", "XL"],
+            sizeChartInches: category === "shoes" ? {} : calibratedChart,
             estDeliveryDays: 4,
             inStock: variant?.available !== false,
           };
         }
       }
     } catch {
-      // Proceed to Tier 2 / Tier 3
+      // Proceed to Tier 1B / Tier 2
+    }
+  }
+
+  // Tier 1B: Fast Jina Reader Markdown + Multi-Angle Images Summary (<2s, captures alt-labeled PDP galleries & model stats!)
+  if (!process.env.VITEST) {
+    try {
+      const jinaRes = await fetch(`https://r.jina.ai/${canonicalUrl}`, {
+        headers: {
+          Accept: "application/json",
+          "X-Return-Format": "markdown",
+          "X-With-Images-Summary": "true",
+          "User-Agent": "Mozilla/5.0 (compatible; GWOCatalogBot/1.0)",
+        },
+        signal: AbortSignal.timeout(8500),
+      });
+      if (jinaRes.ok) {
+        const jinaJson = await jinaRes.json();
+        const pageTitle = String(jinaJson?.data?.title || "").trim();
+        const content = String(jinaJson?.data?.content || "");
+        const blocked =
+          /404 not found|verify you are human|access denied|just a moment/i.test(
+            `${pageTitle} ${content.slice(0, 260)}`
+          );
+
+        if (!blocked && content.length > 200) {
+          const cleanTitle =
+            pageTitle.split(/\s+[|\-–—]\s+/)[0].trim() || "Curated Store Piece";
+          const brandName = formatBrandFromDomain(urlObj.hostname);
+          const { category, silhouette } = inferCategoryAndSilhouette(
+            `${cleanTitle} ${urlObj.pathname}`
+          );
+          const { colorName, colorHex, accentHex } = inferColorPalette(
+            `${cleanTitle} ${urlObj.pathname}`
+          );
+
+          const priceMatch = content.match(
+            /\$\s?([1-9][0-9]{1,3}(?:\.[0-9]{2})?)/
+          );
+          const parsedPrice = priceMatch ? Number(priceMatch[1]) : 68;
+
+          const imgsObj = jinaJson?.data?.images as
+            | Record<string, string>
+            | undefined;
+          const galleryAngles: ProductGalleryAngle[] = [];
+          if (imgsObj && typeof imgsObj === "object") {
+            const kw = cleanTitle
+              .toLowerCase()
+              .split(/\s+/)
+              .filter((w) => w.length >= 3 && !/^(the|and|for|womens|women)$/.test(w));
+
+            const scored = Object.entries(imgsObj)
+              .map(([alt, rawU]) => {
+                const u = String(rawU);
+                if (
+                  !u.startsWith("http") ||
+                  /\.svg|\.ico|favicon|logo|kustomer|okendo|flags\/|335x184/i.test(
+                    `${u} ${alt}`
+                  ) ||
+                  /\bmens\b|\bkids\b/i.test(alt)
+                ) {
+                  return null;
+                }
+                const up = upgradeCdnImageResolution(u);
+                let s = 0;
+                for (const w of kw) {
+                  if (alt.toLowerCase().includes(w) || up.toLowerCase().includes(w)) {
+                    s += 20;
+                  }
+                }
+                if (/\/products\/|\/files\/|-fr\.|-bk\.|-flt/i.test(up)) s += 25;
+                if (/on a model|front view|image \d/i.test(alt)) s += 20;
+                if (
+                  /[?&]w=1(&|$)|[?&]h=205(&|$)|skims-sanity\.imgix\.net|images\.contentstack\.io/i.test(
+                    u
+                  )
+                ) {
+                  s -= 60;
+                }
+                return {
+                  alt,
+                  url: up,
+                  baseKey: up.split("?")[0].replace(/_\d+x\d*\./, "."),
+                  score: s,
+                };
+              })
+              .filter((x): x is NonNullable<typeof x> => x !== null && x.score >= 10)
+              .sort((a, b) => b.score - a.score);
+
+            const seen = new Set<string>();
+            for (const item of scored) {
+              if (seen.has(item.baseKey)) continue;
+              seen.add(item.baseKey);
+              const lower = `${item.alt} ${item.url}`.toLowerCase();
+              const label = /flat|-flt\b/.test(lower)
+                ? "Flat-Lay Cut"
+                : /back|-bk\b/.test(lower)
+                ? "Model Back"
+                : galleryAngles.length === 0
+                ? "Model Front"
+                : `Model Angle ${galleryAngles.length + 1}`;
+              galleryAngles.push({ url: item.url, label });
+              if (galleryAngles.length >= 5) break;
+            }
+          }
+
+          if (galleryAngles.length > 0) {
+            const { fitMetadata, calibratedChart } = extractProductFitProfile({
+              rawText: content,
+              title: cleanTitle,
+              brand: brandName,
+              category,
+              silhouette,
+              galleryImages: galleryAngles,
+            });
+
+            return {
+              canonicalUrl,
+              brand: brandName,
+              storeDomain: urlObj.hostname.replace(/^www\./, ""),
+              title: cleanTitle,
+              category,
+              silhouette,
+              colorName,
+              colorHex,
+              accentHex,
+              price: parsedPrice >= 8 && parsedPrice <= 2500 ? parsedPrice : 68,
+              currency: "USD",
+              imageUrl: galleryAngles[0].url,
+              fitMetadata,
+              occasions: ["Coffee Run", "Weekend Trip", "Date Night"],
+              vibes: ["Model Off-Duty", "Clean Girl Athleisure"],
+              availableSizes:
+                category === "shoes"
+                  ? ["6", "6.5", "7", "7.5", "8", "8.5", "9"]
+                  : ["XS", "S", "M", "L", "XL"],
+              sizeChartInches: category === "shoes" ? {} : calibratedChart,
+              estDeliveryDays: 4,
+              inStock: true,
+            };
+          }
+        }
+      }
+    } catch {
+      // Proceed to Tier 2
     }
   }
 
@@ -365,12 +566,12 @@ async function extractLiveProduct(
         process.platform === "win32"
           ? await execFileAsync(
               "cmd.exe",
-              ["/d", "/s", "/c", "firecrawl.cmd", "scrape", "-f", "images", "--json", canonicalUrl],
+              ["/d", "/s", "/c", "firecrawl.cmd", "scrape", "-f", "markdown,images", "--json", canonicalUrl],
               { timeout: 14000, maxBuffer: 8 * 1024 * 1024 }
             )
           : await execFileAsync(
               "firecrawl",
-              ["scrape", "-f", "images", "--json", canonicalUrl],
+              ["scrape", "-f", "markdown,images", "--json", canonicalUrl],
               { timeout: 14000, maxBuffer: 8 * 1024 * 1024 }
             );
 
@@ -418,9 +619,43 @@ async function extractLiveProduct(
             const rawPrice = Number(
               meta["product:price:amount"] || meta["og:price:amount"] || 68
             );
+            const fcGallery: ProductGalleryAngle[] = [];
+            if (fcImg) {
+              fcGallery.push({
+                url: upgradeCdnImageResolution(fcImg),
+                label: "Model Front",
+              });
+            }
+            if (Array.isArray(fc.images)) {
+              for (const u of fc.images) {
+                if (
+                  typeof u === "string" &&
+                  u.startsWith("http") &&
+                  !/favicon|logo|flags\/|\.svg|w=1&|h=10|100x100|200x200|kustomer/i.test(u)
+                ) {
+                  const up = upgradeCdnImageResolution(u);
+                  if (!fcGallery.some((g) => g.url.split("?")[0] === up.split("?")[0])) {
+                    fcGallery.push({
+                      url: up,
+                      label: `Model Angle ${fcGallery.length + 1}`,
+                    });
+                  }
+                  if (fcGallery.length >= 5) break;
+                }
+              }
+            }
+            const brandName = formatBrandFromDomain(urlObj.hostname);
+            const { fitMetadata, calibratedChart } = extractProductFitProfile({
+              rawText: String(fc.markdown || meta.description || cleanTitle),
+              title: cleanTitle,
+              brand: brandName,
+              category,
+              silhouette,
+              galleryImages: fcGallery.length > 0 ? fcGallery : undefined,
+            });
             return {
               canonicalUrl,
-              brand: formatBrandFromDomain(urlObj.hostname),
+              brand: brandName,
               storeDomain: urlObj.hostname.replace(/^www\./, ""),
               title: cleanTitle,
               category,
@@ -430,7 +665,8 @@ async function extractLiveProduct(
               accentHex,
               price: rawPrice > 0 ? rawPrice : 68,
               currency: "USD",
-              imageUrl: fcImg,
+              imageUrl: fcGallery[0]?.url || fcImg,
+              fitMetadata,
               occasions: ["Coffee Run", "Weekend Trip", "Date Night"],
               vibes: ["Model Off-Duty", "Clean Girl Athleisure"],
               availableSizes:
@@ -438,7 +674,7 @@ async function extractLiveProduct(
                   ? ["6", "6.5", "7", "7.5", "8", "8.5", "9"]
                   : ["XS", "S", "M", "L", "XL"],
               sizeChartInches:
-                category === "shoes" ? {} : DEFAULT_WOMEN_SIZE_CHART,
+                category === "shoes" ? {} : calibratedChart,
               estDeliveryDays: 4,
               inStock: true,
             };

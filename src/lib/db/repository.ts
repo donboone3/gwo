@@ -53,15 +53,17 @@ export function readLocalDb(): LocalDatabaseSchema {
 }
 
 export function writeLocalDb(db: LocalDatabaseSchema): void {
-  memoryFallback = db;
-  if (process.env.VITEST) return;
+  if (process.env.VITEST) {
+    memoryFallback = db;
+    return;
+  }
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(db, null, 2), "utf-8");
   } catch {
-    // Serverless read-only FS fallback uses in-memory store until Supabase env vars are attached
+    memoryFallback = db;
   }
 }
 

@@ -23,9 +23,9 @@ import { CustomerAvatarModal } from "../avatar/CustomerAvatarModal";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
 import { useGwo } from "@/context/GwoAppContext";
+import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 import {
   DEFAULT_AVATAR_MEASUREMENTS,
-  deriveStandardApparelSize,
 } from "@/lib/catalog/sizing";
 import { Product } from "@/lib/types";
 
@@ -78,15 +78,29 @@ export function UnifiedGwoNav() {
   const [urlInput, setUrlInput] = useState("");
   const [importing, setImporting] = useState(false);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
+  const [previewAngleIdx, setPreviewAngleIdx] = useState(0);
   const [manualImgUrl, setManualImgUrl] = useState("");
 
   const bagTotal = bagItems.reduce((sum, item) => sum + item.price, 0);
+
+  const activeAvatarStats = {
+    bustInches: user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches,
+    waistInches: user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches,
+    hipsInches: user?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches,
+    heightInches: user?.heightInches ?? DEFAULT_AVATAR_MEASUREMENTS.heightInches,
+    shoeSize: user?.shoeSize || "7.5",
+  };
+
+  const previewFitReport = previewProduct
+    ? analyzeExactAvatarFit(activeAvatarStats, previewProduct)
+    : null;
 
   const handleImportSubmit = async (sample?: string) => {
     const target = (sample ?? urlInput).trim();
     if (!target) return;
     setImporting(true);
     setPreviewProduct(null);
+    setPreviewAngleIdx(0);
     try {
       const res = await ingestUrlToSharedCatalog(target);
       if (res?.product) {
@@ -435,21 +449,60 @@ export function UnifiedGwoNav() {
               ))}
             </div>
 
-            {/* ==================== IMPORTED CLOTHING PHOTO PREVIEW CARD ==================== */}
-            {previewProduct && (
+            {/* ==================== IMPORTED CLOTHING PHOTO + EXACT FIT PREVIEW CARD ==================== */}
+            {previewProduct && previewFitReport && (
               <div
                 id="gwo-imported-preview-card"
-                className="rounded-2xl bg-[#F6F7F9] border border-black/[0.08] p-4 space-y-3"
+                className="rounded-2xl bg-[#F6F7F9] border border-black/[0.08] p-4 space-y-3.5 max-h-[62vh] overflow-y-auto"
               >
-                <div className="flex items-start gap-4">
-                  <div className="w-28 h-36 rounded-2xl overflow-hidden bg-white border border-black/[0.07] shrink-0 shadow-xs">
-                    <GarmentArtwork product={previewProduct} className="w-full h-full" />
+                <div className="flex flex-col sm:flex-row items-start gap-4">
+                  {/* Left: Hero + Multi-Angle Thumbnail Strip */}
+                  <div className="w-full sm:w-36 shrink-0 space-y-2">
+                    <div className="w-full h-44 rounded-2xl overflow-hidden bg-white border border-black/[0.07] shadow-xs">
+                      <GarmentArtwork
+                        product={{
+                          ...previewProduct,
+                          imageUrl:
+                            previewProduct.fitMetadata?.galleryImages?.[
+                              previewAngleIdx
+                            ]?.url || previewProduct.imageUrl,
+                        }}
+                        className="w-full h-full"
+                      />
+                    </div>
+
+                    {(previewProduct.fitMetadata?.galleryImages?.length || 0) > 1 && (
+                      <div className="grid grid-cols-4 gap-1">
+                        {previewProduct.fitMetadata!.galleryImages!
+                          .slice(0, 4)
+                          .map((ang, idx) => (
+                            <button
+                              key={ang.url}
+                              type="button"
+                              onClick={() => setPreviewAngleIdx(idx)}
+                              title={ang.label}
+                              className={`h-11 rounded-lg overflow-hidden border bg-white cursor-pointer ${
+                                previewAngleIdx === idx
+                                  ? "border-[#141518] ring-1 ring-[#141518]"
+                                  : "border-black/10 opacity-75 hover:opacity-100"
+                              }`}
+                            >
+                              <img
+                                src={ang.url}
+                                alt={ang.label}
+                                className="w-full h-full object-cover object-top"
+                              />
+                            </button>
+                          ))}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex-1 min-w-0 space-y-2">
+                  {/* Right: Extracted Fit, Model Sizing & Avatar Match */}
+                  <div className="flex-1 min-w-0 space-y-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#E7F3EE] text-[#244B3B]">
-                        {previewProduct.brand} • {previewProduct.category}
+                        {previewProduct.brand} • {previewFitReport.confidencePct}% Fit Match
                       </span>
                       <span className="text-sm font-bold text-[#141518]">
                         ${previewProduct.price}
@@ -460,20 +513,51 @@ export function UnifiedGwoNav() {
                       {previewProduct.title}
                     </h4>
 
-                    <p className="text-xs text-[#686D76]">
-                      Matched to{" "}
-                      <strong className="text-[#141518]">
-                        {user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches}&quot; B •{" "}
-                        {user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches}&quot; W •{" "}
-                        {user?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches}&quot; H
-                      </strong>{" "}
-                      • Recommended Size:{" "}
-                      <strong className="text-[#244B3B]">
-                        {deriveStandardApparelSize(user)}
-                      </strong>
-                    </p>
+                    {/* Exact Avatar Size Verdict Banner */}
+                    <div className="p-2.5 rounded-xl bg-white border border-[#CBE2D4] space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-[#1D4232]">
+                          Recommended for Your Avatar: Size{" "}
+                          {previewFitReport.recommendedSize}
+                        </span>
+                        <span className="text-[10px] font-semibold text-[#686D76]">
+                          {activeAvatarStats.bustInches}&quot; •{" "}
+                          {activeAvatarStats.waistInches}&quot; •{" "}
+                          {activeAvatarStats.hipsInches}&quot;
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#4E5A54] leading-snug">
+                        {previewFitReport.headlineVerdict}
+                      </p>
+                      {previewFitReport.zones.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {previewFitReport.zones.map((z) => (
+                            <span
+                              key={z.zone}
+                              className="px-2 py-0.5 rounded-md bg-[#F4F8F5] text-[10px] font-semibold text-[#141518] border border-black/[0.05]"
+                            >
+                              {z.zone}: {z.feelLabel}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
-                    {/* Optional 1-Click Photo Override if a bot-protected site (e.g. SHEIN) hid its og:image */}
+                    {/* Extracted Store Model + Fabric Proof */}
+                    <div className="text-[11px] text-[#5C6068] space-y-1">
+                      <p>
+                        <strong className="text-[#141518]">
+                          {previewFitReport.lengthComparison.modelSummary}
+                        </strong>{" "}
+                        — {previewFitReport.lengthComparison.proportionNote}
+                      </p>
+                      <p>
+                        <strong className="text-[#141518]">Fabric &amp; Cut:</strong>{" "}
+                        {previewFitReport.fabricSummary}
+                      </p>
+                    </div>
+
+                    {/* Optional 1-Click Photo Override if a bot-protected site hid its og:image */}
                     {!previewProduct.imageUrl && (
                       <div className="p-2.5 rounded-xl bg-white border border-black/[0.08] space-y-2">
                         <p className="text-[11px] text-[#5C5550] leading-snug">
@@ -530,6 +614,23 @@ export function UnifiedGwoNav() {
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       <button
                         type="button"
+                        id="gwo-open-fit-inspector-btn"
+                        onClick={() => {
+                          setActiveImportedProduct(previewProduct);
+                          setAddUrlModalOpen(false);
+                          router.push(
+                            `/product?id=${encodeURIComponent(previewProduct.id)}`
+                          );
+                        }}
+                        className="px-4 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" />
+                        Inspect Exact Fit &amp; Angles{" "}
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
                         id="gwo-try-imported-on-avatar-btn"
                         onClick={() => {
                           setActiveImportedProduct(previewProduct);
@@ -538,18 +639,9 @@ export function UnifiedGwoNav() {
                             router.push("/");
                           }
                         }}
-                        className="px-4 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" />
-                        Try On My Avatar <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setAddUrlModalOpen(false)}
                         className="px-3.5 py-2 rounded-full bg-white hover:bg-[#ECEEF2] border border-black/10 text-xs font-semibold text-[#141518] cursor-pointer"
                       >
-                        Done
+                        Pin in Closet
                       </button>
                     </div>
                   </div>

@@ -1,27 +1,35 @@
 "use client";
 
-import { GarmentCategory, GarmentSilhouette, Product, SizeMeasurementSpec } from "../types";
-
-const DEFAULT_CHART: Record<string, SizeMeasurementSpec> = {
-  XS: { bustMin: 30, bustMax: 32.5, waistMin: 23.5, waistMax: 25.5, hipsMin: 33.5, hipsMax: 35.5 },
-  S: { bustMin: 32.5, bustMax: 35, waistMin: 25.5, waistMax: 28, hipsMin: 35.5, hipsMax: 38 },
-  M: { bustMin: 35, bustMax: 37.5, waistMin: 28, waistMax: 30.5, hipsMin: 38, hipsMax: 40.5 },
-  L: { bustMin: 37.5, bustMax: 40.5, waistMin: 30.5, waistMax: 33.5, hipsMin: 40.5, hipsMax: 43.5 },
-  XL: { bustMin: 40.5, bustMax: 44, waistMin: 33.5, waistMax: 37, hipsMin: 43.5, hipsMax: 47 },
-};
+import {
+  GarmentCategory,
+  GarmentSilhouette,
+  Product,
+  ProductGalleryAngle,
+} from "../types";
+import {
+  extractProductFitProfile,
+  upgradeCdnImageResolution,
+} from "./fit-intelligence";
 
 /**
- * Proxies external e-commerce CDN images through wsrv.nl when needed so hotlink-protected
- * stores (SHEIN, Zara, Revolve, Shopify imgix, etc.) always render cleanly with CORS.
+ * Upgrades CDN thumbnail parameters to HD and proxies external e-commerce images
+ * through wsrv.nl so hotlink-protected stores always render cleanly with CORS.
  */
-export function getSafeClothingImageUrl(rawImgUrl?: string, width = 640): string | undefined {
+export function getSafeClothingImageUrl(
+  rawImgUrl?: string,
+  width = 880
+): string | undefined {
   if (!rawImgUrl) return undefined;
   const trimmed = rawImgUrl.trim();
   if (!trimmed) return undefined;
   if (trimmed.startsWith("data:") || trimmed.startsWith("blob:")) return trimmed;
-  if (trimmed.includes("images.higgs.ai") || trimmed.includes("wsrv.nl")) return trimmed;
-  const normalized = trimmed.startsWith("//") ? `https:${trimmed}` : trimmed;
-  return `https://wsrv.nl/?url=${encodeURIComponent(normalized)}&w=${width}&output=webp&q=85`;
+  if (trimmed.includes("images.higgs.ai") || trimmed.includes("wsrv.nl")) {
+    return trimmed;
+  }
+  const upgraded = upgradeCdnImageResolution(trimmed);
+  return `https://wsrv.nl/?url=${encodeURIComponent(
+    upgraded
+  )}&w=${width}&output=webp&q=86`;
 }
 
 export function isDirectImageUrl(url: string): boolean {
@@ -35,11 +43,9 @@ export function isJunkIconOrLogo(imgUrl: string, alt = ""): boolean {
     imgUrl.startsWith("blob:") ||
     /\.svg(\?|$)/i.test(imgUrl) ||
     /\.ico(\?|$)/i.test(imgUrl) ||
-    /favicon|android-chrome|apple-touch-icon|logo|sprite|flags\/|flag\.vercel|badge|pixel|1x1|blank\.gif|okendo.*200x200/i.test(
+    /favicon|android-chrome|apple-touch-icon|logo|sprite|flags\/|flag\.vercel|badge|pixel|1x1|blank\.gif|kustomer|okendo|moisture_wicking|4-way_stretch|recycled_materials|335x184/i.test(
       s
-    ) ||
-    /[?&]w=1(&|$)/i.test(imgUrl) ||
-    /[?&]h=10(&|$)/i.test(imgUrl)
+    )
   ) {
     return true;
   }
@@ -58,7 +64,10 @@ function inferClientCategory(text: string): {
     return { category: "shoes", silhouette: "ballet-flats" };
   }
   if (/(dress|gown|romper|jumpsuit)/.test(t)) {
-    return { category: "dress", silhouette: /mini/.test(t) ? "mini-dress" : "slip-dress" };
+    return {
+      category: "dress",
+      silhouette: /mini|exercise/.test(t) ? "mini-dress" : "slip-dress",
+    };
   }
   if (/(hoodie|sweatshirt|fleece|pullover)/.test(t)) {
     return { category: "outerwear", silhouette: "oversized-hoodie" };
@@ -105,8 +114,8 @@ function inferClientColor(text: string): {
   if (/(brown|espresso|cacao|chocolate|mocha|truffle)/.test(t)) {
     return { colorName: "Espresso", colorHex: "#3C2A24", accentHex: "#FAF8F5" };
   }
-  if (/(white|cream|ivory|sail|alabaster|bone)/.test(t)) {
-    return { colorName: "Studio Cream", colorHex: "#F4EFE6", accentHex: "#181615" };
+  if (/(white|cream|ivory|sail|alabaster|bone|pale grey|heather)/.test(t)) {
+    return { colorName: "Studio Cream", colorHex: "#ECEAE4", accentHex: "#181615" };
   }
   if (/(green|sage|olive|matcha|emerald)/.test(t)) {
     return { colorName: "Sage Olive", colorHex: "#4E6B58", accentHex: "#FAF8F5" };
@@ -133,6 +142,8 @@ function formatBrand(hostname: string): string {
     shein: "SHEIN",
     aritzia: "Aritzia",
     lululemon: "Lululemon",
+    vuoriclothing: "Vuori",
+    outdoorvoices: "Outdoor Voices",
     zara: "Zara",
     revolve: "Revolve",
     gymshark: "Gymshark",
@@ -140,65 +151,109 @@ function formatBrand(hostname: string): string {
   return map[clean.toLowerCase()] || clean.charAt(0).toUpperCase() + clean.slice(1);
 }
 
+function labelAngleFromText(alt: string, url: string, idx: number): string {
+  const s = `${alt} ${url}`.toLowerCase();
+  if (/flat|-flt\b|laydown|packshot/.test(s)) return "Flat-Lay Cut";
+  if (/back view|-bk\b|_back|rear/.test(s)) return "Model Back";
+  if (/side view|-sd\b|_side|profile/.test(s)) return "Model Side";
+  if (/detail|close[\s-]?up|fabric|zoom/.test(s)) return "Fabric Detail";
+  if (/front view|-fr\b|_front/.test(s) || idx === 0) return "Model Front";
+  return `Model Angle ${idx + 1}`;
+}
+
 /**
- * Ranks all candidate images from a scraped product page to pick the main hero clothing image.
+ * Extracts up to 5 deduplicated, high-res multi-angle photos belonging to the main product
+ * (filtering out cross-sell footer recommendations).
  */
+export function extractProductGalleryAngles(
+  candidates: Array<{ alt: string; url: string }>,
+  titleKeywords: string[]
+): ProductGalleryAngle[] {
+  const scored: Array<{ alt: string; url: string; baseKey: string; score: number }> = [];
+
+  for (const { alt, url } of candidates) {
+    if (!url || isJunkIconOrLogo(url, alt)) continue;
+    const upgraded = upgradeCdnImageResolution(url);
+    const lowerAlt = alt.toLowerCase();
+    const lowerUrl = upgraded.toLowerCase();
+
+    // Reject obvious cross-sell men's/kids items when scraping women's product
+    if (/\bmens\b|\bkids\b|boxer brief/.test(lowerAlt)) continue;
+
+    let score = 0;
+    let keywordHits = 0;
+    for (const kw of titleKeywords) {
+      if (kw.length >= 3 && (lowerAlt.includes(kw) || lowerUrl.includes(kw))) {
+        score += 20;
+        keywordHits++;
+      }
+    }
+
+    if (/\/products\/|\/files\/|pdp|front|-flt|-fr\.|-bk\./i.test(upgraded)) {
+      score += 24;
+    }
+    if (/on a model|front view|back view|image \d/i.test(lowerAlt)) {
+      score += 22;
+    }
+    // Penalize cross-sell tiny cards on SKIMS (w=1&h=1 or h=205) and generic CMS hero banners (contentstack/sanity)
+    if (
+      /[?&]w=1(&|$)|[?&]h=205(&|$)|skims-sanity\.imgix\.net|images\.contentstack\.io/i.test(
+        url
+      )
+    ) {
+      score -= 55;
+    }
+    if (keywordHits === 0 && titleKeywords.length >= 2) {
+      score -= 15;
+    }
+
+    const baseKey = upgraded.split("?")[0].replace(/_\d+x\d*\./, ".");
+    scored.push({ alt, url: upgraded, baseKey, score });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const seenBase = new Set<string>();
+  const angles: ProductGalleryAngle[] = [];
+
+  for (const item of scored) {
+    if (item.score < 5 && angles.length > 0) break;
+    if (seenBase.has(item.baseKey)) continue;
+    seenBase.add(item.baseKey);
+
+    const safeUrl = getSafeClothingImageUrl(item.url, 960);
+    if (!safeUrl) continue;
+
+    angles.push({
+      url: safeUrl,
+      label: labelAngleFromText(item.alt, item.url, angles.length),
+    });
+    if (angles.length >= 5) break;
+  }
+
+  return angles;
+}
+
 export function pickBestHeroProductImage(
   candidates: Array<{ alt: string; url: string }>,
   titleKeywords: string[]
 ): string | undefined {
-  let bestUrl: string | undefined;
-  let bestScore = -999;
-
-  for (const { alt, url } of candidates) {
-    if (!url || isJunkIconOrLogo(url, alt)) continue;
-    let score = 0;
-    const lowerAlt = alt.toLowerCase();
-    const lowerUrl = url.toLowerCase();
-
-    // Match title/slug words
-    for (const kw of titleKeywords) {
-      if (kw.length >= 3 && (lowerAlt.includes(kw) || lowerUrl.includes(kw))) {
-        score += 18;
-      }
-    }
-
-    // Prefer high-resolution PDP images
-    if (/w=(1[0-9]{3}|2[0-9]{3})|t_pdp_1728|t_pdp_1280|t_pdp_864|_grande|2000x|1200x/i.test(url)) {
-      score += 35;
-    }
-    if (/\/products\/|\/files\/|pdp|front|-flt|-fr\./i.test(url)) {
-      score += 20;
-    }
-    if (/front view|flat|on a model/i.test(lowerAlt)) {
-      score += 25;
-    }
-
-    // Penalize tiny nav/recommendation thumbnails
-    if (/[?&](w|h)=(87|100|160|176|200|205)(&|$)|100x100|335x184/i.test(url)) {
-      score -= 35;
-    }
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestUrl = url;
-    }
-  }
-
-  return bestUrl;
+  const gallery = extractProductGalleryAngles(candidates, titleKeywords);
+  return gallery[0]?.url;
 }
 
 export interface BrowserScrapeResult {
   product: Product;
-  /** True if the store gated automated scraping behind a bot wall so user can optionally paste/drop an image */
   needsManualPhotoHint: boolean;
 }
 
 /**
- * Browser-side live product extractor for static deployments (GitHub Pages).
- * Uses Jina Reader CORS JSON + Microlink fallback + direct image URL support.
+ * Browser-side live product + fit intelligence extractor for static deployments (GitHub Pages).
+ * Pulls multi-angle photos, store model height/size, fabric composition, stretch, and fit notes!
  */
-export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScrapeResult> {
+export async function scrapeProductInBrowser(
+  rawUrl: string
+): Promise<BrowserScrapeResult> {
   const trimmed = rawUrl.trim();
   const normalizedUrl = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
 
@@ -212,7 +267,6 @@ export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScr
   const host = parsedUrl.hostname.replace(/^www\./, "");
   const brand = formatBrand(host);
 
-  // Extract readable slug fallback from URL path
   const rawSlug =
     parsedUrl.pathname
       .split("/")
@@ -223,10 +277,18 @@ export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScr
     .replace(/[-_]+/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
-  // Case 1: User pasted a direct clothing image URL (e.g. Copy Image Address from SHEIN/Zara/etc.)
   if (isDirectImageUrl(normalizedUrl)) {
     const { category, silhouette } = inferClientCategory(cleanSlugTitle);
     const { colorName, colorHex, accentHex } = inferClientColor(cleanSlugTitle);
+    const heroImg = getSafeClothingImageUrl(normalizedUrl, 960);
+    const { fitMetadata, calibratedChart } = extractProductFitProfile({
+      rawText: cleanSlugTitle,
+      title: cleanSlugTitle,
+      brand,
+      category,
+      silhouette,
+      galleryImages: heroImg ? [{ url: heroImg, label: "Product Photo" }] : undefined,
+    });
     const nowIso = new Date().toISOString();
     return {
       needsManualPhotoHint: false,
@@ -243,11 +305,15 @@ export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScr
         accentHex,
         price: 58,
         currency: "USD",
-        imageUrl: getSafeClothingImageUrl(normalizedUrl, 720),
+        imageUrl: heroImg,
+        fitMetadata,
         occasions: ["Everyday", "Going Out"],
         vibes: ["Curated Closet"],
-        availableSizes: category === "shoes" ? ["6.5", "7", "7.5", "8", "8.5"] : ["XS", "S", "M", "L"],
-        sizeChartInches: category === "shoes" ? {} : DEFAULT_CHART,
+        availableSizes:
+          category === "shoes"
+            ? ["6.5", "7", "7.5", "8", "8.5"]
+            : ["XS", "S", "M", "L", "XL"],
+        sizeChartInches: category === "shoes" ? {} : calibratedChart,
         estDeliveryDays: 4,
         inStock: true,
         sourceType: "scraped_url",
@@ -258,10 +324,11 @@ export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScr
   }
 
   let extractedTitle = "";
-  let extractedImage: string | undefined;
   let extractedPrice = 0;
+  let pdpMarkdown = "";
+  let galleryAngles: ProductGalleryAngle[] = [];
 
-  // Case 2: Jina Reader CORS JSON with Images Summary (works directly from GitHub Pages with ACAO!)
+  // Tier 1: Jina Reader CORS JSON with full Markdown + Images Summary
   try {
     const jinaRes = await fetch(`https://r.jina.ai/${normalizedUrl}`, {
       headers: {
@@ -269,7 +336,7 @@ export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScr
         "X-Return-Format": "markdown",
         "X-With-Images-Summary": "true",
       },
-      signal: AbortSignal.timeout(9500),
+      signal: AbortSignal.timeout(10500),
     });
     if (jinaRes.ok) {
       const json = await jinaRes.json();
@@ -281,10 +348,10 @@ export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScr
         );
 
       if (!blocked) {
+        pdpMarkdown = content;
         if (pageTitle && !/^nike store\.|^gymshark$/i.test(pageTitle)) {
           extractedTitle = pageTitle.split(/\s+[|\-–—]\s+/)[0].trim();
         }
-        // Extract price like $48 or $128.00 from markdown content
         const priceMatch = content.match(/\$\s?([1-9][0-9]{1,3}(?:\.[0-9]{2})?)/);
         if (priceMatch) {
           const p = Number(priceMatch[1]);
@@ -300,8 +367,8 @@ export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScr
           const kwSource = `${extractedTitle || cleanSlugTitle}`
             .toLowerCase()
             .split(/\s+/)
-            .filter((w) => w.length >= 3);
-          extractedImage = pickBestHeroProductImage(candidates, kwSource);
+            .filter((w) => w.length >= 3 && !/^(the|and|for|with|womens|women)$/.test(w));
+          galleryAngles = extractProductGalleryAngles(candidates, kwSource);
         }
       }
     }
@@ -309,8 +376,8 @@ export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScr
     // Fall through to Microlink backup
   }
 
-  // Case 3: Microlink OpenGraph backup if Jina didn't find an image
-  if (!extractedImage) {
+  // Tier 2: Microlink OpenGraph backup if Jina didn't find an image
+  if (galleryAngles.length === 0) {
     try {
       const mlRes = await fetch(
         `https://api.microlink.io/?url=${encodeURIComponent(normalizedUrl)}`,
@@ -319,15 +386,22 @@ export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScr
       if (mlRes.ok) {
         const ml = await mlRes.json();
         const mlTitle = String(ml?.data?.title || "");
+        const mlDesc = String(ml?.data?.description || "");
         const mlImg = String(ml?.data?.image?.url || "");
         if (
           mlImg &&
           !/404 not found|just a moment|verify you are human/i.test(mlTitle) &&
           !isJunkIconOrLogo(mlImg, mlTitle)
         ) {
-          extractedImage = mlImg;
+          const safeHero = getSafeClothingImageUrl(mlImg, 960);
+          if (safeHero) {
+            galleryAngles = [{ url: safeHero, label: "Model Front" }];
+          }
           if (!extractedTitle && mlTitle) {
             extractedTitle = mlTitle.split(/\s+[|\-–—]\s+/)[0].trim();
+          }
+          if (!pdpMarkdown && mlDesc) {
+            pdpMarkdown = mlDesc;
           }
         }
       }
@@ -337,12 +411,25 @@ export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScr
   }
 
   const finalTitle = extractedTitle || cleanSlugTitle;
-  const { category, silhouette } = inferClientCategory(`${finalTitle} ${parsedUrl.pathname}`);
-  const { colorName, colorHex, accentHex } = inferClientColor(`${finalTitle} ${parsedUrl.pathname}`);
+  const { category, silhouette } = inferClientCategory(
+    `${finalTitle} ${parsedUrl.pathname}`
+  );
+  const { colorName, colorHex, accentHex } = inferClientColor(
+    `${finalTitle} ${parsedUrl.pathname}`
+  );
+  const { fitMetadata, calibratedChart } = extractProductFitProfile({
+    rawText: pdpMarkdown || finalTitle,
+    title: finalTitle,
+    brand,
+    category,
+    silhouette,
+    galleryImages: galleryAngles.length > 0 ? galleryAngles : undefined,
+  });
+
   const nowIso = new Date().toISOString();
 
   return {
-    needsManualPhotoHint: !extractedImage,
+    needsManualPhotoHint: galleryAngles.length === 0,
     product: {
       id: `prod_url_${Date.now()}`,
       canonicalUrl: normalizedUrl,
@@ -356,11 +443,15 @@ export async function scrapeProductInBrowser(rawUrl: string): Promise<BrowserScr
       accentHex,
       price: extractedPrice || 68,
       currency: "USD",
-      imageUrl: extractedImage ? getSafeClothingImageUrl(extractedImage, 720) : undefined,
+      imageUrl: galleryAngles[0]?.url,
+      fitMetadata,
       occasions: ["Everyday", "Going Out", "Weekend"],
       vibes: ["Model Off-Duty", "Clean Girl"],
-      availableSizes: category === "shoes" ? ["6.5", "7", "7.5", "8", "8.5"] : ["XS", "S", "M", "L"],
-      sizeChartInches: category === "shoes" ? {} : DEFAULT_CHART,
+      availableSizes:
+        category === "shoes"
+          ? ["6.5", "7", "7.5", "8", "8.5"]
+          : ["XS", "S", "M", "L", "XL"],
+      sizeChartInches: category === "shoes" ? {} : calibratedChart,
       estDeliveryDays: 4,
       inStock: true,
       sourceType: "scraped_url",

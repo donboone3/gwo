@@ -26,6 +26,7 @@ import {
 } from "./vell-data";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { useGwo } from "@/context/GwoAppContext";
+import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 import {
   DEFAULT_AVATAR_MEASUREMENTS,
   deriveStandardApparelSize,
@@ -107,6 +108,20 @@ export function VellGwoStudio() {
     waistInches: activeWaist,
     hipsInches: activeHips,
   });
+
+  const activeImportedFit = useMemo(() => {
+    if (!activeImportedProduct) return null;
+    return analyzeExactAvatarFit(
+      {
+        bustInches: activeBust,
+        waistInches: activeWaist,
+        hipsInches: activeHips,
+        heightInches: activeHeight,
+        shoeSize: user?.shoeSize || "7.5",
+      },
+      activeImportedProduct
+    );
+  }, [activeBust, activeHeight, activeHips, activeImportedProduct, activeWaist, user?.shoeSize]);
 
   // Fast first paint for Look 0, staggered idle preload for remaining looks (zero main-thread jank)
   useEffect(() => {
@@ -807,10 +822,19 @@ export function VellGwoStudio() {
                   <p className="text-[11px] font-bold text-[#141518] line-clamp-2 leading-tight">
                     {activeImportedProduct.title}
                   </p>
-                  <p className="text-[11px] font-semibold text-[#686D76] mt-0.5">
-                    ${activeImportedProduct.price} • Size {recSize}
+                  <p className="text-[11px] font-semibold text-[#244B3B] mt-0.5">
+                    ${activeImportedProduct.price} • Fit:{" "}
+                    {activeImportedFit?.recommendedSize || recSize} (
+                    {activeImportedFit?.confidencePct || 94}%)
                   </p>
                 </div>
+
+                <Link
+                  href={`/product?id=${encodeURIComponent(activeImportedProduct.id)}`}
+                  className="w-full py-1.5 rounded-full text-[10px] font-bold bg-[#141518] hover:bg-[#27292E] text-white flex items-center justify-center gap-1 transition"
+                >
+                  <Ruler className="w-3 h-3" /> Exact Fit &amp; Angles
+                </Link>
 
                 {activeImportedProduct.imageUrl && (
                   <button
@@ -1062,6 +1086,21 @@ export function VellGwoStudio() {
                             product={prod}
                             className="w-full h-full"
                           />
+                          <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-[#E7F3EE]/95 text-[9px] font-bold text-[#244B3B]">
+                            Size{" "}
+                            {
+                              analyzeExactAvatarFit(
+                                {
+                                  bustInches: activeBust,
+                                  waistInches: activeWaist,
+                                  hipsInches: activeHips,
+                                  heightInches: activeHeight,
+                                  shoeSize: user?.shoeSize || "7.5",
+                                },
+                                prod
+                              ).recommendedSize
+                            }
+                          </span>
                           <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-white/92 text-[10px] font-bold text-[#141518]">
                             ${prod.price}
                           </span>

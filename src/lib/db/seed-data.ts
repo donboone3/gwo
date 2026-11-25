@@ -299,7 +299,40 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       price: 248,
       currency: "USD",
       imageUrl:
-        "https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=640&q=85",
+        "https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=960&q=85",
+      fitMetadata: {
+        descriptionSummary:
+          "Lightweight bias-cut midi silk slip dress with a draped cowl neckline, adjustable spaghetti straps, and fluid skirt movement.",
+        fitNotes: [
+          "Fitted at bust, bias skims waist and hips without clinging",
+          "Adjustable straps customize neckline depth",
+          "Fits true to size; non-stretch woven silk",
+        ],
+        fabricComposition: "100% Mulberry Silk",
+        stretchLevel: "rigid",
+        cutType: "fitted",
+        storeFitTendency: "true_to_size",
+        hemLanding: "midi",
+        modelStats: {
+          rawText: "Model is 5'9\" and wears a size S (32\" bust, 25\" waist, 35\" hips)",
+          heightInches: 69,
+          heightDisplay: "5'9\"",
+          wornSize: "S",
+          bustInches: 32,
+          waistInches: 25,
+          hipsInches: 35,
+        },
+        galleryImages: [
+          {
+            url: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=960&q=85",
+            label: "Model Front",
+          },
+          {
+            url: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=960&q=85",
+            label: "Drape & Movement",
+          },
+        ],
+      },
       occasions: ["Date Night", "Concert"],
       vibes: ["Model Off-Duty", "Soft Romantic"],
       availableSizes: ["XS", "S", "M", "L"],
@@ -326,6 +359,44 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       currency: "USD",
       imageUrl:
         "https://cdn.shopify.com/s/files/1/0259/5448/4284/files/SKIMS-LOUNGEWEAR-AP-TSH-0638-SOT-FLT_337890eb-b813-4d8c-b4fd-b94fb1ae7e59.jpg?v=1767136369",
+      fitMetadata: {
+        descriptionSummary:
+          "Stretchy, lightweight cotton crew-neck tee that contours curves with a body-hugging fit, pickstitch sleeve/hem detail, and hits right at the natural waist.",
+        fitNotes: [
+          "Body-hugging crew neck t-shirt",
+          "Hits right at the natural waist",
+          "High recovery 4-way stretch knit",
+        ],
+        fabricComposition: "90% Cotton / 10% Elastane",
+        elastanePct: 10,
+        stretchLevel: "high",
+        cutType: "body-hugging",
+        storeFitTendency: "true_to_size",
+        hemLanding: "natural-waist",
+        modelStats: {
+          rawText: "Model is 5'9\" and wears size S (32\" bust, 24\" waist, 35\" hips)",
+          heightInches: 69,
+          heightDisplay: "5'9\"",
+          wornSize: "S",
+          bustInches: 32,
+          waistInches: 24,
+          hipsInches: 35,
+        },
+        galleryImages: [
+          {
+            url: "https://wsrv.nl/?url=https%3A%2F%2Fskims.imgix.net%2Fs%2Ffiles%2F1%2F0259%2F5448%2F4284%2Ffiles%2FAP-TSH-0638-SOT-MA-SKIMS-LOUNGEWEAR_0006-FR.webp%3Fv%3D1783027126%26w%3D1200&w=960&output=webp&q=86",
+            label: "Model Front",
+          },
+          {
+            url: "https://wsrv.nl/?url=https%3A%2F%2Fskims.imgix.net%2Fs%2Ffiles%2F1%2F0259%2F5448%2F4284%2Ffiles%2FAP-TSH-0638-SOT-MA-SKIMS-LOUNGEWEAR_0020-FR.webp%3Fv%3D1783027127%26w%3D1200&w=960&output=webp&q=86",
+            label: "Close-Up Fit",
+          },
+          {
+            url: "https://cdn.shopify.com/s/files/1/0259/5448/4284/files/SKIMS-LOUNGEWEAR-AP-TSH-0638-SOT-FLT_337890eb-b813-4d8c-b4fd-b94fb1ae7e59.jpg?v=1767136369",
+            label: "Flat-Lay Cut",
+          },
+        ],
+      },
       occasions: ["Coffee Run", "Date Night", "Concert", "Campus / Class"],
       vibes: ["Model Off-Duty", "Clean Girl Athleisure", "Streetwear Luxe"],
       availableSizes: ["XS", "S", "M", "L", "XL"],
@@ -351,7 +422,36 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       price: 68,
       currency: "USD",
       imageUrl:
-        "https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?auto=format&fit=crop&w=640&q=85",
+        "https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?auto=format&fit=crop&w=960&q=85",
+      fitMetadata: {
+        descriptionSummary:
+          "Mid-rise knife-pleated micro mini skirt in structured suiting twill with built-in jersey liner shorts and concealed side zip.",
+        fitNotes: [
+          "Structured non-stretch waistband; flares over hips",
+          "Built-in stretch liner shorts underneath",
+          "14.5\" length hits mid-thigh",
+        ],
+        fabricComposition: "68% Recycled Polyester / 29% Viscose / 3% Elastane",
+        elastanePct: 3,
+        stretchLevel: "low",
+        cutType: "fitted",
+        storeFitTendency: "true_to_size",
+        hemLanding: "mini",
+        modelStats: {
+          rawText: "Model is 5'8\" wearing Size S (25.5\" waist, 36\" hips)",
+          heightInches: 68,
+          heightDisplay: "5'8\"",
+          wornSize: "S",
+          waistInches: 25.5,
+          hipsInches: 36,
+        },
+        galleryImages: [
+          {
+            url: "https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?auto=format&fit=crop&w=960&q=85",
+            label: "Model Front",
+          },
+        ],
+      },
       occasions: ["Date Night", "Concert", "Campus / Class"],
       vibes: ["Model Off-Duty", "Soft Romantic"],
       availableSizes: ["XS", "S", "M", "L"],

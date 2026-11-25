@@ -1,24 +1,32 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Check,
   ChevronDown,
+  Columns2,
+  ExternalLink,
   HeartHandshake,
+  Images,
+  Plus,
+  Rotate3d,
   Ruler,
   ShoppingBag,
   Sparkles,
 } from "lucide-react";
 import "./spin-product.css";
-import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
+import { H, SIGNATURE_BADGE_URL, STUDIO_LOOKS } from "../vell/vell-data";
+import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { useGwo } from "@/context/GwoAppContext";
 import {
-  DEFAULT_AVATAR_MEASUREMENTS,
-  deriveStandardApparelSize,
-} from "@/lib/catalog/sizing";
+  analyzeExactAvatarFit,
+  ZoneFeel,
+} from "@/lib/catalog/fit-intelligence";
+import { DEFAULT_AVATAR_MEASUREMENTS } from "@/lib/catalog/sizing";
+import { Product } from "@/lib/types";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const SPIN_FRAME_COUNT = 8;
@@ -48,21 +56,6 @@ const HOTSPOTS = [
   },
 ];
 
-const DETAILS_ACCORDION = [
-  {
-    id: "Fit & Details",
-    text: "Relaxed, slightly cropped silhouette designed to hit cleanly at high-waisted jeans or leggings. Stand collar, two-way zip, and fleece-lined pockets.",
-  },
-  {
-    id: "Materials & Care",
-    text: "100% recycled ripstop shell with lightweight 80/20 recycled down fill. Machine wash cold, tumble dry low.",
-  },
-  {
-    id: "Shipping & Free Returns",
-    text: "Arrives in 3–4 business days. Free 30-day exchanges and returns.",
-  },
-];
-
 const SIZES = ["XS", "S", "M", "L"] as const;
 
 const wrap1 = (a: number) => ((a % 1) + 1) % 1;
@@ -71,22 +64,198 @@ const clamp = (v: number, lo: number, hi: number) =>
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
+function buildDefaultTurntableProduct(name: string, price: number): Product {
+  return {
+    id: "studio-contour-puffer",
+    canonicalUrl: "https://goodwithonline.com/product",
+    brand: "GWO Studio",
+    storeDomain: "goodwithonline.com",
+    title: name,
+    category: "outerwear",
+    silhouette: "cropped-jacket",
+    colorName: "Metallic Silver",
+    colorHex: "#C9CED6",
+    accentHex: "#141518",
+    price,
+    currency: "USD",
+    imageUrl: `${BASE_PATH}/models/signature/spin_0.webp`,
+    fitMetadata: {
+      descriptionSummary:
+        "Relaxed, slightly cropped metallic puffer designed to hit cleanly right at high-waisted denim or leggings with a sculpted stand collar and two-way zip.",
+      fitNotes: [
+        "Boxy cropped outerwear cut—hits right at natural waist",
+        "Elasticated hem seals warmth without riding up",
+        "Fits true to size with room to layer hoodies underneath",
+      ],
+      fabricComposition: "100% Recycled Ripstop Nylon • 80/20 Down Fill",
+      stretchLevel: "rigid",
+      cutType: "oversized",
+      storeFitTendency: "true_to_size",
+      hemLanding: "cropped",
+      modelStats: {
+        rawText: "Studio 360° Avatar is 5'5\" wearing Size S (32.25\" B • 27\" W • 34\" H)",
+        heightInches: 65,
+        heightDisplay: "5'5\"",
+        wornSize: "S",
+        bustInches: 32.25,
+        waistInches: 27,
+        hipsInches: 34,
+      },
+    },
+    occasions: ["Everyday", "Outerwear"],
+    vibes: ["Model Off-Duty"],
+    availableSizes: ["XS", "S", "M", "L"],
+    sizeChartInches: {
+      XS: { bustMin: 31, bustMax: 33, waistMin: 24.5, waistMax: 26, hipsMin: 34, hipsMax: 36 },
+      S: { bustMin: 33, bustMax: 35.5, waistMin: 26, waistMax: 28.5, hipsMin: 36, hipsMax: 38.5 },
+      M: { bustMin: 35.5, bustMax: 38, waistMin: 28.5, waistMax: 31, hipsMin: 38.5, hipsMax: 41 },
+      L: { bustMin: 38, bustMax: 41, waistMin: 31, waistMax: 34, hipsMin: 41, hipsMax: 44 },
+    },
+    estDeliveryDays: 3,
+    inStock: true,
+    sourceType: "affiliate_feed",
+    lastScrapedAt: "",
+    staleAfter: "",
+  };
+}
+
+function getZoneBadgeStyle(feel: ZoneFeel): string {
+  if (feel === "too_tight") {
+    return "bg-[#FDECEB] text-[#9E2A22] border-[#F5C6C2]";
+  }
+  if (feel === "sculpted_snug") {
+    return "bg-[#FEF6E6] text-[#8A5808] border-[#F4DFB4]";
+  }
+  if (feel === "tailored_ideal") {
+    return "bg-[#E7F3EE] text-[#1D4232] border-[#C1DFD0]";
+  }
+  if (feel === "relaxed_skim") {
+    return "bg-[#EEF2F7] text-[#263445] border-[#D5DFEC]";
+  }
+  return "bg-[#F1EFFA] text-[#45357A] border-[#DCD6F2]";
+}
+
+function getZoneBarColor(feel: ZoneFeel): string {
+  if (feel === "too_tight") return "#D94336";
+  if (feel === "sculpted_snug") return "#D98A1C";
+  if (feel === "tailored_ideal") return "#244B3B";
+  if (feel === "relaxed_skim") return "#355C7D";
+  return "#5E4B9E";
+}
+
 export function GwoSpinProduct() {
   const searchParams = useSearchParams();
+  const queryId = searchParams.get("id");
   const rawName = searchParams.get("name") || "Contour Metallic Cropped Puffer";
   const rawPriceStr = searchParams.get("price") || "$168";
   const parsedPrice = Number(rawPriceStr.replace(/[^0-9.]/g, "")) || 168;
 
-  const { user, addToBag, showToast, customAvatar, setAvatarModalOpen } = useGwo();
+  const {
+    user,
+    products,
+    activeImportedProduct,
+    setAddUrlModalOpen,
+    addToBag,
+    showToast,
+    customAvatar,
+    setAvatarModalOpen,
+  } = useGwo();
+
+  // Resolve inspected product if ?id=... was passed or user toggled to activeImportedProduct
+  const matchedCatalogProduct = useMemo(() => {
+    if (queryId) {
+      if (activeImportedProduct?.id === queryId) return activeImportedProduct;
+      return products.find((p) => p.id === queryId) || null;
+    }
+    return null;
+  }, [activeImportedProduct, products, queryId]);
+
+  const [forceTurntableMode, setForceTurntableMode] = useState(false);
+
+  useEffect(() => {
+    setForceTurntableMode(false);
+  }, [queryId]);
+
+  const inspectedExternalProduct = !forceTurntableMode
+    ? matchedCatalogProduct
+    : null;
+  const isStoreUrlMode = Boolean(inspectedExternalProduct);
+
+  const activeProduct: Product = useMemo(
+    () =>
+      inspectedExternalProduct ||
+      buildDefaultTurntableProduct(rawName, parsedPrice),
+    [inspectedExternalProduct, parsedPrice, rawName]
+  );
 
   const activeBust = user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches;
   const activeWaist = user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches;
   const activeHips = user?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches;
-  const recSize = deriveStandardApparelSize({
-    bustInches: activeBust,
-    waistInches: activeWaist,
-    hipsInches: activeHips,
-  });
+  const activeHeight = user?.heightInches ?? DEFAULT_AVATAR_MEASUREMENTS.heightInches;
+
+  const baseFitReport = useMemo(
+    () =>
+      analyzeExactAvatarFit(
+        {
+          bustInches: activeBust,
+          waistInches: activeWaist,
+          hipsInches: activeHips,
+          heightInches: activeHeight,
+          shoeSize: user?.shoeSize || "7.5",
+        },
+        activeProduct
+      ),
+    [activeBust, activeHeight, activeHips, activeProduct, activeWaist, user?.shoeSize]
+  );
+
+  const [selectedSize, setSelectedSize] = useState<string>(
+    baseFitReport.recommendedSize
+  );
+
+  useEffect(() => {
+    setSelectedSize(baseFitReport.recommendedSize);
+  }, [baseFitReport.recommendedSize, activeProduct.id]);
+
+  // Live Zone-by-Zone Fit Report recalculated whenever user clicks XS / S / M / L!
+  const liveFitReport = useMemo(
+    () =>
+      analyzeExactAvatarFit(
+        {
+          bustInches: activeBust,
+          waistInches: activeWaist,
+          hipsInches: activeHips,
+          heightInches: activeHeight,
+          shoeSize: user?.shoeSize || "7.5",
+        },
+        activeProduct,
+        selectedSize
+      ),
+    [
+      activeBust,
+      activeHeight,
+      activeHips,
+      activeProduct,
+      activeWaist,
+      selectedSize,
+      user?.shoeSize,
+    ]
+  );
+
+  const [storeAngleIdx, setStoreAngleIdx] = useState(0);
+  const [compareAvatarScale, setCompareAvatarScale] = useState(false);
+
+  useEffect(() => {
+    setStoreAngleIdx(0);
+  }, [activeProduct.id]);
+
+  const galleryAngles = useMemo(() => {
+    const raw = activeProduct.fitMetadata?.galleryImages || [];
+    if (raw.length > 0) return raw;
+    if (activeProduct.imageUrl) {
+      return [{ url: activeProduct.imageUrl, label: "Model Front" }];
+    }
+    return [];
+  }, [activeProduct]);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const artRef = useRef<HTMLDivElement | null>(null);
@@ -100,14 +269,9 @@ export function GwoSpinProduct() {
   const kScaleRef = useRef(1);
   const spinToFnRef = useRef<((targetAng: number) => void) | null>(null);
 
-  const [openSection, setOpenSection] = useState<string>("Fit & Details");
-  const [selectedSize, setSelectedSize] = useState<(typeof SIZES)[number]>(recSize);
+  const [openSection, setOpenSection] = useState<string>("Fit & Description");
   const [savedToCloset, setSavedToCloset] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
-
-  useEffect(() => {
-    setSelectedSize(recSize);
-  }, [recSize]);
 
   const [facingFront, setFacingFront] = useState(true);
   const [activeAngleTab, setActiveAngleTab] = useState<"front" | "side" | "back">("front");
@@ -132,7 +296,7 @@ export function GwoSpinProduct() {
     return () => window.removeEventListener("resize", applyBoardScale);
   }, []);
 
-  // Instant 8-Angle Signature Avatar Turnaround Engine (203 KB total -> <50ms load, ~145 FPS!)
+  // Instant 8-Angle Signature Avatar Turnaround Engine (kept mounted for 0ms switching!)
   useEffect(() => {
     const cv = cvRef.current;
     const stage = stageRef.current;
@@ -196,7 +360,6 @@ export function GwoSpinProduct() {
       const bmp1 = frames[i1] || bmp0;
       if (!bmp0) return;
 
-      // Quantize blend fraction to 1/12th step so stationary frames cost 0 GPU redraws
       const qFrac = Math.round(frac * 12) / 12;
       const key = `${i0}:${i1}:${qFrac}`;
       if (key === lastPaintedKey) return;
@@ -212,7 +375,6 @@ export function GwoSpinProduct() {
     };
 
     const loadSpinFrames = async () => {
-      // Load 0° Front and 180° Back first for instant <40ms first paint, then remaining angles in parallel
       const loadIndex = async (idx: number) => {
         if (frames[idx]) return;
         const im = new Image();
@@ -379,7 +541,6 @@ export function GwoSpinProduct() {
     };
   }, []);
 
-  // Fly thumbnail arc directly into the Unified GWO Top-Right Bag button!
   const handleAddToBag = useCallback(() => {
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1600);
@@ -387,7 +548,9 @@ export function GwoSpinProduct() {
     const btn = addBagBtnRef.current;
     const bagBtn = document.getElementById("gwo-unified-bag-btn");
     const thumbSrc =
-      customAvatar?.badgeDataUrl || `${BASE_PATH}/models/signature/spin_0.webp`;
+      activeProduct.imageUrl ||
+      customAvatar?.badgeDataUrl ||
+      `${BASE_PATH}/models/signature/spin_0.webp`;
 
     if (btn && bagBtn) {
       const bRect = btn.getBoundingClientRect();
@@ -448,59 +611,80 @@ export function GwoSpinProduct() {
     }
 
     addToBag({
-      title: rawName,
-      brand: "GWO Studio",
-      price: parsedPrice,
+      title: activeProduct.title,
+      brand: activeProduct.brand,
+      price: activeProduct.price,
       size: selectedSize,
-      imageUrl: `${BASE_PATH}/models/signature/spin_0.webp`,
+      imageUrl: activeProduct.imageUrl || `${BASE_PATH}/models/signature/spin_0.webp`,
+      storeUrl: isStoreUrlMode ? activeProduct.canonicalUrl : undefined,
       friendRef: "MAYA-GWO",
     });
-  }, [addToBag, customAvatar?.badgeDataUrl, parsedPrice, rawName, selectedSize]);
+  }, [
+    activeProduct,
+    addToBag,
+    customAvatar?.badgeDataUrl,
+    isStoreUrlMode,
+    selectedSize,
+  ]);
+
+  const modelHeightIn =
+    activeProduct.fitMetadata?.modelStats?.heightInches || 69;
+  const modelHeightDisp =
+    activeProduct.fitMetadata?.modelStats?.heightDisplay ||
+    `${Math.floor(modelHeightIn / 12)}'${modelHeightIn % 12}"`;
+  const avatarHeightDisp = `${Math.floor(activeHeight / 12)}'${Math.round(
+    activeHeight % 12
+  )}"`;
+
+  const avatarScaleRatio = clamp(activeHeight / Math.max(modelHeightIn, activeHeight), 0.84, 1);
+  const modelScaleRatio = clamp(modelHeightIn / Math.max(modelHeightIn, activeHeight), 0.84, 1);
 
   return (
     <div className="sp-root" ref={rootRef}>
       <div id="sp-art" ref={artRef}>
-        {/* Subtle White Connector Lines when facing front */}
-        <svg id="sp-connectors" viewBox="0 0 1500 920">
-          <path
-            d="M442 350H562L592 318H618"
-            stroke="#ffffff"
-            strokeWidth="2"
-            fill="none"
-            pathLength={1}
-            style={{
-              strokeDasharray: 1,
-              strokeDashoffset: facingFront ? 0 : 1,
-              transition: facingFront
-                ? "stroke-dashoffset 0.7s ease"
-                : "stroke-dashoffset 0.35s ease",
-            }}
-          />
-          <path
-            d="M1070 520H962L937 428H900"
-            stroke="#ffffff"
-            strokeWidth="2"
-            fill="none"
-            pathLength={1}
-            style={{
-              strokeDasharray: 1,
-              strokeDashoffset: facingFront ? 0 : 1,
-              transition: facingFront
-                ? "stroke-dashoffset 0.7s ease"
-                : "stroke-dashoffset 0.35s ease",
-            }}
-          />
-        </svg>
+        {/* Subtle White Connector Lines when in 360 Turntable Mode */}
+        {!isStoreUrlMode && (
+          <svg id="sp-connectors" viewBox="0 0 1500 920">
+            <path
+              d="M450 350H562L592 318H618"
+              stroke="#ffffff"
+              strokeWidth="2"
+              fill="none"
+              pathLength={1}
+              style={{
+                strokeDasharray: 1,
+                strokeDashoffset: facingFront ? 0 : 1,
+                transition: facingFront
+                  ? "stroke-dashoffset 0.7s ease"
+                  : "stroke-dashoffset 0.35s ease",
+              }}
+            />
+            <path
+              d="M1054 520H962L937 428H900"
+              stroke="#ffffff"
+              strokeWidth="2"
+              fill="none"
+              pathLength={1}
+              style={{
+                strokeDasharray: 1,
+                strokeDashoffset: facingFront ? 0 : 1,
+                transition: facingFront
+                  ? "stroke-dashoffset 0.7s ease"
+                  : "stroke-dashoffset 0.35s ease",
+              }}
+            />
+          </svg>
+        )}
 
-        {/* ==================== CENTER 360° TURNTABLE STAGE ==================== */}
+        {/* ==================== CENTER STAGE A: 360° TURNTABLE ==================== */}
         <div
           id="sp-stage"
           ref={stageRef}
+          style={{ display: isStoreUrlMode ? "none" : "block" }}
           className={isDraggingUi ? "dragging" : ""}
         >
           <canvas id="sp-cv" ref={cvRef} width={STAGE_W} height={STAGE_H} />
 
-          {/* Optional Custom Selfie Override if another shopper uploads their photo */}
           {customAvatar && (
             <img
               ref={userFaceRef}
@@ -521,7 +705,6 @@ export function GwoSpinProduct() {
             />
           )}
 
-          {/* Front-Facing Tailoring Callout Pins */}
           {HOTSPOTS.map((hs, idx) => (
             <button
               key={hs.title}
@@ -543,29 +726,232 @@ export function GwoSpinProduct() {
           ))}
         </div>
 
-        {/* Bottom 360° Degree Pill */}
-        <div id="sp-deg">
-          <span>DRAG MODEL TO SPIN 360°</span>
-          <span className="sp-deg-bar">
-            <span ref={degDotRef} className="sp-deg-dot" style={{ left: "0%" }} />
-          </span>
-          <span ref={degNumRef} className="sp-deg-num">
-            000°
-          </span>
-        </div>
+        {!isStoreUrlMode && (
+          <div id="sp-deg">
+            <span>DRAG MODEL TO SPIN 360°</span>
+            <span className="sp-deg-bar">
+              <span ref={degDotRef} className="sp-deg-dot" style={{ left: "0%" }} />
+            </span>
+            <span ref={degNumRef} className="sp-deg-num">
+              000°
+            </span>
+          </div>
+        )}
 
-        {/* ==================== LEFT CLEAN GWO PRODUCT DETAILS CARD ==================== */}
+        {/* ==================== CENTER STAGE B: LIVE STORE URL MULTI-ANGLE & AVATAR PROPORTION VIEW ==================== */}
+        {isStoreUrlMode && (
+          <div
+            style={{
+              position: "absolute",
+              left: 468,
+              top: 38,
+              width: 564,
+              height: 844,
+              zIndex: 16,
+            }}
+            className="flex flex-col items-center justify-between gap-3"
+          >
+            {/* Stage Mode Switcher Pill */}
+            <div className="flex items-center gap-1.5 p-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm">
+              <button
+                type="button"
+                onClick={() => setCompareAvatarScale(false)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                  !compareAvatarScale
+                    ? "bg-[#141518] text-white"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+              >
+                <Images className="w-3.5 h-3.5" /> Store Photos &amp; Fit Pins
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompareAvatarScale(true)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                  compareAvatarScale
+                    ? "bg-[#141518] text-white"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+              >
+                <Columns2 className="w-3.5 h-3.5" /> Model ({modelHeightDisp}) vs You (
+                {avatarHeightDisp})
+              </button>
+            </div>
+
+            {/* Main Visual Frame */}
+            {!compareAvatarScale ? (
+              <div className="relative w-full flex-1 rounded-3xl bg-white/95 border border-black/[0.08] shadow-[0_18px_42px_rgba(20,21,24,0.09)] overflow-hidden flex items-center justify-center">
+                <GarmentArtwork
+                  product={{
+                    ...activeProduct,
+                    imageUrl:
+                      galleryAngles[storeAngleIdx]?.url || activeProduct.imageUrl,
+                  }}
+                  className="w-full h-full"
+                />
+
+                {/* Live On-Photo Zone Fit Callouts for Selected Size */}
+                <div className="absolute right-3.5 top-3.5 flex flex-col items-end gap-1.5 pointer-events-none">
+                  {liveFitReport.zones.map((z) => (
+                    <div
+                      key={z.zone}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold border shadow-sm backdrop-blur-md ${getZoneBadgeStyle(
+                        z.feel
+                      )}`}
+                    >
+                      {z.zone} ({z.avatarInches}&quot;): {z.feelLabel}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Angle Caption */}
+                <div className="absolute left-3.5 bottom-3.5 px-3 py-1 rounded-full bg-black/75 text-white text-[11px] font-semibold">
+                  {galleryAngles[storeAngleIdx]?.label || "Store Photo"} • Previewing Size{" "}
+                  {selectedSize}
+                </div>
+              </div>
+            ) : (
+              /* Side-by-Side Proportional Height & Zone Comparison */
+              <div className="relative w-full flex-1 rounded-3xl bg-white/95 border border-black/[0.08] shadow-[0_18px_42px_rgba(20,21,24,0.09)] p-5 flex flex-col justify-between overflow-hidden">
+                {/* Horizontal Body Reference Guide Lines */}
+                <div
+                  style={{ top: "30%" }}
+                  className="absolute inset-x-5 border-t border-dashed border-[#244B3B]/35 pointer-events-none z-10 flex justify-end"
+                >
+                  <span className="px-2 py-0.5 -mt-2.5 rounded bg-[#E7F3EE] text-[9px] font-bold text-[#244B3B]">
+                    Bust {activeBust}&quot;
+                  </span>
+                </div>
+                <div
+                  style={{ top: "43%" }}
+                  className="absolute inset-x-5 border-t border-dashed border-[#244B3B]/35 pointer-events-none z-10 flex justify-end"
+                >
+                  <span className="px-2 py-0.5 -mt-2.5 rounded bg-[#E7F3EE] text-[9px] font-bold text-[#244B3B]">
+                    Natural Waist {activeWaist}&quot;
+                  </span>
+                </div>
+                <div
+                  style={{ top: "55%" }}
+                  className="absolute inset-x-5 border-t border-dashed border-[#244B3B]/35 pointer-events-none z-10 flex justify-end"
+                >
+                  <span className="px-2 py-0.5 -mt-2.5 rounded bg-[#E7F3EE] text-[9px] font-bold text-[#244B3B]">
+                    Hips {activeHips}&quot;
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 flex-1 items-end min-h-0 pt-3">
+                  {/* Column 1: Store Model Scaled to Height */}
+                  <div className="h-full flex flex-col items-center justify-end gap-2 min-h-0">
+                    <div
+                      style={{ height: `${Math.round(modelScaleRatio * 92)}%` }}
+                      className="w-full rounded-2xl overflow-hidden bg-[#F4F5F7] border border-black/[0.07] shadow-xs"
+                    >
+                      <GarmentArtwork
+                        product={{
+                          ...activeProduct,
+                          imageUrl:
+                            galleryAngles[0]?.url || activeProduct.imageUrl,
+                        }}
+                        className="w-full h-full"
+                      />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-bold text-[#141518]">
+                        Store Model ({modelHeightDisp})
+                      </p>
+                      <p className="text-[11px] text-[#686D76]">
+                        Wears Size{" "}
+                        {activeProduct.fitMetadata?.modelStats?.wornSize || "S"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Column 2: Customer Signature Avatar Scaled to True Height */}
+                  <div className="h-full flex flex-col items-center justify-end gap-2 min-h-0">
+                    <div
+                      style={{ height: `${Math.round(avatarScaleRatio * 92)}%` }}
+                      className="relative aspect-[1360/2048] flex items-end justify-center"
+                    >
+                      <img
+                        src={H(STUDIO_LOOKS[0].file, 900)}
+                        alt="Your Signature Avatar"
+                        className="w-full h-full object-contain"
+                      />
+                      {customAvatar && (
+                        <img
+                          src={customAvatar.faceOvalDataUrl}
+                          alt="Your face"
+                          style={{
+                            left: "49.95%",
+                            top: "13.2%",
+                            width: "12.9%",
+                            height: "9.7%",
+                          }}
+                          className="absolute -translate-x-1/2 -translate-y-1/2 object-fill"
+                        />
+                      )}
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-bold text-[#244B3B]">
+                        Your Avatar ({avatarHeightDisp})
+                      </p>
+                      <p className="text-[11px] text-[#686D76]">
+                        {activeBust}&quot; • {activeWaist}&quot; • {activeHips}&quot; (Rec:{" "}
+                        {liveFitReport.recommendedSize})
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 p-2.5 rounded-xl bg-[#F6F8F7] border border-[#CBE2D4] text-[11px] text-[#1D4232] font-medium text-center">
+                  {liveFitReport.lengthComparison.proportionNote}
+                </div>
+              </div>
+            )}
+
+            {/* Multi-Angle Store Gallery Selector */}
+            {galleryAngles.length > 1 && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm">
+                {galleryAngles.map((ang, idx) => (
+                  <button
+                    key={ang.url}
+                    type="button"
+                    onClick={() => {
+                      setStoreAngleIdx(idx);
+                      setCompareAvatarScale(false);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold cursor-pointer transition ${
+                      storeAngleIdx === idx && !compareAvatarScale
+                        ? "bg-[#141518] text-white border-[#141518]"
+                        : "bg-white text-[#686D76] border-black/10 hover:text-[#141518]"
+                    }`}
+                  >
+                    <img
+                      src={ang.url}
+                      alt={ang.label}
+                      className="w-6 h-7 rounded object-cover object-top"
+                    />
+                    <span>{ang.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==================== LEFT CARD: EXTRACTED STORE DESCRIPTION, MODEL & FABRIC ==================== */}
         <section
           style={{
             position: "absolute",
             left: 28,
-            top: 84,
-            width: 414,
+            top: 48,
+            width: 420,
+            maxHeight: 828,
             zIndex: 20,
           }}
-          className="rounded-3xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-6 space-y-4"
+          className="rounded-3xl bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-6 space-y-4 overflow-y-auto"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <Link
               href="/"
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#686D76] hover:text-[#141518]"
@@ -573,51 +959,133 @@ export function GwoSpinProduct() {
               <ArrowLeft className="w-3.5 h-3.5" /> Back to Closet
             </Link>
 
-            <button
-              type="button"
-              onClick={() => setAvatarModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F4F8F5] hover:bg-[#E7F1EB] border border-[#CBE2D4] text-[11px] font-bold text-[#1D4232] cursor-pointer"
-            >
-              <img
-                src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
-                alt="Avatar"
-                className="w-3.5 h-3.5 rounded-full object-cover"
-              />
-              Your Avatar ✓
-            </button>
+            {matchedCatalogProduct ? (
+              <button
+                type="button"
+                onClick={() => setForceTurntableMode((v) => !v)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F1F2F5] hover:bg-[#E4E7EC] text-[11px] font-bold text-[#141518] cursor-pointer"
+              >
+                <Rotate3d className="w-3.5 h-3.5" />
+                {isStoreUrlMode ? "360° Studio Demo" : `Back to ${matchedCatalogProduct.brand}`}
+              </button>
+            ) : activeImportedProduct ? (
+              <Link
+                href={`/product?id=${encodeURIComponent(activeImportedProduct.id)}`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#E7F3EE] hover:bg-[#D8ECE3] text-[11px] font-bold text-[#1D4232]"
+              >
+                <Sparkles className="w-3 h-3" /> Inspect {activeImportedProduct.brand} URL
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddUrlModalOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F1F2F5] hover:bg-[#E4E7EC] text-[11px] font-bold text-[#141518] cursor-pointer"
+              >
+                <Plus className="w-3 h-3" /> Paste Store URL
+              </button>
+            )}
           </div>
 
           <div>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#E7F3EE] text-[#244B3B]">
-              <Sparkles className="w-3 h-3" /> 360° Real-Fit Inspection
-            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#E7F3EE] text-[#244B3B]">
+                <Sparkles className="w-3 h-3" /> {activeProduct.brand} •{" "}
+                {liveFitReport.confidencePct}% Fit Confidence
+              </span>
+              {isStoreUrlMode && (
+                <a
+                  href={activeProduct.canonicalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F4F5F7] hover:bg-[#E8EAEE] text-[#141518]"
+                >
+                  Store Page <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              )}
+            </div>
+
             <h1 className="text-xl font-bold text-[#141518] mt-2 leading-snug">
-              {rawName}
+              {activeProduct.title}
             </h1>
             <p className="text-lg font-bold text-[#141518] mt-1">
-              ${parsedPrice}
+              ${activeProduct.price}
             </p>
           </div>
 
-          {/* Body-Twin Friend Verdict */}
-          <div className="p-3.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-1">
+          {/* Store Model & Proportion Intelligence Box */}
+          <div className="p-3.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-[#141518] flex items-center gap-1.5">
-                <HeartHandshake className="w-3.5 h-3.5 text-[#244B3B]" /> Friend Fit Note
+                <Ruler className="w-3.5 h-3.5 text-[#244B3B]" /> Store Model vs Your Avatar
               </span>
-              <span className="text-[11px] font-bold text-[#244B3B]">
-                98% Body Twin
-              </span>
+              <button
+                type="button"
+                onClick={() => setAvatarModalOpen(true)}
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-[#244B3B] hover:underline cursor-pointer"
+              >
+                <img
+                  src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
+                  alt=""
+                  className="w-3.5 h-3.5 rounded-full object-cover"
+                />
+                {avatarHeightDisp} Avatar
+              </button>
             </div>
+            <p className="text-xs font-semibold text-[#141518]">
+              {liveFitReport.lengthComparison.modelSummary}
+            </p>
             <p className="text-xs text-[#686D76] leading-relaxed">
-              <strong>@maya</strong> (32.5&quot; B • 27&quot; W • 34.5&quot; H) owns{" "}
-              <strong>Size {recSize}</strong>: &ldquo;Boxy cropped drape—sits cleanly at a 27&quot; waist with easy room across the bust.&rdquo;
+              {liveFitReport.lengthComparison.proportionNote}
             </p>
           </div>
 
-          {/* Clean Collapsible Details */}
+          {/* Extracted Store Description, Fabric & Body-Twin Accordion */}
           <div className="divide-y divide-black/[0.07] border-t border-b border-black/[0.07]">
-            {DETAILS_ACCORDION.map((row) => {
+            {[
+              {
+                id: "Fit & Description",
+                body: (
+                  <div className="space-y-2">
+                    {activeProduct.fitMetadata?.descriptionSummary && (
+                      <p className="text-xs text-[#5C6068] leading-relaxed">
+                        {activeProduct.fitMetadata.descriptionSummary}
+                      </p>
+                    )}
+                    {(activeProduct.fitMetadata?.fitNotes?.length || 0) > 0 && (
+                      <ul className="space-y-1">
+                        {activeProduct.fitMetadata!.fitNotes.map((note) => (
+                          <li
+                            key={note}
+                            className="text-[11px] text-[#141518] flex items-start gap-1.5"
+                          >
+                            <span className="text-[#244B3B] font-bold">•</span>
+                            <span>{note}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                id: "Fabric & Stretch Physics",
+                body: (
+                  <p className="text-xs text-[#5C6068] leading-relaxed">
+                    {liveFitReport.fabricSummary}
+                  </p>
+                ),
+              },
+              {
+                id: "98% Body-Twin Friend Check",
+                body: (
+                  <p className="text-xs text-[#5C6068] leading-relaxed">
+                    <HeartHandshake className="w-3.5 h-3.5 text-[#244B3B] inline mr-1" />
+                    <strong>@maya</strong> (32.5&quot; B • 27&quot; W • 34.5&quot; H) matches{" "}
+                    <strong>Size {liveFitReport.recommendedSize}</strong> for clean waist comfort without pulling.
+                  </p>
+                ),
+              },
+            ].map((row) => {
               const open = openSection === row.id;
               return (
                 <div key={row.id}>
@@ -633,99 +1101,98 @@ export function GwoSpinProduct() {
                       }`}
                     />
                   </button>
-                  {open && (
-                    <p className="pb-3.5 text-xs text-[#686D76] leading-relaxed">
-                      {row.text}
-                    </p>
-                  )}
+                  {open && <div className="pb-3.5">{row.body}</div>}
                 </div>
               );
             })}
           </div>
 
-          {/* Front / Side / Back Quick Angle Switcher */}
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveAngleTab("front");
-                spinToFnRef.current?.(0);
-              }}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-2xl border text-xs font-semibold transition cursor-pointer ${
-                activeAngleTab === "front"
-                  ? "border-[#141518] bg-[#141518] text-white"
-                  : "border-black/10 bg-white text-[#686D76]"
-              }`}
-            >
-              <img
-                src={`${BASE_PATH}/models/signature/spin_0.webp`}
-                alt="Front"
-                className="w-6 h-6 rounded-md object-cover object-top"
-              />
-              Front (0°)
-            </button>
+          {/* Quick 360° Angle Buttons when in Turntable Mode */}
+          {!isStoreUrlMode && (
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveAngleTab("front");
+                  spinToFnRef.current?.(0);
+                }}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-2xl border text-xs font-semibold transition cursor-pointer ${
+                  activeAngleTab === "front"
+                    ? "border-[#141518] bg-[#141518] text-white"
+                    : "border-black/10 bg-white text-[#686D76]"
+                }`}
+              >
+                <img
+                  src={`${BASE_PATH}/models/signature/spin_0.webp`}
+                  alt="Front"
+                  className="w-6 h-6 rounded-md object-cover object-top"
+                />
+                Front (0°)
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setActiveAngleTab("side");
-                spinToFnRef.current?.(0.25);
-              }}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-2xl border text-xs font-semibold transition cursor-pointer ${
-                activeAngleTab === "side"
-                  ? "border-[#141518] bg-[#141518] text-white"
-                  : "border-black/10 bg-white text-[#686D76]"
-              }`}
-            >
-              <img
-                src={`${BASE_PATH}/models/signature/spin_2.webp`}
-                alt="Side"
-                className="w-6 h-6 rounded-md object-cover object-top"
-              />
-              Side (90°)
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveAngleTab("side");
+                  spinToFnRef.current?.(0.25);
+                }}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-2xl border text-xs font-semibold transition cursor-pointer ${
+                  activeAngleTab === "side"
+                    ? "border-[#141518] bg-[#141518] text-white"
+                    : "border-black/10 bg-white text-[#686D76]"
+                }`}
+              >
+                <img
+                  src={`${BASE_PATH}/models/signature/spin_2.webp`}
+                  alt="Side"
+                  className="w-6 h-6 rounded-md object-cover object-top"
+                />
+                Side (90°)
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setActiveAngleTab("back");
-                spinToFnRef.current?.(0.5);
-              }}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-2xl border text-xs font-semibold transition cursor-pointer ${
-                activeAngleTab === "back"
-                  ? "border-[#141518] bg-[#141518] text-white"
-                  : "border-black/10 bg-white text-[#686D76]"
-              }`}
-            >
-              <img
-                src={`${BASE_PATH}/models/signature/spin_4.webp`}
-                alt="Back"
-                className="w-6 h-6 rounded-md object-cover object-top"
-              />
-              Back (180°)
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveAngleTab("back");
+                  spinToFnRef.current?.(0.5);
+                }}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-2xl border text-xs font-semibold transition cursor-pointer ${
+                  activeAngleTab === "back"
+                    ? "border-[#141518] bg-[#141518] text-white"
+                    : "border-black/10 bg-white text-[#686D76]"
+                }`}
+              >
+                <img
+                  src={`${BASE_PATH}/models/signature/spin_4.webp`}
+                  alt="Back"
+                  className="w-6 h-6 rounded-md object-cover object-top"
+                />
+                Back (180°)
+              </button>
+            </div>
+          )}
         </section>
 
-        {/* ==================== RIGHT CLEAN GWO SIZE & BAG CARD ==================== */}
+        {/* ==================== RIGHT CARD: INTERACTIVE EXACT-FIT ZONE SIMULATOR ==================== */}
         <section
           style={{
             position: "absolute",
-            left: 1070,
-            top: 215,
-            width: 396,
+            left: 1052,
+            top: 48,
+            width: 420,
+            maxHeight: 828,
             zIndex: 20,
           }}
-          className="rounded-3xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-6 space-y-4"
+          className="rounded-3xl bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-6 space-y-4 overflow-y-auto"
         >
-          {/* Avatar Measurements Fit Strip */}
+          {/* Avatar Measurements Header */}
           <div className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#141518] inline-flex items-center gap-1.5">
                 <Ruler className="w-3.5 h-3.5 text-[#244B3B]" /> Avatar Measurements
               </span>
               <span className="text-[11px] font-bold text-[#244B3B]">
-                Best Fit: Size {recSize}
+                Best Match: Size {liveFitReport.recommendedSize}
               </span>
             </div>
             <div className="grid grid-cols-3 gap-1.5 text-center">
@@ -750,36 +1217,107 @@ export function GwoSpinProduct() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#141518]">
-              Select Size
-            </span>
-            <span className="text-xs font-semibold text-[#244B3B]">
-              Recommended: Size {recSize}
-            </span>
+          {/* Interactive Size Selector (Click any size to simulate exact fit!) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#141518]">
+                Simulate Size on You
+              </span>
+              <span className="text-[11px] font-semibold text-[#686D76]">
+                Tap size to preview tension
+              </span>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
+              {SIZES.map((sz) => {
+                const active = selectedSize === sz;
+                const isBest = liveFitReport.recommendedSize === sz;
+                return (
+                  <button
+                    key={sz}
+                    type="button"
+                    onClick={() => setSelectedSize(sz)}
+                    className={`relative py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                      active
+                        ? "bg-[#141518] text-white border-[#141518]"
+                        : "bg-[#F4F5F7] hover:bg-[#EAECEF] text-[#141518] border-black/[0.06]"
+                    }`}
+                  >
+                    {sz}
+                    {isBest && (
+                      <span
+                        className={`block text-[9px] font-bold leading-none mt-0.5 ${
+                          active ? "text-[#A7D7C5]" : "text-[#244B3B]"
+                        }`}
+                      >
+                        Best Fit
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-2">
-            {SIZES.map((sz) => {
-              const active = selectedSize === sz;
-              return (
-                <button
-                  key={sz}
-                  type="button"
-                  onClick={() => setSelectedSize(sz)}
-                  className={`py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                    active
-                      ? "bg-[#141518] text-white border-[#141518]"
-                      : "bg-[#F4F5F7] hover:bg-[#EAECEF] text-[#141518] border-black/[0.06]"
-                  }`}
+          {/* Live Zone-by-Zone Ease & Tension Meters */}
+          {liveFitReport.zones.length > 0 && (
+            <div className="space-y-2.5">
+              {liveFitReport.zones.map((z) => (
+                <div
+                  key={z.zone}
+                  className="p-2.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.05] space-y-1.5"
                 >
-                  {sz}
-                </button>
-              );
-            })}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-[#141518]">
+                      {z.zone}{" "}
+                      <span className="text-[11px] font-normal text-[#686D76]">
+                        ({z.avatarInches}&quot; vs {z.garmentRange})
+                      </span>
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getZoneBadgeStyle(
+                        z.feel
+                      )}`}
+                    >
+                      {z.feelLabel}
+                    </span>
+                  </div>
+
+                  {/* Tension-to-Drape Meter */}
+                  <div className="relative h-2 rounded-full bg-[#E5E8EE] overflow-hidden">
+                    <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-black/20" />
+                    <div
+                      style={{
+                        width: `${z.meterPct}%`,
+                        backgroundColor: getZoneBarColor(z.feel),
+                      }}
+                      className="h-full rounded-full transition-all duration-300"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-wider text-[#8A9099]">
+                    <span>Snug / Tight</span>
+                    <span>Tailored Match</span>
+                    <span>Roomy Drape</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Dynamic Tailor Verdict Callout */}
+          <div className="p-3 rounded-2xl bg-[#F4F8F5] border border-[#CBE2D4] space-y-1">
+            <p className="text-xs font-semibold text-[#1D4232] leading-snug">
+              {liveFitReport.headlineVerdict}
+            </p>
+            {liveFitReport.alternateOption &&
+              selectedSize === liveFitReport.recommendedSize && (
+                <p className="text-[11px] text-[#4E5A54]">
+                  Tip: {liveFitReport.alternateOption.note}.
+                </p>
+              )}
           </div>
 
-          <div className="space-y-2.5 pt-1">
+          <div className="space-y-2 pt-0.5">
             <button
               type="button"
               id="sp-buy"
@@ -789,11 +1327,13 @@ export function GwoSpinProduct() {
             >
               {justAdded ? (
                 <>
-                  <Check className="w-4 h-4 text-[#A7D7C5]" /> Added to Your Bag!
+                  <Check className="w-4 h-4 text-[#A7D7C5]" /> Added Size{" "}
+                  {selectedSize} to Bag!
                 </>
               ) : (
                 <>
-                  <ShoppingBag className="w-4 h-4" /> Add to Bag • ${parsedPrice}
+                  <ShoppingBag className="w-4 h-4" /> Add Size {selectedSize} to Bag • $
+                  {activeProduct.price}
                 </>
               )}
             </button>
@@ -802,9 +1342,11 @@ export function GwoSpinProduct() {
               type="button"
               onClick={() => {
                 setSavedToCloset(true);
-                showToast(`Saved ${rawName} to Your Closet!`);
+                showToast(
+                  `Saved ${activeProduct.title} (${selectedSize}) to Your Closet!`
+                );
               }}
-              className={`w-full py-3 rounded-full text-xs font-bold border transition cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`w-full py-2.5 rounded-full text-xs font-bold border transition cursor-pointer flex items-center justify-center gap-1.5 ${
                 savedToCloset
                   ? "bg-[#E7F3EE] border-[#244B3B]/20 text-[#244B3B]"
                   : "bg-white hover:bg-[#F7F8FA] border-black/10 text-[#141518]"
@@ -819,10 +1361,6 @@ export function GwoSpinProduct() {
               )}
             </button>
           </div>
-
-          <p className="text-[11px] text-[#686D76] text-center">
-            Sharing from your closet automatically credits your GWO referral code.
-          </p>
         </section>
       </div>
     </div>
