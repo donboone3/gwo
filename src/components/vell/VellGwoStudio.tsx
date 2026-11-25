@@ -21,6 +21,7 @@ import {
   ACCESSORY_CATALOG,
   H,
   LOFT_BG_URL,
+  SIGNATURE_BADGE_URL,
   STUDIO_LOOKS,
 } from "./vell-data";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
@@ -411,25 +412,17 @@ export function VellGwoStudio() {
             <div className="p-3.5 rounded-2xl bg-[#F4F8F5] border border-[#CBE2D4] space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  {customAvatar ? (
-                    <img
-                      src={customAvatar.badgeDataUrl}
-                      alt="Your Photo Avatar"
-                      className="w-10 h-10 rounded-full object-cover border-2 border-[#244B3B] shrink-0"
-                    />
-                  ) : (
-                    <span className="w-10 h-10 rounded-full bg-white border border-[#CBE2D4] flex items-center justify-center text-[#244B3B] shrink-0">
-                      <Camera className="w-4 h-4" />
-                    </span>
-                  )}
+                  <img
+                    src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
+                    alt="Your Avatar"
+                    className="w-10 h-10 rounded-full object-cover border-2 border-[#244B3B] shrink-0"
+                  />
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-[#141518] truncate">
-                      {customAvatar ? "Your Photo Avatar ✓" : "Make Every Picture You"}
+                      Your 3D Studio Avatar ✓
                     </p>
                     <p className="text-[11px] text-[#4E5A54] leading-tight">
-                      {customAvatar
-                        ? "Synced to Closet, Runway & 360°"
-                        : "Upload 1 selfie to see yourself in all outfits"}
+                      Active across Closet, Runway &amp; 360°
                     </p>
                   </div>
                 </div>
@@ -440,7 +433,7 @@ export function VellGwoStudio() {
                 className="w-full py-2 rounded-full text-xs font-semibold bg-[#141518] hover:bg-[#27292E] text-white inline-flex items-center justify-center gap-1.5 cursor-pointer transition"
               >
                 <Camera className="w-3.5 h-3.5" />
-                {customAvatar ? "Change / Adjust My Photo" : "Upload My Photo Avatar"}
+                Upload Different Selfie
               </button>
             </div>
 

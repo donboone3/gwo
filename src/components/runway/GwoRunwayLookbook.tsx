@@ -6,9 +6,12 @@ import { Camera, Rotate3d, ShoppingBag, Sparkles } from "lucide-react";
 import "./runway-lookbook.css";
 import { useGwo } from "@/context/GwoAppContext";
 
-// Optimized WebP sprite resolutions for instant decode & 60fps GPU compositing
-const MODELS_SHEET =
-  "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20261102_042056_1a704ff7-b0e5-4a9f-bbda-62392b819fb6.png&w=2048&q=82";
+import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
+
+// Signature Avatar Runway Sprite Sheet (all 6 models are our signature avatar!)
+const MODELS_SHEET = `${
+  process.env.NEXT_PUBLIC_BASE_PATH || ""
+}/models/signature/runway_models_sheet.webp`;
 const PIECES_SHEET =
   "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20261102_042057_080e85b0-b4aa-4072-8eb9-2304c7baf42b.png&w=1440&q=80";
 
@@ -520,20 +523,12 @@ export function GwoRunwayLookbook() {
                 onClick={() => setAvatarModalOpen(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 hover:bg-white border border-black/[0.08] text-[11px] font-bold text-[#141518]"
               >
-                {customAvatar ? (
-                  <>
-                    <img
-                      src={customAvatar.badgeDataUrl}
-                      alt="You"
-                      className="w-3.5 h-3.5 rounded-full object-cover"
-                    />
-                    Runway Featuring You ✓
-                  </>
-                ) : (
-                  <>
-                    <Camera className="w-3 h-3 text-[#244B3B]" /> Put Me on the Runway
-                  </>
-                )}
+                <img
+                  src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
+                  alt="Avatar"
+                  className="w-4 h-4 rounded-full object-cover"
+                />
+                {customAvatar ? "Runway Featuring You ✓" : "Your Avatar • Change Photo"}
               </button>
             </div>
 

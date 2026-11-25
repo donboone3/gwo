@@ -21,6 +21,7 @@ import {
 import { GwoLogo } from "../brand/GwoLogo";
 import { CustomerAvatarModal } from "../avatar/CustomerAvatarModal";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
+import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
 import { useGwo } from "@/context/GwoAppContext";
 import { Product } from "@/lib/types";
 
@@ -177,27 +178,14 @@ export function UnifiedGwoNav() {
             type="button"
             id="gwo-my-avatar-btn"
             onClick={() => setAvatarModalOpen(true)}
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer border ${
-              customAvatar
-                ? "bg-[#EBF3EE] border-[#C5DFD0] text-[#1D4232]"
-                : "bg-white hover:bg-[#F4F5F7] border-black/[0.12] text-[#141518]"
-            }`}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer border bg-[#EBF3EE] border-[#C5DFD0] text-[#1D4232]"
           >
-            {customAvatar ? (
-              <>
-                <img
-                  src={customAvatar.badgeDataUrl}
-                  alt="My Avatar"
-                  className="w-5 h-5 rounded-full object-cover border border-[#244B3B]/30"
-                />
-                <span className="hidden md:inline">My Avatar ✓</span>
-              </>
-            ) : (
-              <>
-                <Camera className="w-3.5 h-3.5 text-[#244B3B]" />
-                <span className="hidden md:inline">My Photo Avatar</span>
-              </>
-            )}
+            <img
+              src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
+              alt="My Avatar"
+              className="w-5 h-5 rounded-full object-cover border border-[#244B3B]/30"
+            />
+            <span className="hidden md:inline">My Avatar ✓</span>
           </button>
 
           <button

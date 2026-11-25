@@ -1,7 +1,16 @@
 export const HIGGS_CDN =
   "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/";
 
+export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+export const SIGNATURE_BADGE_URL = `${BASE_PATH}/models/signature/badge.webp`;
+
 export function H(file: string, w: number, q = 82): string {
+  if (file.startsWith("sig:")) {
+    const idx = file.slice(4);
+    return w <= 360
+      ? `${BASE_PATH}/models/signature/look_${idx}_thumb.webp`
+      : `${BASE_PATH}/models/signature/look_${idx}.webp`;
+  }
   return (
     "https://images.higgs.ai/?default=1&output=webp&url=" +
     encodeURIComponent(HIGGS_CDN + file) +
@@ -46,7 +55,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     index: 0,
     name: "Denim Maxi",
     category: "everyday",
-    file: "hf_20261112_034542_a6430ecf-9862-412c-8ef6-5745115bd78c.png",
+    file: "sig:0",
     friendOwner: "maya",
     friendTwinPct: 97,
     pieces: {
@@ -64,7 +73,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     index: 1,
     name: "Cloud Set",
     category: "everyday",
-    file: "hf_20261112_034738_73282737-acc8-41e9-a822-96c663e27b6c.png",
+    file: "sig:1",
     friendOwner: "maya",
     friendTwinPct: 97,
     pieces: {
@@ -79,7 +88,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     index: 2,
     name: "Library Knit",
     category: "everyday",
-    file: "hf_20261112_034742_9a8a92fd-79ae-4163-9ffa-14ae2a68717f.png",
+    file: "sig:2",
     friendOwner: "chloe",
     friendTwinPct: 86,
     pieces: {
@@ -97,7 +106,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     index: 3,
     name: "Lilac Run",
     category: "athletic",
-    file: "hf_20261112_034735_4e352e03-ad2b-44d1-9fcf-4b5b9454dc55.png",
+    file: "sig:3",
     friendOwner: "maya",
     friendTwinPct: 97,
     pieces: {
@@ -115,7 +124,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     index: 4,
     name: "Satin Night",
     category: "sleep",
-    file: "hf_20261112_034738_aeb8ea57-6399-4f3c-b54a-4a57d0bd971e.png",
+    file: "sig:4",
     friendOwner: "sofia",
     friendTwinPct: 88,
     pieces: {
@@ -130,7 +139,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     index: 5,
     name: "Night Suit",
     category: "formal",
-    file: "hf_20261112_034736_aace5c5f-8c14-4b00-83ba-744dbad2e337.png",
+    file: "sig:5",
     friendOwner: "chloe",
     friendTwinPct: 86,
     pieces: {
@@ -148,7 +157,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     index: 6,
     name: "Sage Slip",
     category: "party",
-    file: "hf_20261112_034735_3d9fb69e-b4e0-49f7-a2d4-e592bd616c27.png",
+    file: "sig:6",
     friendOwner: "chloe",
     friendTwinPct: 86,
     pieces: {
@@ -163,7 +172,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     index: 7,
     name: "Bomber Cargo",
     category: "street",
-    file: "hf_20261112_034740_3e3c5ad7-689b-46a2-8e09-c7d36a569b9c.png",
+    file: "sig:7",
     friendOwner: "sofia",
     friendTwinPct: 88,
     pieces: {
