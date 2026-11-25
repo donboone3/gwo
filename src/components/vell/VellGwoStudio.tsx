@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  Camera,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -25,14 +26,12 @@ import { useGwo } from "@/context/GwoAppContext";
 
 type SimpleCategory = "all" | "everyday" | "athletic" | "going-out" | "accessories";
 
-interface DragGhost {
+interface DragPayload {
   kind: "look" | "accessory" | "scraped";
   label: string;
   price: number;
   lookIndex?: number;
   accessoryName?: string;
-  x: number;
-  y: number;
 }
 
 export function VellGwoStudio() {
@@ -45,18 +44,22 @@ export function VellGwoStudio() {
     updateProfilePatch,
     shareMyClosetAndClaimBonus,
     setAddUrlModalOpen,
+    customAvatar,
+    setAvatarModalOpen,
     showToast,
   } = useGwo();
 
+  const backdropRef = useRef<HTMLDivElement | null>(null);
   const figsRef = useRef<HTMLDivElement | null>(null);
   const scanRef = useRef<HTMLDivElement | null>(null);
   const modelBoxRef = useRef<HTMLDivElement | null>(null);
-  const preloadedImgsRef = useRef<HTMLImageElement[]>([]);
+  const dragPillRef = useRef<HTMLDivElement | null>(null);
+  const preloadedImgsRef = useRef<Array<HTMLImageElement | null>>([]);
   const swapTokenRef = useRef(0);
   const swipeStartXRef = useRef<number | null>(null);
 
   const [lookIdx, setLookIdx] = useState(0);
-  const [closetOwner, setClosetOwner] = useState<string>("all"); // "all" | "maya" | "chloe" | "sofia"
+  const [closetOwner, setClosetOwner] = useState<string>("all");
   const [category, setCategory] = useState<SimpleCategory>("all");
   const [zoomed, setZoomed] = useState(false);
   const [equippedAccessories, setEquippedAccessories] = useState<string[]>([
@@ -65,9 +68,7 @@ export function VellGwoStudio() {
   const [editingFit, setEditingFit] = useState(false);
   const [copiedCloset, setCopiedCloset] = useState(false);
 
-  // Subtle background pointer parallax
-  const [parallax, setParallax] = useState({ x: 0, y: 0 });
-  const [dragGhost, setDragGhost] = useState<DragGhost | null>(null);
+  const [dragItem, setDragItem] = useState<DragPayload | null>(null);
   const [overAvatar, setOverAvatar] = useState(false);
 
   // Measurement inputs
@@ -75,23 +76,41 @@ export function VellGwoStudio() {
   const [hipsIn, setHipsIn] = useState<number | null>(null);
   const [heightIn, setHeightIn] = useState<number | null>(null);
 
-  // Preload all 8 photoreal w=1000 cutouts on mount
+  // Fast first paint for Look 0, staggered idle preload for remaining looks (zero main-thread jank)
   useEffect(() => {
-    const imgs = STUDIO_LOOKS.map((l) => {
-      const im = new Image();
-      im.crossOrigin = "anonymous";
-      im.src = H(l.file, 1000);
-      return im;
-    });
-    preloadedImgsRef.current = imgs;
+    const cache: Array<HTMLImageElement | null> = new Array(STUDIO_LOOKS.length).fill(null);
+    preloadedImgsRef.current = cache;
+
+    const first = new Image();
+    first.decoding = "async";
+    first.src = H(STUDIO_LOOKS[0].file, 900);
+    cache[0] = first;
 
     if (figsRef.current) {
       figsRef.current.innerHTML = "";
       const base = document.createElement("div");
       base.className = "gwo-fig-layer";
-      base.style.backgroundImage = `url("${H(STUDIO_LOOKS[0].file, 1000)}")`;
+      base.style.backgroundImage = `url("${H(STUDIO_LOOKS[0].file, 900)}")`;
       figsRef.current.appendChild(base);
     }
+
+    let cancelled = false;
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    STUDIO_LOOKS.slice(1).forEach((lk, i) => {
+      const t = setTimeout(() => {
+        if (cancelled) return;
+        const im = new Image();
+        im.decoding = "async";
+        im.src = H(lk.file, 900);
+        cache[i + 1] = im;
+      }, 220 * (i + 1));
+      timers.push(t);
+    });
+
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
   }, []);
 
   const triggerScanLine = useCallback(() => {
@@ -104,13 +123,20 @@ export function VellGwoStudio() {
 
   const swapToLook = useCallback(
     async (idx: number) => {
-      const normalized = ((idx % STUDIO_LOOKS.length) + STUDIO_LOOKS.length) % STUDIO_LOOKS.length;
+      const normalized =
+        ((idx % STUDIO_LOOKS.length) + STUDIO_LOOKS.length) % STUDIO_LOOKS.length;
       setLookIdx(normalized);
       const token = ++swapTokenRef.current;
 
-      const preload = preloadedImgsRef.current[normalized];
+      let preload = preloadedImgsRef.current[normalized];
+      if (!preload) {
+        preload = new Image();
+        preload.decoding = "async";
+        preload.src = H(STUDIO_LOOKS[normalized].file, 900);
+        preloadedImgsRef.current[normalized] = preload;
+      }
       try {
-        if (preload) await preload.decode();
+        await preload.decode();
       } catch {
         // Continue immediately
       }
@@ -121,7 +147,7 @@ export function VellGwoStudio() {
 
       const nextLayer = document.createElement("div");
       nextLayer.className = "gwo-fig-layer wipe-in";
-      nextLayer.style.backgroundImage = `url("${H(STUDIO_LOOKS[normalized].file, 1000)}")`;
+      nextLayer.style.backgroundImage = `url("${H(STUDIO_LOOKS[normalized].file, 900)}")`;
       container.appendChild(nextLayer);
 
       triggerScanLine();
@@ -140,7 +166,7 @@ export function VellGwoStudio() {
     [triggerScanLine]
   );
 
-  // Keyboard ArrowLeft / ArrowRight to step looks cleanly
+  // Keyboard ArrowLeft / ArrowRight
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
@@ -167,56 +193,82 @@ export function VellGwoStudio() {
     );
   }, []);
 
+  // Zero-React-Rerender Pointer Parallax & Drag Pill Tracking (60/120fps DOM transform)
   useEffect(() => {
+    let rafPending = false;
+    let latestX = 0;
+    let latestY = 0;
+
     const onMove = (e: PointerEvent) => {
-      setParallax({
-        x: (e.clientX / window.innerWidth - 0.5) * -16,
-        y: (e.clientY / window.innerHeight - 0.5) * -8,
-      });
-      if (dragGhost) {
-        setDragGhost((prev) =>
-          prev ? { ...prev, x: e.clientX, y: e.clientY } : null
-        );
-        setOverAvatar(isOverModel(e.clientX, e.clientY));
+      latestX = e.clientX;
+      latestY = e.clientY;
+
+      if (dragItem && dragPillRef.current) {
+        dragPillRef.current.style.transform = `translate3d(${latestX + 14}px, ${
+          latestY - 18
+        }px, 0)`;
+        const over = isOverModel(latestX, latestY);
+        setOverAvatar((prev) => (prev === over ? prev : over));
+      }
+
+      if (!rafPending) {
+        rafPending = true;
+        requestAnimationFrame(() => {
+          rafPending = false;
+          if (backdropRef.current) {
+            const px = (latestX / window.innerWidth - 0.5) * -14;
+            const py = (latestY / window.innerHeight - 0.5) * -7;
+            backdropRef.current.style.transform = `translate3d(${px.toFixed(
+              1
+            )}px, ${py.toFixed(1)}px, 0) scale(1.03)`;
+          }
+        });
       }
     };
 
     const onUp = (e: PointerEvent) => {
-      if (!dragGhost) return;
+      if (!dragItem) return;
       if (isOverModel(e.clientX, e.clientY)) {
-        if (dragGhost.kind === "look" && dragGhost.lookIndex !== undefined) {
-          void swapToLook(dragGhost.lookIndex);
-          showToast(`Trying on ${dragGhost.label}`);
-        } else if (
-          dragGhost.kind === "accessory" &&
-          dragGhost.accessoryName
-        ) {
-          const accName = dragGhost.accessoryName;
+        if (dragItem.kind === "look" && dragItem.lookIndex !== undefined) {
+          void swapToLook(dragItem.lookIndex);
+          showToast(`Trying on ${dragItem.label}`);
+        } else if (dragItem.kind === "accessory" && dragItem.accessoryName) {
+          const accName = dragItem.accessoryName;
           setEquippedAccessories((prev) =>
             prev.includes(accName) ? prev : [...prev, accName]
           );
           triggerScanLine();
           showToast(`Added ${accName} to your look`);
-        } else if (dragGhost.kind === "scraped") {
+        } else if (dragItem.kind === "scraped") {
           triggerScanLine();
-          showToast(`Styled ${dragGhost.label} onto your avatar`);
+          showToast(`Styled ${dragItem.label} onto your avatar`);
         }
       }
-      setDragGhost(null);
+      setDragItem(null);
       setOverAvatar(false);
     };
 
-    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerup", onUp);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [dragGhost, isOverModel, showToast, swapToLook, triggerScanLine]);
+  }, [dragItem, isOverModel, showToast, swapToLook, triggerScanLine]);
+
+  const startDrag = useCallback((e: React.PointerEvent, payload: DragPayload) => {
+    setDragItem(payload);
+    requestAnimationFrame(() => {
+      if (dragPillRef.current) {
+        dragPillRef.current.style.transform = `translate3d(${e.clientX + 14}px, ${
+          e.clientY - 18
+        }px, 0)`;
+      }
+    });
+  }, []);
 
   const currentLook = STUDIO_LOOKS[lookIdx];
 
-  // Filtered looks based on Friend Closet + simple category
   const filteredLooks = useMemo(() => {
     return STUDIO_LOOKS.filter((lk) => {
       if (closetOwner !== "all" && lk.friendOwner !== closetOwner) return false;
@@ -238,7 +290,6 @@ export function VellGwoStudio() {
     });
   }, [category, closetOwner]);
 
-  // Flatten pieces worn in the current look
   const currentPieces = useMemo(() => {
     const p = currentLook.pieces;
     const base = [
@@ -286,12 +337,13 @@ export function VellGwoStudio() {
           position: absolute;
           inset: 0;
           background-position: center bottom;
-          background-size: contain;
+          background-size: 100% 100%;
           background-repeat: no-repeat;
+          will-change: clip-path;
         }
         .gwo-fig-layer.wipe-in {
           clip-path: inset(0 0 100% 0);
-          animation: gwoCleanWipe 0.95s cubic-bezier(0.7, 0, 0.25, 1) forwards;
+          animation: gwoCleanWipe 0.72s cubic-bezier(0.65, 0, 0.25, 1) forwards;
         }
         @keyframes gwoCleanWipe {
           0% { clip-path: inset(0 0 100% 0); }
@@ -305,12 +357,13 @@ export function VellGwoStudio() {
           height: 2px;
           opacity: 0;
           pointer-events: none;
-          z-index: 20;
+          z-index: 25;
           background: linear-gradient(90deg, transparent, #ffffff 25%, #ffffff 75%, transparent);
-          box-shadow: 0 0 20px 5px rgba(255, 255, 255, 0.7), 0 0 50px 14px rgba(200, 220, 255, 0.4);
+          box-shadow: 0 0 18px 4px rgba(255, 255, 255, 0.7);
+          will-change: top, opacity;
         }
         .gwo-scan-beam.active {
-          animation: gwoBeamSweep 0.95s cubic-bezier(0.7, 0, 0.25, 1) forwards;
+          animation: gwoBeamSweep 0.72s cubic-bezier(0.65, 0, 0.25, 1) forwards;
         }
         @keyframes gwoBeamSweep {
           0% { top: 0%; opacity: 1; }
@@ -321,38 +374,73 @@ export function VellGwoStudio() {
 
       {/* ==================== PHOTOREAL DAYLIGHT STUDIO BACKDROP ==================== */}
       <div
-        className="absolute inset-[-3%] bg-cover bg-center transition-transform duration-500 ease-out"
+        ref={backdropRef}
+        className="absolute inset-[-3%] bg-cover bg-center will-change-transform"
         style={{
           backgroundImage: `url("${LOFT_BG_URL}")`,
-          transform: `translate3d(${parallax.x}px, ${parallax.y}px, 0) scale(1.03)`,
+          transform: "translate3d(0, 0, 0) scale(1.03)",
         }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-white/25 via-transparent to-black/20 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-black/18 pointer-events-none" />
 
       {/* ==================== RESPONSIVE 3-ZONE STUDIO GRID ==================== */}
       <div className="relative z-10 h-full max-w-[1520px] mx-auto px-4 sm:px-6 py-4 flex flex-col lg:flex-row items-stretch justify-between gap-4">
-        {/* ==================== LEFT PANEL: CLOSETS & FIT PROFILE ==================== */}
-        <aside className="hidden lg:flex lg:w-[310px] shrink-0 flex-col justify-between rounded-3xl bg-white/86 backdrop-blur-xl border border-black/[0.08] shadow-[0_18px_45px_rgba(20,21,24,0.08)] p-5 overflow-y-auto">
-          <div className="space-y-5">
+        {/* ==================== LEFT PANEL: MY PHOTO AVATAR, CLOSETS & FIT PROFILE ==================== */}
+        <aside className="hidden lg:flex lg:w-[314px] shrink-0 flex-col justify-between rounded-3xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-5 overflow-y-auto">
+          <div className="space-y-4">
+            {/* Customer Photo Avatar Card */}
+            <div className="p-3.5 rounded-2xl bg-[#F4F8F5] border border-[#CBE2D4] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {customAvatar ? (
+                    <img
+                      src={customAvatar.badgeDataUrl}
+                      alt="Your Photo Avatar"
+                      className="w-10 h-10 rounded-full object-cover border-2 border-[#244B3B] shrink-0"
+                    />
+                  ) : (
+                    <span className="w-10 h-10 rounded-full bg-white border border-[#CBE2D4] flex items-center justify-center text-[#244B3B] shrink-0">
+                      <Camera className="w-4 h-4" />
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-[#141518] truncate">
+                      {customAvatar ? "Your Photo Avatar ✓" : "Make Every Picture You"}
+                    </p>
+                    <p className="text-[11px] text-[#4E5A54] leading-tight">
+                      {customAvatar
+                        ? "Synced to Closet, Runway & 360°"
+                        : "Upload 1 selfie to see yourself in all outfits"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAvatarModalOpen(true)}
+                className="w-full py-2 rounded-full text-xs font-semibold bg-[#141518] hover:bg-[#27292E] text-white inline-flex items-center justify-center gap-1.5 cursor-pointer transition"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                {customAvatar ? "Change / Adjust My Photo" : "Upload My Photo Avatar"}
+              </button>
+            </div>
+
             {/* Step Context Header */}
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-[#244B3B]">
                 Girls&apos; Shared Closets
               </p>
-              <h1 className="text-lg font-bold text-[#141518] mt-0.5">
+              <h1 className="text-base font-bold text-[#141518] mt-0.5">
                 Choose a Closet to Try On
               </h1>
-              <p className="text-xs text-[#686D76] mt-0.5">
-                Try on outfits from friends with your body measurements.
-              </p>
             </div>
 
             {/* 1-Tap Closet Switcher */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <button
                 type="button"
                 onClick={() => setClosetOwner("all")}
-                className={`w-full p-3 rounded-2xl text-left transition flex items-center justify-between border cursor-pointer ${
+                className={`w-full p-2.5 rounded-2xl text-left transition flex items-center justify-between border cursor-pointer ${
                   closetOwner === "all"
                     ? "bg-[#141518] text-white border-[#141518]"
                     : "bg-[#F7F8FA] hover:bg-[#EFF1F5] text-[#141518] border-black/[0.05]"
@@ -362,7 +450,7 @@ export function VellGwoStudio() {
                   <p className="text-xs font-bold">All Shared Closets</p>
                   <p
                     className={`text-[11px] ${
-                      closetOwner === "all" ? "text-white/70" : "text-[#686D76]"
+                      closetOwner === "all" ? "text-white/75" : "text-[#686D76]"
                     }`}
                   >
                     8 complete outfits ready to try
@@ -374,79 +462,60 @@ export function VellGwoStudio() {
               </button>
 
               {[
-                {
-                  handle: "maya",
-                  name: "Maya Lin",
-                  twin: 97,
-                  stats: '5\'5" • 26.5" Waist • Size S',
-                },
-                {
-                  handle: "chloe",
-                  name: "Chloe Beaumont",
-                  twin: 86,
-                  stats: '5\'7" • 27.5" Waist • Size S/M',
-                },
-                {
-                  handle: "sofia",
-                  name: "Sofia Reyes",
-                  twin: 88,
-                  stats: '5\'3" • 25.5" Waist • Size XS/S',
-                },
-              ].map((fr) => {
-                const active = closetOwner === fr.handle;
-                const foundFriend = friends.find((f) => f.username === fr.handle);
+                { handle: "maya", name: "Maya", twin: 97, stats: '5\'5" • 26.5" Waist' },
+                { handle: "chloe", name: "Chloe", twin: 86, stats: '5\'7" • 27.5" Waist' },
+                { handle: "sofia", name: "Sofia", twin: 88, stats: '5\'3" • 25.5" Waist' },
+              ].map((f) => {
+                const active = closetOwner === f.handle;
+                const matchedFriend = friends.find((x) => x.username === f.handle);
                 return (
                   <button
-                    key={fr.handle}
+                    key={f.handle}
                     type="button"
                     onClick={() => {
-                      setClosetOwner(fr.handle);
+                      setClosetOwner(f.handle);
                       const firstMatch = STUDIO_LOOKS.find(
-                        (l) => l.friendOwner === fr.handle
+                        (l) => l.friendOwner === f.handle
                       );
                       if (firstMatch) void swapToLook(firstMatch.index);
                     }}
-                    className={`w-full p-3 rounded-2xl text-left transition border cursor-pointer ${
+                    className={`w-full p-2.5 rounded-2xl text-left transition flex items-center justify-between border cursor-pointer ${
                       active
                         ? "bg-[#141518] text-white border-[#141518]"
-                        : "bg-white hover:bg-[#F7F8FA] text-[#141518] border-black/[0.07]"
+                        : "bg-[#F7F8FA] hover:bg-[#EFF1F5] text-[#141518] border-black/[0.05]"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold">
-                        @{fr.handle} ({fr.name.split(" ")[0]})
-                      </span>
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          active
-                            ? "bg-[#A7D7C5]/25 text-[#B9F0DA]"
-                            : "bg-[#E7F3EE] text-[#244B3B]"
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold truncate">
+                        @{f.handle} ({matchedFriend?.displayName || f.name})
+                      </p>
+                      <p
+                        className={`text-[11px] ${
+                          active ? "text-white/75" : "text-[#686D76]"
                         }`}
                       >
-                        <HeartHandshake className="w-3 h-3" /> {fr.twin}% Twin
-                      </span>
+                        {f.stats}
+                      </p>
                     </div>
-                    <p
-                      className={`text-[11px] mt-1 ${
-                        active ? "text-white/70" : "text-[#686D76]"
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                        active
+                          ? "bg-[#244B3B] text-[#C8F0DF]"
+                          : "bg-[#E7F3EE] text-[#244B3B]"
                       }`}
                     >
-                      {foundFriend
-                        ? `${Math.floor(foundFriend.heightInches / 12)}'${Math.round(
-                            foundFriend.heightInches % 12
-                          )}" • ${foundFriend.waistInches}" Waist`
-                        : fr.stats}
-                    </p>
+                      <HeartHandshake className="w-3 h-3" /> {f.twin}% Twin
+                    </span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Clean Exact Fit Measurements Card */}
-            <div className="rounded-2xl bg-[#F7F8FA] border border-black/[0.06] p-3.5 space-y-2.5">
+            {/* Simple Fit Profile Measurements */}
+            <div className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[#141518] flex items-center gap-1.5">
-                  <Ruler className="w-3.5 h-3.5 text-[#244B3B]" /> Your Fit Profile
+                  <Ruler className="w-3.5 h-3.5 text-[#686D76]" /> Your Fit Profile
                 </span>
                 <button
                   type="button"
@@ -459,43 +528,40 @@ export function VellGwoStudio() {
 
               {!editingFit ? (
                 <p className="text-xs text-[#686D76]">
-                  {user
-                    ? `${Math.floor(user.heightInches / 12)}'${Math.round(
-                        user.heightInches % 12
-                      )}" • ${user.waistInches}" Waist • ${user.hipsInches}" Hips • Shoe ${
-                        user.shoeSize
-                      }`
-                    : '5\'5" • 26.5" Waist • 37" Hips • Shoe 7.5'}
+                  {Math.floor((user?.heightInches || 65) / 12)}&apos;
+                  {Math.round((user?.heightInches || 65) % 12)}&quot; •{" "}
+                  {user?.waistInches ?? 26.5}&quot; Waist •{" "}
+                  {user?.hipsInches ?? 37}&quot; Hips • Shoe {user?.shoeSize || "7.5"}
                 </p>
               ) : (
                 <div className="grid grid-cols-3 gap-2 pt-1">
-                  <label className="text-[10px] text-[#686D76]">
+                  <label className="text-[10px] text-[#686D76] font-semibold">
                     Height (in)
                     <input
                       type="number"
-                      defaultValue={user?.heightInches ?? 65}
+                      defaultValue={user?.heightInches || 65}
                       onChange={(e) => setHeightIn(Number(e.target.value))}
-                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs font-semibold text-[#141518]"
+                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
                     />
                   </label>
-                  <label className="text-[10px] text-[#686D76]">
+                  <label className="text-[10px] text-[#686D76] font-semibold">
                     Waist (in)
                     <input
                       type="number"
                       step="0.5"
-                      defaultValue={user?.waistInches ?? 26.5}
+                      defaultValue={user?.waistInches || 26.5}
                       onChange={(e) => setWaistIn(Number(e.target.value))}
-                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs font-semibold text-[#141518]"
+                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
                     />
                   </label>
-                  <label className="text-[10px] text-[#686D76]">
+                  <label className="text-[10px] text-[#686D76] font-semibold">
                     Hips (in)
                     <input
                       type="number"
                       step="0.5"
-                      defaultValue={user?.hipsInches ?? 37}
+                      defaultValue={user?.hipsInches || 37}
                       onChange={(e) => setHipsIn(Number(e.target.value))}
-                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs font-semibold text-[#141518]"
+                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
                     />
                   </label>
                   <button
@@ -508,9 +574,9 @@ export function VellGwoStudio() {
                       });
                       setEditingFit(false);
                     }}
-                    className="col-span-3 mt-1 py-1.5 rounded-lg bg-[#141518] text-white text-xs font-semibold cursor-pointer"
+                    className="col-span-3 py-1.5 rounded-xl bg-[#141518] text-white text-xs font-semibold cursor-pointer"
                   >
-                    Save Fit
+                    Save Fit Measurements
                   </button>
                 </div>
               )}
@@ -525,7 +591,7 @@ export function VellGwoStudio() {
               setCopiedCloset(true);
               setTimeout(() => setCopiedCloset(false), 2200);
             }}
-            className="w-full py-2.5 px-4 rounded-full bg-[#E7F3EE] hover:bg-[#D8ECE4] text-[#244B3B] text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+            className="w-full py-2.5 px-4 rounded-2xl bg-[#EEF5F1] hover:bg-[#E2EFE8] text-[#1D4232] text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer mt-2"
           >
             {copiedCloset ? (
               <>
@@ -540,18 +606,25 @@ export function VellGwoStudio() {
         </aside>
 
         {/* ==================== CENTER STAGE: PHOTOREAL AVATAR ==================== */}
-        <div className="relative flex-1 flex flex-col items-center justify-between min-h-0">
-          {/* Top Floating Outfit Status Pill */}
-          <div className="px-4 py-1.5 rounded-full bg-white/84 backdrop-blur-md border border-black/[0.07] shadow-xs flex items-center gap-2 text-xs">
+        <div className="relative flex-1 flex flex-col items-center justify-between min-h-[340px]">
+          {/* Subtle Top Look Pill */}
+          <div className="px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-md border border-black/[0.07] shadow-xs flex items-center gap-2 text-xs">
+            {customAvatar && (
+              <img
+                src={customAvatar.badgeDataUrl}
+                alt="You"
+                className="w-4 h-4 rounded-full object-cover"
+              />
+            )}
             <span className="font-bold text-[#141518]">{currentLook.name}</span>
             {currentLook.friendOwner && (
               <span className="text-[#244B3B] font-semibold">
-                • From @{currentLook.friendOwner}&apos;s Closet ({currentLook.friendTwinPct}% Twin)
+                • {customAvatar ? "On You" : `From @${currentLook.friendOwner}'s Closet`} ({currentLook.friendTwinPct}% Twin)
               </span>
             )}
           </div>
 
-          {/* Photoreal Model Figure + Scan Wipe + Drop Target */}
+          {/* Interactive Avatar Frame (Exact 1360:2048 Aspect Box so Customer Face Locks Pixel-for-Pixel!) */}
           <div
             ref={modelBoxRef}
             onPointerDown={(e) => {
@@ -561,39 +634,58 @@ export function VellGwoStudio() {
               if (swipeStartXRef.current === null) return;
               const dx = e.clientX - swipeStartXRef.current;
               swipeStartXRef.current = null;
-              if (Math.abs(dx) > 40 && !dragGhost) {
+              if (Math.abs(dx) > 40 && !dragItem) {
                 void swapToLook(lookIdx + (dx < 0 ? 1 : -1));
               }
             }}
-            className={`relative w-[340px] sm:w-[400px] flex-1 my-2 cursor-grab active:cursor-grabbing transition-transform duration-700 ${
+            className={`relative flex-1 min-h-0 my-2 flex items-end justify-center cursor-grab active:cursor-grabbing transition-transform duration-500 will-change-transform ${
               zoomed ? "scale-[1.42] translate-y-28" : "scale-100"
             }`}
           >
-            {/* Drop Halo when dragging an item onto avatar */}
-            {overAvatar && (
-              <div className="absolute inset-x-4 inset-y-2 rounded-3xl border-2 border-dashed border-white bg-white/20 backdrop-blur-[2px] z-30 flex items-start justify-center pt-4 pointer-events-none">
-                <span className="px-3 py-1 rounded-full bg-[#141518] text-white text-[11px] font-bold shadow-lg">
-                  Drop to Try On Avatar
-                </span>
-              </div>
-            )}
+            <div className="relative h-full aspect-[1360/2048]">
+              {/* Drop Halo when dragging an item onto avatar */}
+              {overAvatar && (
+                <div className="absolute inset-x-2 inset-y-2 rounded-3xl border-2 border-dashed border-white bg-white/20 z-30 flex items-start justify-center pt-4 pointer-events-none">
+                  <span className="px-3 py-1 rounded-full bg-[#141518] text-white text-[11px] font-bold shadow-lg">
+                    Drop to Try On Avatar
+                  </span>
+                </div>
+              )}
 
-            {/* Floor Shadow */}
-            <div
-              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-56 h-7 rounded-full pointer-events-none"
-              style={{
-                background:
-                  "radial-gradient(closest-side, rgba(25,26,30,0.42), transparent)",
-                filter: "blur(4px)",
-              }}
-            />
+              {/* Floor Shadow */}
+              <div
+                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-56 h-7 rounded-full pointer-events-none"
+                style={{
+                  background:
+                    "radial-gradient(closest-side, rgba(25,26,30,0.42), transparent)",
+                }}
+              />
 
-            <div ref={figsRef} className="absolute inset-0 pointer-events-none" />
-            <div ref={scanRef} className="gwo-scan-beam" />
+              {/* Stacked Outfit Cutout Layers */}
+              <div ref={figsRef} className="absolute inset-0 pointer-events-none" />
+
+              {/* Customer Uploaded Photo Avatar Face Overlay (Exact 1360x2048 Head Coordinates) */}
+              {customAvatar && (
+                <img
+                  src={customAvatar.faceOvalDataUrl}
+                  alt="Your uploaded avatar face"
+                  decoding="async"
+                  style={{
+                    left: "49.95%",
+                    top: "13.2%",
+                    width: "12.9%",
+                    height: "9.7%",
+                  }}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 object-fill pointer-events-none z-15"
+                />
+              )}
+
+              <div ref={scanRef} className="gwo-scan-beam" />
+            </div>
           </div>
 
           {/* Clean Minimal Bottom Stage Controls */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/88 backdrop-blur-xl border border-black/[0.08] shadow-lg z-20">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-lg z-20">
             <button
               type="button"
               onClick={() => void swapToLook(lookIdx - 1)}
@@ -633,7 +725,7 @@ export function VellGwoStudio() {
         </div>
 
         {/* ==================== RIGHT PANEL: WARDROBE, ACCESSORIES & WORN PIECES ==================== */}
-        <aside className="w-full lg:w-[390px] shrink-0 rounded-3xl bg-white/88 backdrop-blur-xl border border-black/[0.08] shadow-[0_18px_45px_rgba(20,21,24,0.08)] p-5 flex flex-col justify-between gap-4 overflow-y-auto max-h-[42vh] lg:max-h-none">
+        <aside className="w-full lg:w-[390px] shrink-0 rounded-3xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-5 flex flex-col justify-between gap-4 overflow-y-auto max-h-[42vh] lg:max-h-none">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -641,7 +733,7 @@ export function VellGwoStudio() {
                   Wardrobe &amp; Accessories
                 </h2>
                 <p className="text-xs text-[#686D76]">
-                  Tap or drag any piece onto your avatar
+                  Tap or drag any piece onto {customAvatar ? "yourself" : "your avatar"}
                 </p>
               </div>
               <button
@@ -679,7 +771,7 @@ export function VellGwoStudio() {
               ))}
             </div>
 
-            {/* Clean Visual Look / Accessory Grid */}
+            {/* Clean Visual Look / Accessory Grid (Every Thumbnail Also Shows Customer's Uploaded Face!) */}
             {category === "accessories" ? (
               <div className="grid grid-cols-2 gap-2.5">
                 {ACCESSORY_CATALOG.map((acc) => {
@@ -688,13 +780,11 @@ export function VellGwoStudio() {
                     <div
                       key={acc.id}
                       onPointerDown={(e) =>
-                        setDragGhost({
+                        startDrag(e, {
                           kind: "accessory",
                           label: acc.name,
                           price: acc.price,
                           accessoryName: acc.name,
-                          x: e.clientX,
-                          y: e.clientY,
                         })
                       }
                       onClick={() => {
@@ -735,13 +825,11 @@ export function VellGwoStudio() {
                       key={lk.index}
                       onClick={() => void swapToLook(lk.index)}
                       onPointerDown={(e) =>
-                        setDragGhost({
+                        startDrag(e, {
                           kind: "look",
                           label: lk.name,
                           price: 180,
                           lookIndex: lk.index,
-                          x: e.clientX,
-                          y: e.clientY,
                         })
                       }
                       className={`group relative h-32 rounded-2xl overflow-hidden border cursor-grab transition ${
@@ -750,13 +838,33 @@ export function VellGwoStudio() {
                           : "border-black/[0.08] bg-[#F4F5F7] hover:-translate-y-0.5"
                       }`}
                     >
-                      <div
-                        className="absolute inset-0 bg-top bg-cover transition-transform duration-300 group-hover:scale-105"
-                        style={{
-                          backgroundImage: `url("${H(lk.file, 360)}")`,
-                        }}
-                      />
-                      <div className="absolute inset-x-1 bottom-1 px-1.5 py-0.5 rounded-lg bg-white/90 backdrop-blur-xs text-[10px] font-bold text-[#141518] truncate text-center">
+                      {/* Exact 1360:2048 miniature cutout + customer face overlay so ALL 8 thumbnails are YOU */}
+                      <div className="absolute inset-x-0 top-0 flex justify-center pointer-events-none transition-transform duration-300 group-hover:scale-105">
+                        <div className="relative w-[88px] aspect-[1360/2048]">
+                          <img
+                            src={H(lk.file, 260, 78)}
+                            alt={lk.name}
+                            loading="lazy"
+                            decoding="async"
+                            className="w-full h-full object-contain"
+                          />
+                          {customAvatar && (
+                            <img
+                              src={customAvatar.faceOvalDataUrl}
+                              alt=""
+                              decoding="async"
+                              style={{
+                                left: "49.95%",
+                                top: "13.2%",
+                                width: "12.9%",
+                                height: "9.7%",
+                              }}
+                              className="absolute -translate-x-1/2 -translate-y-1/2 object-fill"
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <div className="absolute inset-x-1 bottom-1 px-1.5 py-0.5 rounded-lg bg-white/92 text-[10px] font-bold text-[#141518] truncate text-center">
                         {lk.name}
                       </div>
                     </div>
@@ -765,7 +873,7 @@ export function VellGwoStudio() {
               </div>
             )}
 
-            {/* Imported Store Links (if user pasted links) */}
+            {/* Imported Store Links */}
             {scrapedCommunityItems.length > 0 && category === "all" && (
               <div className="space-y-1.5">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#686D76]">
@@ -777,12 +885,10 @@ export function VellGwoStudio() {
                       key={prod.id}
                       type="button"
                       onPointerDown={(e) =>
-                        setDragGhost({
+                        startDrag(e, {
                           kind: "scraped",
                           label: `${prod.brand} ${prod.title}`,
                           price: prod.price,
-                          x: e.clientX,
-                          y: e.clientY,
                         })
                       }
                       onClick={() => {
@@ -804,7 +910,7 @@ export function VellGwoStudio() {
             )}
           </div>
 
-          {/* ==================== CURRENTLY WORN PIECES (360° + ADD TO BAG) ==================== */}
+          {/* ==================== CURRENTLY WORN PIECES ==================== */}
           <div className="pt-3 border-t border-black/[0.08] space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-[#686D76]">
@@ -815,7 +921,7 @@ export function VellGwoStudio() {
               </span>
             </div>
 
-            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
               {currentPieces.map((piece) => {
                 const alreadyInBag = bagItems.some(
                   (b) => b.title === piece.name
@@ -883,23 +989,25 @@ export function VellGwoStudio() {
         </aside>
       </div>
 
-      {/* ==================== FLOATING DRAG PILL ==================== */}
-      {dragGhost && (
+      {/* ==================== ZERO-LAG FLOATING DRAG PILL ==================== */}
+      {dragItem && (
         <div
+          ref={dragPillRef}
           style={{
             position: "fixed",
-            left: dragGhost.x + 14,
-            top: dragGhost.y - 18,
+            left: 0,
+            top: 0,
             zIndex: 9999,
             pointerEvents: "none",
+            willChange: "transform",
           }}
           className="px-3.5 py-2 rounded-2xl bg-[#141518] text-white shadow-2xl flex items-center gap-2 text-xs font-semibold"
         >
           <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" />
           <span>
             {overAvatar
-              ? `Drop to wear ${dragGhost.label}`
-              : `${dragGhost.label} ($${dragGhost.price})`}
+              ? `Drop to wear ${dragItem.label}`
+              : `${dragItem.label} ($${dragItem.price})`}
           </span>
         </div>
       )}

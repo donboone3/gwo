@@ -19,6 +19,11 @@ import {
 import { UserQuotaStatus } from "@/lib/tryon/budget-guard";
 import { recommendSizeForUser } from "@/lib/catalog/sizing";
 import { INITIAL_SEED_DB } from "@/lib/db/seed-data";
+import {
+  CustomerAvatarData,
+  loadStoredCustomerAvatar,
+  saveStoredCustomerAvatar,
+} from "@/lib/avatar/customer-avatar";
 
 interface TelemetryData {
   ledger: ComputeBudgetLedger;
@@ -72,6 +77,11 @@ interface GwoContextValue {
   removeFromBag: (id: string) => void;
   addUrlModalOpen: boolean;
   setAddUrlModalOpen: (open: boolean) => void;
+  customAvatar: CustomerAvatarData | null;
+  saveCustomAvatar: (avatar: CustomerAvatarData) => void;
+  clearCustomAvatar: () => void;
+  avatarModalOpen: boolean;
+  setAvatarModalOpen: (open: boolean) => void;
   wearProduct: (product: Product, referrerCode?: string) => void;
   wearOutfitSet: (items: Product[], referrerCode?: string) => void;
   removeWornSlot: (slot: keyof WornOutfitState) => void;
@@ -126,6 +136,13 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
   const [bagOpen, setBagOpen] = useState(false);
   const [bagBump, setBagBump] = useState(false);
   const [addUrlModalOpen, setAddUrlModalOpen] = useState(false);
+  const [customAvatar, setCustomAvatar] = useState<CustomerAvatarData | null>(null);
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false);
+
+  useEffect(() => {
+    const stored = loadStoredCustomerAvatar();
+    if (stored) setCustomAvatar(stored);
+  }, []);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -133,6 +150,30 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       setToastMessage((curr) => (curr === msg ? null : curr));
     }, 3200);
   }, []);
+
+  const saveCustomAvatar = useCallback(
+    (avatar: CustomerAvatarData) => {
+      setCustomAvatar(avatar);
+      saveStoredCustomerAvatar(avatar);
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              skinTone: avatar.skinToneHex,
+              avatarPhotoUrl: avatar.fullPhotoDataUrl,
+            }
+          : prev
+      );
+      showToast("Your photo avatar is now active across Closet, Runway & 360°!");
+    },
+    [showToast]
+  );
+
+  const clearCustomAvatar = useCallback(() => {
+    setCustomAvatar(null);
+    saveStoredCustomerAvatar(null);
+    showToast("Switched back to default GWO Studio model");
+  }, [showToast]);
 
   const addToBag = useCallback(
     (item: Omit<UnifiedBagItem, "id">) => {
@@ -548,6 +589,11 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         removeFromBag,
         addUrlModalOpen,
         setAddUrlModalOpen,
+        customAvatar,
+        saveCustomAvatar,
+        clearCustomAvatar,
+        avatarModalOpen,
+        setAvatarModalOpen,
         wearProduct,
         wearOutfitSet,
         removeWornSlot,

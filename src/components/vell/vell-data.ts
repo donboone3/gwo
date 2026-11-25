@@ -1,19 +1,20 @@
 export const HIGGS_CDN =
   "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/";
 
-export function H(file: string, w: number): string {
+export function H(file: string, w: number, q = 82): string {
   return (
     "https://images.higgs.ai/?default=1&output=webp&url=" +
     encodeURIComponent(HIGGS_CDN + file) +
     "&w=" +
     w +
-    "&q=85"
+    "&q=" +
+    q
   );
 }
 
 export const LOFT_BG_FILE =
   "hf_20261112_034551_6394b127-5366-40a8-9c82-3c416f1161f1.png";
-export const LOFT_BG_URL = H(LOFT_BG_FILE, 2400);
+export const LOFT_BG_URL = H(LOFT_BG_FILE, 1600, 80);
 
 export interface PieceItem {
   id: string;

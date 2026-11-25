@@ -270,7 +270,7 @@
   inset: 64px 0 0 0;
   z-index: 40;
   background: #f4f5f7;
-  transition: opacity 0.45s;
+  transition: opacity 0.18s ease-out;
   pointer-events: none;
 }
 

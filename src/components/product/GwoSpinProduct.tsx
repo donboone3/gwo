@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
+  Camera,
   Check,
   ChevronDown,
   HeartHandshake,
@@ -16,6 +17,16 @@ import { useGwo } from "@/context/GwoAppContext";
 
 const TURNTABLE_MP4 =
   "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261107_112151_ae5c9a8f-07da-4b83-8dd8-47c762a5dfc0.mp4";
+
+const FRAME_COUNT = 64;
+const STAGE_W = 540;
+const STAGE_H = 900;
+
+// Session-persistent cache so revisiting /product is 0ms instant with zero re-decode!
+let SESSION_FRAMES: Array<ImageBitmap | null> | null = null;
+let SESSION_BG_RGB: string | null = null;
+let SESSION_FRONT_DATA_URL = "";
+let SESSION_BACK_READY = false;
 
 const HOTSPOTS = [
   {
@@ -65,23 +76,24 @@ export function GwoSpinProduct() {
   const searchParams = useSearchParams();
   const rawName = searchParams.get("name") || "Contour Metallic Cropped Puffer";
   const rawPriceStr = searchParams.get("price") || "$168";
-  const parsedPrice =
-    Number(rawPriceStr.replace(/[^0-9.]/g, "")) || 168;
+  const parsedPrice = Number(rawPriceStr.replace(/[^0-9.]/g, "")) || 168;
 
-  const { addToBag, showToast } = useGwo();
+  const { addToBag, showToast, customAvatar, setAvatarModalOpen } = useGwo();
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const artRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const vidRef = useRef<HTMLVideoElement | null>(null);
+  const vidPosterRef = useRef<HTMLVideoElement | null>(null);
   const cvRef = useRef<HTMLCanvasElement | null>(null);
+  const userFaceRef = useRef<HTMLImageElement | null>(null);
+  const degDotRef = useRef<HTMLSpanElement | null>(null);
+  const degNumRef = useRef<HTMLSpanElement | null>(null);
   const frontThumbRef = useRef<HTMLCanvasElement | null>(null);
   const backThumbRef = useRef<HTMLCanvasElement | null>(null);
   const addBagBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const kScaleRef = useRef(1);
   const spinToFnRef = useRef<((targetAng: number) => void) | null>(null);
-  const frontThumbDataUrlRef = useRef<string>("");
 
   const [openSection, setOpenSection] = useState<string>("Fit & Details");
   const [selectedSize, setSelectedSize] = useState<(typeof SIZES)[number]>("S");
@@ -90,9 +102,8 @@ export function GwoSpinProduct() {
 
   const [facingFront, setFacingFront] = useState(true);
   const [activeThumb, setActiveThumb] = useState<"front" | "back">("front");
-  const [degDisplay, setDegDisplay] = useState(0);
-  const [dotPct, setDotPct] = useState(0);
   const [isDraggingUi, setIsDraggingUi] = useState(false);
+  const [firstFrameReady, setFirstFrameReady] = useState(Boolean(SESSION_FRAMES?.[0]));
 
   // Auto-scale 1500x920 board inside calc(100svh - 64px)
   useEffect(() => {
@@ -113,21 +124,20 @@ export function GwoSpinProduct() {
     return () => window.removeEventListener("resize", applyBoardScale);
   }, []);
 
-  // Progressive 360° ImageBitmap Cache + Inertia Physics
+  // Zero-Lag 64-Frame Session-Cached ImageBitmap Turntable + Drag-Priority Yielding
   useEffect(() => {
-    const vid = vidRef.current;
     const cv = cvRef.current;
     const stage = stageRef.current;
     const root = rootRef.current;
-    if (!vid || !cv || !stage || !root) return;
+    if (!cv || !stage || !root) return;
 
     const ctx = cv.getContext("2d");
     if (!ctx) return;
 
     let cancelled = false;
-    let frames: Array<ImageBitmap | null> = [];
-    let NF = 0;
-    let framesReady = false;
+    let frames: Array<ImageBitmap | null> =
+      SESSION_FRAMES || new Array(FRAME_COUNT).fill(null);
+    SESSION_FRAMES = frames;
 
     let ang = 0;
     let vel = 0;
@@ -146,23 +156,6 @@ export function GwoSpinProduct() {
 
     let paintedFrame = -1;
 
-    const drawCover = (
-      targetCtx: CanvasRenderingContext2D,
-      source: CanvasImageSource,
-      srcW: number,
-      srcH: number,
-      dstW: number,
-      dstH: number
-    ) => {
-      const scale = Math.max(dstW / srcW, dstH / srcH);
-      const w = srcW * scale;
-      const h = srcH * scale;
-      const x = (dstW - w) / 2;
-      const y = (dstH - h) / 2;
-      targetCtx.clearRect(0, 0, dstW, dstH);
-      targetCtx.drawImage(source, x, y, w, h);
-    };
-
     const drawLookThumbnail = (
       thumbCanvas: HTMLCanvasElement | null,
       source: CanvasImageSource,
@@ -175,12 +168,12 @@ export function GwoSpinProduct() {
       if (!tctx) return;
       const side = srcW * 0.62;
       const sx = (srcW - side) / 2;
-      const sy = srcH * 0.07;
+      const sy = srcH * 0.06;
       tctx.clearRect(0, 0, 96, 96);
       tctx.drawImage(source, sx, sy, side, side, 0, 0, 96, 96);
       if (captureDataUrl) {
         try {
-          frontThumbDataUrlRef.current = thumbCanvas.toDataURL("image/jpeg", 0.85);
+          SESSION_FRONT_DATA_URL = thumbCanvas.toDataURL("image/jpeg", 0.85);
         } catch {
           // Ignore
         }
@@ -190,27 +183,69 @@ export function GwoSpinProduct() {
     const findNearestBitmap = (
       targetIdx: number
     ): { idx: number; bmp: ImageBitmap } | null => {
-      if (NF <= 0) return null;
       if (frames[targetIdx]) return { idx: targetIdx, bmp: frames[targetIdx]! };
-      for (let dist = 1; dist <= NF / 2; dist++) {
-        const fwd = (targetIdx + dist) % NF;
+      for (let dist = 1; dist <= FRAME_COUNT / 2; dist++) {
+        const fwd = (targetIdx + dist) % FRAME_COUNT;
         if (frames[fwd]) return { idx: fwd, bmp: frames[fwd]! };
-        const bwd = (targetIdx - dist + NF) % NF;
+        const bwd = (targetIdx - dist + FRAME_COUNT) % FRAME_COUNT;
         if (frames[bwd]) return { idx: bwd, bmp: frames[bwd]! };
       }
       return null;
     };
 
+    const updateFaceOverlayTransform = (norm: number) => {
+      const faceEl = userFaceRef.current;
+      if (!faceEl) return;
+      // Signed turn in [-0.5 .. +0.5] around front 0°
+      const signedTurn = norm > 0.5 ? norm - 1 : norm;
+      const absTurn = Math.abs(signedTurn);
+      if (absTurn > 0.13) {
+        faceEl.style.opacity = "0";
+        return;
+      }
+      const theta = signedTurn * Math.PI * 2;
+      const cosT = Math.max(0.25, Math.cos(theta));
+      const shiftPx = -Math.sin(theta) * 16;
+      const fade = Math.pow(Math.max(0, 1 - absTurn / 0.13), 1.35);
+      faceEl.style.opacity = fade.toFixed(3);
+      faceEl.style.transform = `translate3d(calc(-50% + ${shiftPx.toFixed(
+        1
+      )}px), -50%, 0) scaleX(${cosT.toFixed(3)})`;
+    };
+
     const showFrame = (a: number) => {
-      if (!framesReady || NF <= 0) return;
-      const targetIdx = ((Math.round(a * NF) % NF) + NF) % NF;
+      const norm = wrap1(a);
+      updateFaceOverlayTransform(norm);
+
+      const targetIdx = ((Math.round(norm * FRAME_COUNT) % FRAME_COUNT) + FRAME_COUNT) % FRAME_COUNT;
       const hit = findNearestBitmap(targetIdx);
       if (!hit || hit.idx === paintedFrame) return;
-      drawCover(ctx, hit.bmp, hit.bmp.width, hit.bmp.height, cv.width, cv.height);
+      ctx.drawImage(hit.bmp, 0, 0, STAGE_W, STAGE_H);
       paintedFrame = hit.idx;
     };
 
+    // Restore cached background + thumbnails immediately if returning to /product
+    if (SESSION_BG_RGB) {
+      root.style.setProperty("--bg", SESSION_BG_RGB);
+    }
+    if (frames[0]) {
+      drawLookThumbnail(frontThumbRef.current, frames[0], STAGE_W, STAGE_H, false);
+      showFrame(0);
+    }
+    if (frames[FRAME_COUNT / 2] && SESSION_BACK_READY) {
+      drawLookThumbnail(
+        backThumbRef.current,
+        frames[FRAME_COUNT / 2]!,
+        STAGE_W,
+        STAGE_H,
+        false
+      );
+    }
+
     const buildFrameCache = async () => {
+      // Skip network fetch if all frames are already cached in memory
+      if (frames.every(Boolean)) return;
+
       let objectUrl = "";
       try {
         const resp = await fetch(TURNTABLE_MP4, { mode: "cors" });
@@ -232,65 +267,85 @@ export function GwoSpinProduct() {
         });
         if (cancelled) return;
 
-        const activeCount = 120;
-        const offW = Math.min(720, extractor.videoWidth);
-        const offH = Math.round((offW * extractor.videoHeight) / extractor.videoWidth);
+        // Pre-crop directly into exact 540x900 stage dimensions once so drawImage is 1:1 ultra-fast!
         const offCv = document.createElement("canvas");
-        offCv.width = offW;
-        offCv.height = offH;
-        const offCtx = offCv.getContext("2d");
+        offCv.width = STAGE_W;
+        offCv.height = STAGE_H;
+        const offCtx = offCv.getContext("2d", { alpha: false });
         if (!offCtx) return;
 
-        frames = new Array(activeCount).fill(null);
-        NF = activeCount;
+        const vw = extractor.videoWidth || 732;
+        const vh = extractor.videoHeight || 1296;
+        const coverScale = Math.max(STAGE_W / vw, STAGE_H / vh);
+        const drawW = vw * coverScale;
+        const drawH = vh * coverScale;
+        const drawX = (STAGE_W - drawW) / 2;
+        const drawY = (STAGE_H - drawH) / 2;
 
         const seekAndGrab = async (index: number) => {
           if (frames[index]) return;
           const t =
-            (index / activeCount) * Math.max(0.1, extractor.duration - 0.04);
+            (index / FRAME_COUNT) * Math.max(0.1, extractor.duration - 0.04);
           extractor.currentTime = t;
           await new Promise<void>((res) => {
             extractor.addEventListener("seeked", () => res(), { once: true });
           });
-          offCtx.drawImage(extractor, 0, 0, offW, offH);
+          offCtx.drawImage(extractor, drawX, drawY, drawW, drawH);
           frames[index] = await createImageBitmap(offCv);
         };
 
-        await seekAndGrab(0);
-        if (cancelled) return;
-        const px = offCtx.getImageData(6, 6, 1, 1).data;
-        if (px[3] > 0) {
-          root.style.setProperty("--bg", `rgb(${px[0]}, ${px[1]}, ${px[2]})`);
-        }
-        drawLookThumbnail(frontThumbRef.current, offCv, offW, offH, true);
-        vid.pause();
-        vid.style.display = "none";
-        framesReady = true;
-        showFrame(ang);
-
-        const midIdx = 60;
-        await seekAndGrab(midIdx);
-        if (cancelled) return;
-        drawLookThumbnail(backThumbRef.current, offCv, offW, offH, false);
-        paintedFrame = -1;
-        showFrame(ang);
-
-        const priority = [30, 90, 15, 45, 75, 105, 10, 20, 40, 50, 70, 80, 100, 110];
-        for (const idx of priority) {
+        // 1. Grab Front (0°) immediately
+        if (!frames[0]) {
+          await seekAndGrab(0);
           if (cancelled) return;
-          await seekAndGrab(idx);
+          const px = offCtx.getImageData(6, 6, 1, 1).data;
+          SESSION_BG_RGB = `rgb(${px[0]}, ${px[1]}, ${px[2]})`;
+          root.style.setProperty("--bg", SESSION_BG_RGB);
+          drawLookThumbnail(frontThumbRef.current, offCv, STAGE_W, STAGE_H, true);
+          paintedFrame = -1;
+          showFrame(ang);
+          setFirstFrameReady(true);
+          if (vidPosterRef.current) {
+            vidPosterRef.current.style.display = "none";
+          }
+        }
+
+        // 2. Grab Back (180°) second
+        const midIdx = FRAME_COUNT / 2;
+        if (!frames[midIdx]) {
+          await seekAndGrab(midIdx);
+          if (cancelled) return;
+          SESSION_BACK_READY = true;
+          drawLookThumbnail(backThumbRef.current, offCv, STAGE_W, STAGE_H, false);
           paintedFrame = -1;
           showFrame(ang);
         }
 
-        for (let i = 1; i < activeCount; i++) {
-          if (cancelled) return;
-          if (!frames[i]) await seekAndGrab(i);
+        // 3. Coarse-to-fine remaining frames, yielding whenever user drags so UI is 100% lag-free!
+        const order: number[] = [
+          16, 48, 8, 24, 40, 56, 4, 12, 20, 28, 36, 44, 52, 60,
+        ];
+        for (let i = 1; i < FRAME_COUNT; i++) {
+          if (!order.includes(i) && i !== midIdx) order.push(i);
         }
-        paintedFrame = -1;
-        showFrame(ang);
+
+        for (const idx of order) {
+          if (cancelled) return;
+          // Pause background decode while user is actively dragging or coasting fast!
+          while (!cancelled && (dragging || Math.abs(vel) > 0.12)) {
+            await new Promise((r) => setTimeout(r, 60));
+          }
+          if (cancelled) return;
+          if (!frames[idx]) {
+            await seekAndGrab(idx);
+            paintedFrame = -1;
+            showFrame(ang);
+            // Yield main thread between decodes for silky 60/120fps responsiveness
+            await new Promise((r) => setTimeout(r, 22));
+          }
+        }
       } catch {
-        vid.style.display = "block";
+        // Ignore network interruption
       } finally {
         if (objectUrl) URL.revokeObjectURL(objectUrl);
       }
@@ -309,7 +364,7 @@ export function GwoSpinProduct() {
         startAng: curr,
         delta,
         startTime: performance.now(),
-        duration: 900 + Math.abs(delta) * 900,
+        duration: 750 + Math.abs(delta) * 750,
       };
     };
     spinToFnRef.current = spinTo;
@@ -336,7 +391,7 @@ export function GwoSpinProduct() {
       lastX = e.clientX;
       lastMoveTime = now;
 
-      const dAng = -dx / kScaleRef.current / 900;
+      const dAng = -dx / kScaleRef.current / 820;
       ang = wrap1(ang + dAng);
       estV = ((dAng / dtMs) * 1000) * 0.6 + estV * 0.4;
       showFrame(ang);
@@ -346,7 +401,7 @@ export function GwoSpinProduct() {
       if (!dragging) return;
       dragging = false;
       setIsDraggingUi(false);
-      vel = clamp(estV, -2.5, 2.5);
+      vel = clamp(estV, -2.2, 2.2);
       idle = 0;
     };
 
@@ -355,15 +410,15 @@ export function GwoSpinProduct() {
     };
 
     stage.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
-    root.addEventListener("pointermove", resetIdle);
+    root.addEventListener("pointermove", resetIdle, { passive: true });
 
     let lastTick = performance.now();
     let rafId = 0;
     let prevFront = true;
-    let prevDeg = 0;
+    let prevDeg = -1;
     let prevThumb: "front" | "back" = "front";
 
     const tick = (now: number) => {
@@ -377,8 +432,8 @@ export function GwoSpinProduct() {
         showFrame(ang);
       } else if (!dragging) {
         idle += dtSec;
-        const targetSpeed = idle > 3 ? 0.045 : 0;
-        const easeRate = idle > 3 ? dtSec * 0.8 : dtSec * 2.2;
+        const targetSpeed = idle > 3.2 ? 0.04 : 0;
+        const easeRate = idle > 3.2 ? dtSec * 0.8 : dtSec * 2.4;
         vel += (targetSpeed - vel) * Math.min(1, easeRate);
         if (Math.abs(vel) > 0.00005) {
           ang = wrap1(ang + vel * dtSec);
@@ -388,10 +443,15 @@ export function GwoSpinProduct() {
 
       const norm = wrap1(ang);
       const deg = Math.round(norm * 360) % 360;
+      // Direct DOM update (ZERO React re-renders during spin/drag!)
       if (deg !== prevDeg) {
         prevDeg = deg;
-        setDegDisplay(deg);
-        setDotPct(norm * 100);
+        if (degNumRef.current) {
+          degNumRef.current.textContent = `${String(deg).padStart(3, "0")}°`;
+        }
+        if (degDotRef.current) {
+          degDotRef.current.style.left = `${(norm * 100).toFixed(1)}%`;
+        }
       }
 
       const nextFront =
@@ -457,12 +517,13 @@ export function GwoSpinProduct() {
       flyer.style.zIndex = "9999";
       flyer.style.pointerEvents = "none";
 
-      if (frontThumbDataUrlRef.current) {
+      const thumbSrc = customAvatar?.badgeDataUrl || SESSION_FRONT_DATA_URL;
+      if (thumbSrc) {
         const inner = document.createElement("div");
         inner.style.width = "100%";
         inner.style.height = "100%";
         inner.style.borderRadius = "9px";
-        inner.style.background = `url("${frontThumbDataUrlRef.current}") center / cover no-repeat`;
+        inner.style.background = `url("${thumbSrc}") center / cover no-repeat`;
         flyer.appendChild(inner);
       }
 
@@ -484,13 +545,13 @@ export function GwoSpinProduct() {
           },
         ],
         {
-          duration: 820,
+          duration: 780,
           easing: "cubic-bezier(0.5, 0, 0.3, 1)",
           fill: "forwards",
         }
       );
 
-      setTimeout(() => flyer.remove(), 840);
+      setTimeout(() => flyer.remove(), 800);
     }
 
     addToBag({
@@ -500,7 +561,7 @@ export function GwoSpinProduct() {
       size: selectedSize,
       friendRef: "MAYA-GWO",
     });
-  }, [addToBag, parsedPrice, rawName, selectedSize]);
+  }, [addToBag, customAvatar?.badgeDataUrl, parsedPrice, rawName, selectedSize]);
 
   return (
     <div className="sp-root" ref={rootRef}>
@@ -543,18 +604,40 @@ export function GwoSpinProduct() {
           ref={stageRef}
           className={isDraggingUi ? "dragging" : ""}
         >
-          <video
-            id="sp-vid"
-            ref={vidRef}
-            src={TURNTABLE_MP4}
-            muted
-            playsInline
-            loop
-            autoPlay
-            preload="auto"
-            crossOrigin="anonymous"
-          />
-          <canvas id="sp-cv" ref={cvRef} width={1080} height={1920} />
+          {!SESSION_FRAMES?.[0] && (
+            <video
+              id="sp-vid"
+              ref={vidPosterRef}
+              src={`${TURNTABLE_MP4}#t=0.01`}
+              muted
+              playsInline
+              preload="metadata"
+              crossOrigin="anonymous"
+              onLoadedData={() => setFirstFrameReady(true)}
+            />
+          )}
+          <canvas id="sp-cv" ref={cvRef} width={STAGE_W} height={STAGE_H} />
+
+          {/* Customer Uploaded Photo Avatar Face Overlay (Foreshortens & Fades Smoothly as 360° Turns!) */}
+          {customAvatar && firstFrameReady && (
+            <img
+              ref={userFaceRef}
+              src={customAvatar.faceOvalDataUrl}
+              alt="Your photo avatar"
+              decoding="async"
+              style={{
+                position: "absolute",
+                left: "51.1%",
+                top: "11.35%",
+                width: "13.2%",
+                height: "9.8%",
+                transform: "translate3d(-50%, -50%, 0)",
+                willChange: "transform, opacity",
+                pointerEvents: "none",
+                zIndex: 18,
+              }}
+            />
+          )}
 
           {/* Front-Facing Tailoring Callout Pins */}
           {HOTSPOTS.map((hs, idx) => (
@@ -578,14 +661,14 @@ export function GwoSpinProduct() {
           ))}
         </div>
 
-        {/* Bottom 360° Degree Pill */}
+        {/* Bottom 360° Degree Pill (Direct DOM Ref Updates -> Zero React Re-render Lag!) */}
         <div id="sp-deg">
           <span>DRAG MODEL TO SPIN 360°</span>
           <span className="sp-deg-bar">
-            <span className="sp-deg-dot" style={{ left: `${dotPct}%` }} />
+            <span ref={degDotRef} className="sp-deg-dot" style={{ left: "0%" }} />
           </span>
-          <span className="sp-deg-num">
-            {String(degDisplay).padStart(3, "0")}°
+          <span ref={degNumRef} className="sp-deg-num">
+            000°
           </span>
         </div>
 
@@ -594,18 +677,41 @@ export function GwoSpinProduct() {
           style={{
             position: "absolute",
             left: 28,
-            top: 90,
+            top: 84,
             width: 414,
             zIndex: 20,
           }}
-          className="rounded-3xl bg-white/88 backdrop-blur-xl border border-black/[0.08] shadow-[0_18px_45px_rgba(20,21,24,0.08)] p-6 space-y-5"
+          className="rounded-3xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-6 space-y-4"
         >
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#686D76] hover:text-[#141518]"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to Closet &amp; Try-On
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#686D76] hover:text-[#141518]"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Back to Closet
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setAvatarModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F4F8F5] hover:bg-[#E7F1EB] border border-[#CBE2D4] text-[11px] font-bold text-[#1D4232] cursor-pointer"
+            >
+              {customAvatar ? (
+                <>
+                  <img
+                    src={customAvatar.badgeDataUrl}
+                    alt="You"
+                    className="w-3.5 h-3.5 rounded-full object-cover"
+                  />
+                  Viewing as You ✓
+                </>
+              ) : (
+                <>
+                  <Camera className="w-3 h-3" /> Use My Photo
+                </>
+              )}
+            </button>
+          </div>
 
           <div>
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#E7F3EE] text-[#244B3B]">
@@ -680,12 +786,20 @@ export function GwoSpinProduct() {
                   : "border-black/10 bg-white text-[#686D76]"
               }`}
             >
-              <canvas
-                ref={frontThumbRef}
-                width={96}
-                height={96}
-                className="w-7 h-7 rounded-lg bg-[#E4E6EA]"
-              />
+              {customAvatar ? (
+                <img
+                  src={customAvatar.badgeDataUrl}
+                  alt="Front"
+                  className="w-7 h-7 rounded-lg object-cover"
+                />
+              ) : (
+                <canvas
+                  ref={frontThumbRef}
+                  width={96}
+                  height={96}
+                  className="w-7 h-7 rounded-lg bg-[#E4E6EA]"
+                />
+              )}
               Front (0°)
             </button>
 
@@ -721,7 +835,7 @@ export function GwoSpinProduct() {
             width: 396,
             zIndex: 20,
           }}
-          className="rounded-3xl bg-white/88 backdrop-blur-xl border border-black/[0.08] shadow-[0_18px_45px_rgba(20,21,24,0.08)] p-6 space-y-5"
+          className="rounded-3xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-6 space-y-5"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-[#141518]">
@@ -755,6 +869,7 @@ export function GwoSpinProduct() {
           <div className="space-y-2.5 pt-1">
             <button
               type="button"
+              id="sp-buy"
               ref={addBagBtnRef}
               onClick={handleAddToBag}
               className="w-full py-3.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer shadow-md"

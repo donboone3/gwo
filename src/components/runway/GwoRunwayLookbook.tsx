@@ -2,14 +2,15 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Rotate3d, ShoppingBag, Sparkles } from "lucide-react";
+import { Camera, Rotate3d, ShoppingBag, Sparkles } from "lucide-react";
 import "./runway-lookbook.css";
 import { useGwo } from "@/context/GwoAppContext";
 
+// Optimized WebP sprite resolutions for instant decode & 60fps GPU compositing
 const MODELS_SHEET =
-  "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20261102_042056_1a704ff7-b0e5-4a9f-bbda-62392b819fb6.png&w=3840&q=85";
+  "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20261102_042056_1a704ff7-b0e5-4a9f-bbda-62392b819fb6.png&w=2048&q=82";
 const PIECES_SHEET =
-  "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20261102_042057_080e85b0-b4aa-4072-8eb9-2304c7baf42b.png&w=2400&q=85";
+  "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20261102_042057_080e85b0-b4aa-4072-8eb9-2304c7baf42b.png&w=1440&q=80";
 
 const LOOKS: Array<[number, number]> = [
   [12, 176],
@@ -19,6 +20,17 @@ const LOOKS: Array<[number, number]> = [
   [634, 767],
   [767, 956],
 ];
+
+// Exact measured face ovals [cx, cy, width, height] in 960x540 viewBox space for all 6 runway models
+const RUNWAY_FACE_COORDS: Array<[number, number, number, number]> = [
+  [90, 96.5, 36, 43],
+  [254.5, 99, 33, 40],
+  [400, 96, 34, 41],
+  [553, 96, 31, 38],
+  [703.5, 95, 33, 40],
+  [859, 97, 33, 40],
+];
+
 const Y0 = 48;
 const Y1 = 496;
 
@@ -66,8 +78,9 @@ function createNestedSvgCrop(
   w: number,
   h: number,
   sheetW: number,
-  sheetH: number
-): SVGSVGElement {
+  sheetH: number,
+  faceSpec?: { cx: number; cy: number; fw: number; fh: number }
+): { root: SVGSVGElement; faceEl: SVGImageElement | null } {
   const s = document.createElementNS(NS, "svg");
   s.setAttribute("viewBox", `${x0} ${y0} ${w} ${h}`);
   s.setAttribute("aria-hidden", "true");
@@ -83,20 +96,33 @@ function createNestedSvgCrop(
   img.setAttribute("href", href);
   img.setAttribute("width", String(sheetW));
   img.setAttribute("height", String(sheetH));
-
   f.append(img);
+
+  let faceEl: SVGImageElement | null = null;
+  if (faceSpec) {
+    faceEl = document.createElementNS(NS, "image");
+    faceEl.setAttribute("x", String(faceSpec.cx - faceSpec.fw / 2));
+    faceEl.setAttribute("y", String(faceSpec.cy - faceSpec.fh / 2));
+    faceEl.setAttribute("width", String(faceSpec.fw));
+    faceEl.setAttribute("height", String(faceSpec.fh));
+    faceEl.setAttribute("preserveAspectRatio", "none");
+    faceEl.style.display = "none";
+    f.append(faceEl);
+  }
+
   s.append(f);
-  return s;
+  return { root: s, faceEl };
 }
 
 export function GwoRunwayLookbook() {
-  const { addToBag } = useGwo();
+  const { addToBag, customAvatar, setAvatarModalOpen } = useGwo();
 
   const stageRef = useRef<HTMLElement | null>(null);
   const lineRef = useRef<HTMLDivElement | null>(null);
   const railRef = useRef<HTMLElement | null>(null);
   const ringRef = useRef<HTMLDivElement | null>(null);
   const rollRef = useRef<HTMLSpanElement | null>(null);
+  const faceElsRef = useRef<Array<SVGImageElement | null>>([]);
   const jumpLookRef = useRef<((lookOffset: number) => void) | null>(null);
   const currentPosRef = useRef(0);
 
@@ -124,6 +150,20 @@ export function GwoRunwayLookbook() {
     addItemIndexToUnifiedBag(idx * 2 + 1);
   }, [addItemIndexToUnifiedBag]);
 
+  // Live-sync customer's uploaded avatar face onto all 6 runway models without re-initializing DOM!
+  useEffect(() => {
+    faceElsRef.current.forEach((el) => {
+      if (!el) return;
+      if (customAvatar?.faceOvalDataUrl) {
+        el.setAttribute("href", customAvatar.faceOvalDataUrl);
+        el.style.display = "block";
+      } else {
+        el.removeAttribute("href");
+        el.style.display = "none";
+      }
+    });
+  }, [customAvatar]);
+
   useEffect(() => {
     const stage = stageRef.current;
     const line = lineRef.current;
@@ -138,15 +178,38 @@ export function GwoRunwayLookbook() {
 
     const N = LOOKS.length;
     const calm = window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+    const createdFaceEls: Array<SVGImageElement | null> = [];
 
     const people = LOOKS.map(([a, b], i) => {
       const e = document.createElement("div");
       e.className = "mv-m";
       e.dataset.i = String(i);
-      e.append(createNestedSvgCrop(MODELS_SHEET, a, Y0, b - a, Y1 - Y0, 960, 540));
+      const [cx, cy, fw, fh] = RUNWAY_FACE_COORDS[i];
+      const { root, faceEl } = createNestedSvgCrop(
+        MODELS_SHEET,
+        a,
+        Y0,
+        b - a,
+        Y1 - Y0,
+        960,
+        540,
+        { cx, cy, fw, fh }
+      );
+      createdFaceEls.push(faceEl);
+      e.append(root);
       line.append(e);
       return { e, r: (b - a) / (Y1 - Y0), f: "", o: "" };
     });
+    faceElsRef.current = createdFaceEls;
+
+    // Apply immediately if avatar already loaded
+    if (customAvatar?.faceOvalDataUrl) {
+      createdFaceEls.forEach((el) => {
+        if (!el) return;
+        el.setAttribute("href", customAvatar.faceOvalDataUrl);
+        el.style.display = "block";
+      });
+    }
 
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
     const cards = ITEMS.map(([a, b, c, d, name, price, , brand], i) => {
@@ -158,7 +221,16 @@ export function GwoRunwayLookbook() {
       e.dataset.idx = String(i);
       e.innerHTML = `<button class="mv-fav" type="button" aria-pressed="false" aria-label="Save ${name}"><svg viewBox="0 0 24 24"><path d="M12 20S3.5 15 3.5 9A4.6 4.6 0 0 1 12 6.6 4.6 4.6 0 0 1 20.5 9C20.5 15 12 20 12 20Z"/></svg></button><a class="mv-shot" href="${pdpHref}" title="Open 360° Fit View"></a><div class="mv-meta"><div><h3><a href="${pdpHref}">${name}</a></h3><span>${brand} • ${price}</span></div><button class="mv-add" type="button" data-idx="${i}">+ Bag</button></div>`;
       const shot = e.querySelector(".mv-shot");
-      shot?.append(createNestedSvgCrop(PIECES_SHEET, a, c, b - a, d - c, 960, 720));
+      const { root } = createNestedSvgCrop(
+        PIECES_SHEET,
+        a,
+        c,
+        b - a,
+        d - c,
+        960,
+        720
+      );
+      shot?.append(root);
       rail.append(e);
       return e;
     });
@@ -246,9 +318,11 @@ export function GwoRunwayLookbook() {
           1
         )}px,0) scale(${s.toFixed(4)})`;
 
-        const f = mix(KB) / s;
-        const fs = f < 0.2 ? "none" : `blur(${f.toFixed(1)}px)`;
-        const o = mix(KO).toFixed(3);
+        // Quantize blur to 0.5px steps so GPU avoids re-rasterizing blur shaders every micro-frame
+        const rawBlur = mix(KB) / s;
+        const qBlur = Math.round(rawBlur * 2) / 2;
+        const fs = qBlur < 0.5 ? "none" : `blur(${qBlur}px)`;
+        const o = mix(KO).toFixed(2);
         if (fs !== m.f) {
           m.f = fs;
           m.e.style.filter = fs;
@@ -351,7 +425,7 @@ export function GwoRunwayLookbook() {
 
     stage.addEventListener("pointerenter", onEnter);
     stage.addEventListener("pointerleave", onLeave);
-    stage.addEventListener("pointermove", onMove);
+    stage.addEventListener("pointermove", onMove, { passive: true });
     stage.addEventListener("pointerdown", onDown);
     stage.addEventListener("pointerup", onRelease);
     stage.addEventListener("pointercancel", onRelease);
@@ -365,17 +439,19 @@ export function GwoRunwayLookbook() {
       last = now;
       const was = p;
       if (calm) p = target;
-      else p += (target - p) * (1 - Math.exp(-dt * 0.0072));
-      if (Math.abs(target - p) < 0.0004) p = target;
+      else p += (target - p) * (1 - Math.exp(-dt * 0.01));
+      if (Math.abs(target - p) < 0.0005) p = target;
       if (p !== was || dirty) {
         dirty = false;
         paint();
       }
-      cx += (mx - cx) * 0.32;
-      cy += (my - cy) * 0.32;
-      ring.style.transform = `translate3d(${cx.toFixed(1)}px,${cy.toFixed(
-        1
-      )}px,0)`;
+      if (Math.abs(mx - cx) > 0.25 || Math.abs(my - cy) > 0.25) {
+        cx += (mx - cx) * 0.35;
+        cy += (my - cy) * 0.35;
+        ring.style.transform = `translate3d(${cx.toFixed(1)}px,${cy.toFixed(
+          1
+        )}px,0)`;
+      }
       rafId = requestAnimationFrame(frame);
     };
 
@@ -387,17 +463,16 @@ export function GwoRunwayLookbook() {
     Promise.all(
       [MODELS_SHEET, PIECES_SHEET].map((u) => {
         const im = new Image();
+        im.decoding = "async";
         im.src = u;
         return im.decode().catch(() => undefined);
       })
-    )
-      .then(() => document.fonts?.ready)
-      .then(() => {
-        if (cancelled) return;
-        size();
-        paint();
-        setReady(true);
-      });
+    ).then(() => {
+      if (cancelled) return;
+      size();
+      paint();
+      setReady(true);
+    });
 
     return () => {
       cancelled = true;
@@ -414,6 +489,7 @@ export function GwoRunwayLookbook() {
       window.removeEventListener("resize", size);
       window.removeEventListener("keydown", onKeyDown);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addItemIndexToUnifiedBag]);
 
   const currentOutfitPrice =
@@ -433,11 +509,34 @@ export function GwoRunwayLookbook() {
         >
           <div className="mv-line" ref={lineRef} />
 
-          {/* Clean Top-Left Occasion Card */}
+          {/* Clean Top-Left Occasion & Personal Avatar Card */}
           <div className="mv-intro space-y-3">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/85 backdrop-blur-md border border-black/[0.06] text-[11px] font-bold text-[#244B3B]">
-              <Sparkles className="w-3 h-3" /> Picked for Your Fit &amp; Vibe
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 border border-black/[0.06] text-[11px] font-bold text-[#244B3B]">
+                <Sparkles className="w-3 h-3" /> Picked for Your Fit &amp; Vibe
+              </div>
+              <button
+                type="button"
+                onClick={() => setAvatarModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 hover:bg-white border border-black/[0.08] text-[11px] font-bold text-[#141518]"
+              >
+                {customAvatar ? (
+                  <>
+                    <img
+                      src={customAvatar.badgeDataUrl}
+                      alt="You"
+                      className="w-3.5 h-3.5 rounded-full object-cover"
+                    />
+                    Runway Featuring You ✓
+                  </>
+                ) : (
+                  <>
+                    <Camera className="w-3 h-3 text-[#244B3B]" /> Put Me on the Runway
+                  </>
+                )}
+              </button>
             </div>
+
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#141518]">
               For You Runway
             </h1>
@@ -457,7 +556,7 @@ export function GwoRunwayLookbook() {
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${
                       active
                         ? "bg-[#141518] text-white shadow-xs"
-                        : "bg-white/85 hover:bg-white text-[#686D76] hover:text-[#141518] border border-black/[0.06]"
+                        : "bg-white/90 hover:bg-white text-[#686D76] hover:text-[#141518] border border-black/[0.06]"
                     }`}
                   >
                     {pill.label}
@@ -490,14 +589,14 @@ export function GwoRunwayLookbook() {
                 href={`/product?name=${encodeURIComponent(
                   currentHeroName
                 )}&price=${encodeURIComponent(currentHeroPrice)}`}
-                className="px-3.5 py-2.5 rounded-full bg-white/90 hover:bg-white border border-black/[0.08] text-[#141518] text-xs font-semibold inline-flex items-center gap-1.5"
+                className="px-3.5 py-2.5 rounded-full bg-white/92 hover:bg-white border border-black/[0.08] text-[#141518] text-xs font-semibold inline-flex items-center gap-1.5"
               >
                 <Rotate3d className="w-3.5 h-3.5" /> 360° Fit View
               </Link>
 
               <Link
                 href="/"
-                className="px-3.5 py-2.5 rounded-full bg-white/90 hover:bg-white border border-black/[0.08] text-[#244B3B] text-xs font-semibold"
+                className="px-3.5 py-2.5 rounded-full bg-white/92 hover:bg-white border border-black/[0.08] text-[#244B3B] text-xs font-semibold"
               >
                 Try in Closet →
               </Link>

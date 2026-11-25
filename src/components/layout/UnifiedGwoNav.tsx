@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Camera,
   Check,
   ExternalLink,
   Link2,
@@ -16,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { GwoLogo } from "../brand/GwoLogo";
+import { CustomerAvatarModal } from "../avatar/CustomerAvatarModal";
 import { useGwo } from "@/context/GwoAppContext";
 
 const STEPS = [
@@ -36,6 +38,8 @@ export function UnifiedGwoNav() {
     removeFromBag,
     addUrlModalOpen,
     setAddUrlModalOpen,
+    customAvatar,
+    setAvatarModalOpen,
     ingestUrlToSharedCatalog,
     shareMyClosetAndClaimBonus,
     toastMessage,
@@ -65,7 +69,7 @@ export function UnifiedGwoNav() {
   return (
     <>
       {/* ==================== UNIFIED PERSISTENT GWO HEADER ==================== */}
-      <header className="fixed top-0 inset-x-0 z-50 h-16 px-4 sm:px-7 bg-white/86 backdrop-blur-xl border-b border-black/[0.07] flex items-center justify-between gap-3">
+      <header className="fixed top-0 inset-x-0 z-50 h-16 px-4 sm:px-7 bg-white/92 backdrop-blur-md border-b border-black/[0.07] flex items-center justify-between gap-3">
         {/* Left: Pure 4-Stroke Cursive GWO Brand Mark */}
         <div className="flex items-center gap-3 shrink-0">
           <Link href="/" className="inline-flex items-center">
@@ -99,12 +103,39 @@ export function UnifiedGwoNav() {
           })}
         </nav>
 
-        {/* Right: Simple Actions (+ Add Link, Share Closet, Unified Bag) */}
+        {/* Right: My Photo Avatar, + Add Link, Share Closet, Unified Bag */}
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
+            id="gwo-my-avatar-btn"
+            onClick={() => setAvatarModalOpen(true)}
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer border ${
+              customAvatar
+                ? "bg-[#EBF3EE] border-[#C5DFD0] text-[#1D4232]"
+                : "bg-white hover:bg-[#F4F5F7] border-black/[0.12] text-[#141518]"
+            }`}
+          >
+            {customAvatar ? (
+              <>
+                <img
+                  src={customAvatar.badgeDataUrl}
+                  alt="My Avatar"
+                  className="w-5 h-5 rounded-full object-cover border border-[#244B3B]/30"
+                />
+                <span className="hidden sm:inline">My Avatar ✓</span>
+              </>
+            ) : (
+              <>
+                <Camera className="w-3.5 h-3.5 text-[#244B3B]" />
+                <span className="hidden sm:inline">My Photo Avatar</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
             onClick={() => setAddUrlModalOpen(true)}
-            className="hidden md:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold bg-[#F1F2F5] hover:bg-[#E6E8ED] text-[#141518] transition cursor-pointer"
+            className="hidden lg:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold bg-[#F1F2F5] hover:bg-[#E6E8ED] text-[#141518] transition cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" /> Add Store Link
           </button>
@@ -117,7 +148,7 @@ export function UnifiedGwoNav() {
               setTimeout(() => setCopiedLink(false), 2200);
             }}
             title="Share your closet link with friends"
-            className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold border border-black/[0.1] bg-white hover:bg-[#F7F8FA] text-[#141518] transition cursor-pointer"
+            className="hidden xl:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold border border-black/[0.1] bg-white hover:bg-[#F7F8FA] text-[#141518] transition cursor-pointer"
           >
             {copiedLink ? (
               <>
@@ -327,6 +358,8 @@ export function UnifiedGwoNav() {
           </div>
         </div>
       )}
+
+      <CustomerAvatarModal />
 
       {/* ==================== UNIFIED SUBTLE TOAST ==================== */}
       {toastMessage && (
