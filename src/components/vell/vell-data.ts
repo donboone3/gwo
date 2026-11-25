@@ -57,7 +57,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     category: "everyday",
     file: "sig:0",
     friendOwner: "maya",
-    friendTwinPct: 97,
+    friendTwinPct: 98,
     pieces: {
       tops: [{ name: "Ribbed crop tank", color: "Charcoal", price: 38 }],
       bottoms: [{ name: "Washed denim maxi skirt", color: "Light wash", price: 96 }],
@@ -75,7 +75,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     category: "everyday",
     file: "sig:1",
     friendOwner: "maya",
-    friendTwinPct: 97,
+    friendTwinPct: 98,
     pieces: {
       tops: [{ name: "Half-zip sweatshirt", color: "Oat", price: 74 }],
       bottoms: [{ name: "Wide sweatpants", color: "Oat", price: 68 }],
@@ -90,7 +90,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     category: "everyday",
     file: "sig:2",
     friendOwner: "chloe",
-    friendTwinPct: 86,
+    friendTwinPct: 80,
     pieces: {
       tops: [
         { name: "Cable-knit cardigan", color: "Cream", price: 112 },
@@ -108,7 +108,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     category: "athletic",
     file: "sig:3",
     friendOwner: "maya",
-    friendTwinPct: 97,
+    friendTwinPct: 98,
     pieces: {
       tops: [
         { name: "Zip training jacket", color: "Lilac", price: 88 },
@@ -126,7 +126,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     category: "sleep",
     file: "sig:4",
     friendOwner: "sofia",
-    friendTwinPct: 88,
+    friendTwinPct: 82,
     pieces: {
       tops: [{ name: "Satin pyjama shirt", color: "Powder blue", price: 66 }],
       bottoms: [{ name: "Satin pyjama trousers", color: "Powder blue", price: 58 }],
@@ -141,7 +141,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     category: "formal",
     file: "sig:5",
     friendOwner: "chloe",
-    friendTwinPct: 86,
+    friendTwinPct: 80,
     pieces: {
       tops: [
         { name: "Oversized blazer", color: "Black", price: 240 },
@@ -159,7 +159,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     category: "party",
     file: "sig:6",
     friendOwner: "chloe",
-    friendTwinPct: 86,
+    friendTwinPct: 80,
     pieces: {
       tops: [],
       bottoms: [],
@@ -174,7 +174,7 @@ export const STUDIO_LOOKS: StudioLook[] = [
     category: "street",
     file: "sig:7",
     friendOwner: "sofia",
-    friendTwinPct: 88,
+    friendTwinPct: 82,
     pieces: {
       tops: [
         { name: "Leather bomber", color: "Black", price: 260 },

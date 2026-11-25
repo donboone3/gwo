@@ -6,6 +6,30 @@ import {
   UserProfile,
 } from "../types";
 
+export const DEFAULT_AVATAR_MEASUREMENTS = {
+  bustInches: 32.25,
+  waistInches: 27,
+  hipsInches: 34,
+  heightInches: 65,
+} as const;
+
+export function deriveStandardApparelSize(
+  measurements?: Partial<
+    Pick<UserProfile, "bustInches" | "waistInches" | "hipsInches">
+  > | null
+): "XS" | "S" | "M" | "L" {
+  const bust = measurements?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches;
+  const waist = measurements?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches;
+  const hips = measurements?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches;
+
+  // Weighted fit score so waistbands never pinch while honoring bust/hip ease
+  const weighted = waist * 0.5 + bust * 0.25 + hips * 0.25;
+  if (weighted < 28.4 && waist <= 25.5) return "XS";
+  if (weighted < 31.8 && waist <= 28.25) return "S";
+  if (weighted < 34.5 && waist <= 31) return "M";
+  return "L";
+}
+
 /**
  * Calculates a 0-100% body-measurement similarity score between two girls
  * so GWO can tell a user what size her closest "Body Twin" friend wears.

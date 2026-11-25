@@ -209,7 +209,19 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const applyClientSeedFallback = useCallback(() => {
-    const activeUser = INITIAL_SEED_DB.profiles[0];
+    let savedPatch: Partial<UserProfile> = {};
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem("gwo_fit_profile_v2");
+        if (raw) savedPatch = JSON.parse(raw) as Partial<UserProfile>;
+      } catch {
+        // Ignore storage parse error
+      }
+    }
+    const activeUser: UserProfile = {
+      ...INITIAL_SEED_DB.profiles[0],
+      ...savedPatch,
+    };
     const seedProducts = INITIAL_SEED_DB.products;
     const prodMap = new Map(seedProducts.map((p) => [p.id, p]));
     const seedFriends = INITIAL_SEED_DB.profiles.slice(1);
@@ -553,6 +565,18 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
 
   const updateProfilePatch = useCallback(
     async (patch: Partial<UserProfile>) => {
+      if (typeof window !== "undefined") {
+        try {
+          const prevRaw = window.localStorage.getItem("gwo_fit_profile_v2");
+          const prevObj = prevRaw ? (JSON.parse(prevRaw) as Partial<UserProfile>) : {};
+          window.localStorage.setItem(
+            "gwo_fit_profile_v2",
+            JSON.stringify({ ...prevObj, ...patch })
+          );
+        } catch {
+          // Ignore quota/storage error
+        }
+      }
       const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
       try {
         const res = await fetch(`${base}/api/state`, {

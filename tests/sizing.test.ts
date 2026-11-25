@@ -15,6 +15,13 @@ describe("Exact Profile Sizing & Body-Twin Friend Engine", () => {
     resetTestMemoryDb();
   });
 
+  it("defaults the Signature Avatar profile to 32.25 bust, 27 waist, and 34 hips", async () => {
+    const mila = await getActiveUser("mila");
+    expect(mila.bustInches).toBe(32.25);
+    expect(mila.waistInches).toBe(27);
+    expect(mila.hipsInches).toBe(34);
+  });
+
   it("scores Maya (nearly identical measurements) as >=95% Body Twin to Mila", async () => {
     const mila = await getActiveUser("mila");
     const maya = await getActiveUser("maya");

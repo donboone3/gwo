@@ -5,16 +5,20 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
-  Camera,
   Check,
   ChevronDown,
   HeartHandshake,
+  Ruler,
   ShoppingBag,
   Sparkles,
 } from "lucide-react";
 import "./spin-product.css";
 import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
 import { useGwo } from "@/context/GwoAppContext";
+import {
+  DEFAULT_AVATAR_MEASUREMENTS,
+  deriveStandardApparelSize,
+} from "@/lib/catalog/sizing";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const SPIN_FRAME_COUNT = 8;
@@ -73,7 +77,16 @@ export function GwoSpinProduct() {
   const rawPriceStr = searchParams.get("price") || "$168";
   const parsedPrice = Number(rawPriceStr.replace(/[^0-9.]/g, "")) || 168;
 
-  const { addToBag, showToast, customAvatar, setAvatarModalOpen } = useGwo();
+  const { user, addToBag, showToast, customAvatar, setAvatarModalOpen } = useGwo();
+
+  const activeBust = user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches;
+  const activeWaist = user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches;
+  const activeHips = user?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches;
+  const recSize = deriveStandardApparelSize({
+    bustInches: activeBust,
+    waistInches: activeWaist,
+    hipsInches: activeHips,
+  });
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const artRef = useRef<HTMLDivElement | null>(null);
@@ -88,9 +101,13 @@ export function GwoSpinProduct() {
   const spinToFnRef = useRef<((targetAng: number) => void) | null>(null);
 
   const [openSection, setOpenSection] = useState<string>("Fit & Details");
-  const [selectedSize, setSelectedSize] = useState<(typeof SIZES)[number]>("S");
+  const [selectedSize, setSelectedSize] = useState<(typeof SIZES)[number]>(recSize);
   const [savedToCloset, setSavedToCloset] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+
+  useEffect(() => {
+    setSelectedSize(recSize);
+  }, [recSize]);
 
   const [facingFront, setFacingFront] = useState(true);
   const [activeAngleTab, setActiveAngleTab] = useState<"front" | "side" | "back">("front");
@@ -589,12 +606,12 @@ export function GwoSpinProduct() {
                 <HeartHandshake className="w-3.5 h-3.5 text-[#244B3B]" /> Friend Fit Note
               </span>
               <span className="text-[11px] font-bold text-[#244B3B]">
-                97% Body Twin
+                98% Body Twin
               </span>
             </div>
             <p className="text-xs text-[#686D76] leading-relaxed">
-              <strong>@maya</strong> (5&apos;5&quot;, 26.5&quot; waist) owns{" "}
-              <strong>Size S</strong>: &ldquo;Boxy cropped drape—take your normal size S so it layers cleanly over hoodies.&rdquo;
+              <strong>@maya</strong> (32.5&quot; B • 27&quot; W • 34.5&quot; H) owns{" "}
+              <strong>Size {recSize}</strong>: &ldquo;Boxy cropped drape—sits cleanly at a 27&quot; waist with easy room across the bust.&rdquo;
             </p>
           </div>
 
@@ -695,18 +712,50 @@ export function GwoSpinProduct() {
           style={{
             position: "absolute",
             left: 1070,
-            top: 250,
+            top: 215,
             width: 396,
             zIndex: 20,
           }}
-          className="rounded-3xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-6 space-y-5"
+          className="rounded-3xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-6 space-y-4"
         >
+          {/* Avatar Measurements Fit Strip */}
+          <div className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#141518] inline-flex items-center gap-1.5">
+                <Ruler className="w-3.5 h-3.5 text-[#244B3B]" /> Avatar Measurements
+              </span>
+              <span className="text-[11px] font-bold text-[#244B3B]">
+                Best Fit: Size {recSize}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 text-center">
+              <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+                  Bust
+                </p>
+                <p className="text-xs font-bold text-[#141518]">{activeBust}&quot;</p>
+              </div>
+              <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+                  Waist
+                </p>
+                <p className="text-xs font-bold text-[#141518]">{activeWaist}&quot;</p>
+              </div>
+              <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+                  Hips
+                </p>
+                <p className="text-xs font-bold text-[#141518]">{activeHips}&quot;</p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-[#141518]">
               Select Size
             </span>
             <span className="text-xs font-semibold text-[#244B3B]">
-              Recommended: Size S
+              Recommended: Size {recSize}
             </span>
           </div>
 

@@ -23,6 +23,10 @@ import { CustomerAvatarModal } from "../avatar/CustomerAvatarModal";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
 import { useGwo } from "@/context/GwoAppContext";
+import {
+  DEFAULT_AVATAR_MEASUREMENTS,
+  deriveStandardApparelSize,
+} from "@/lib/catalog/sizing";
 import { Product } from "@/lib/types";
 
 const STEPS = [
@@ -52,6 +56,7 @@ export function UnifiedGwoNav() {
   const cleanPath = pathname.replace(/\/+$/, "") || "/";
 
   const {
+    user,
     bagItems,
     bagOpen,
     setBagOpen,
@@ -456,8 +461,16 @@ export function UnifiedGwoNav() {
                     </h4>
 
                     <p className="text-xs text-[#686D76]">
-                      Saved to your Shared Closet &amp; Outfit Bag • Recommended Size:{" "}
-                      <strong className="text-[#141518]">S</strong>
+                      Matched to{" "}
+                      <strong className="text-[#141518]">
+                        {user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches}&quot; B •{" "}
+                        {user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches}&quot; W •{" "}
+                        {user?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches}&quot; H
+                      </strong>{" "}
+                      • Recommended Size:{" "}
+                      <strong className="text-[#244B3B]">
+                        {deriveStandardApparelSize(user)}
+                      </strong>
                     </p>
 
                     {/* Optional 1-Click Photo Override if a bot-protected site (e.g. SHEIN) hid its og:image */}

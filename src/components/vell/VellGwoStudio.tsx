@@ -26,6 +26,10 @@ import {
 } from "./vell-data";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { useGwo } from "@/context/GwoAppContext";
+import {
+  DEFAULT_AVATAR_MEASUREMENTS,
+  deriveStandardApparelSize,
+} from "@/lib/catalog/sizing";
 import { Product } from "@/lib/types";
 
 type SimpleCategory = "all" | "everyday" | "athletic" | "going-out" | "accessories";
@@ -89,9 +93,20 @@ export function VellGwoStudio() {
   }, [activeImportedProduct]);
 
   // Measurement inputs
+  const [bustIn, setBustIn] = useState<number | null>(null);
   const [waistIn, setWaistIn] = useState<number | null>(null);
   const [hipsIn, setHipsIn] = useState<number | null>(null);
   const [heightIn, setHeightIn] = useState<number | null>(null);
+
+  const activeBust = user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches;
+  const activeWaist = user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches;
+  const activeHips = user?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches;
+  const activeHeight = user?.heightInches ?? DEFAULT_AVATAR_MEASUREMENTS.heightInches;
+  const recSize = deriveStandardApparelSize({
+    bustInches: activeBust,
+    waistInches: activeWaist,
+    hipsInches: activeHips,
+  });
 
   // Fast first paint for Look 0, staggered idle preload for remaining looks (zero main-thread jank)
   useEffect(() => {
@@ -340,7 +355,7 @@ export function VellGwoStudio() {
           ? `@${currentLook.friendOwner}'s Closet`
           : "GWO Studio",
         price: piece.price,
-        size: "S",
+        size: recSize,
         friendRef: friendRefCode,
       });
     });
@@ -474,9 +489,9 @@ export function VellGwoStudio() {
               </button>
 
               {[
-                { handle: "maya", name: "Maya", twin: 97, stats: '5\'5" • 26.5" Waist' },
-                { handle: "chloe", name: "Chloe", twin: 86, stats: '5\'7" • 27.5" Waist' },
-                { handle: "sofia", name: "Sofia", twin: 88, stats: '5\'3" • 25.5" Waist' },
+                { handle: "maya", name: "Maya", twin: 98, stats: '32.5" B • 27" W • 34.5" H' },
+                { handle: "chloe", name: "Chloe", twin: 80, stats: '35" B • 27.5" W • 38.5" H' },
+                { handle: "sofia", name: "Sofia", twin: 82, stats: '33" B • 25.5" W • 36" H' },
               ].map((f) => {
                 const active = closetOwner === f.handle;
                 const matchedFriend = friends.find((x) => x.username === f.handle);
@@ -524,10 +539,10 @@ export function VellGwoStudio() {
             </div>
 
             {/* Simple Fit Profile Measurements */}
-            <div className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2">
+            <div className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[#141518] flex items-center gap-1.5">
-                  <Ruler className="w-3.5 h-3.5 text-[#686D76]" /> Your Fit Profile
+                  <Ruler className="w-3.5 h-3.5 text-[#686D76]" /> Avatar Measurements
                 </span>
                 <button
                   type="button"
@@ -539,20 +554,48 @@ export function VellGwoStudio() {
               </div>
 
               {!editingFit ? (
-                <p className="text-xs text-[#686D76]">
-                  {Math.floor((user?.heightInches || 65) / 12)}&apos;
-                  {Math.round((user?.heightInches || 65) % 12)}&quot; •{" "}
-                  {user?.waistInches ?? 26.5}&quot; Waist •{" "}
-                  {user?.hipsInches ?? 37}&quot; Hips • Shoe {user?.shoeSize || "7.5"}
-                </p>
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-3 gap-1.5 text-center">
+                    <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+                        Bust
+                      </p>
+                      <p className="text-xs font-bold text-[#141518]">
+                        {activeBust}&quot;
+                      </p>
+                    </div>
+                    <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+                        Waist
+                      </p>
+                      <p className="text-xs font-bold text-[#141518]">
+                        {activeWaist}&quot;
+                      </p>
+                    </div>
+                    <div className="py-1.5 px-2 rounded-xl bg-white border border-black/[0.06]">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#686D76]">
+                        Hips
+                      </p>
+                      <p className="text-xs font-bold text-[#141518]">
+                        {activeHips}&quot;
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-[#686D76]">
+                    {Math.floor(activeHeight / 12)}&apos;{Math.round(activeHeight % 12)}&quot; • Shoe{" "}
+                    {user?.shoeSize || "7.5"} • Best Fit:{" "}
+                    <strong className="text-[#244B3B]">Size {recSize}</strong>
+                  </p>
+                </div>
               ) : (
-                <div className="grid grid-cols-3 gap-2 pt-1">
+                <div className="grid grid-cols-2 gap-2 pt-1">
                   <label className="text-[10px] text-[#686D76] font-semibold">
-                    Height (in)
+                    Bust (in)
                     <input
                       type="number"
-                      defaultValue={user?.heightInches || 65}
-                      onChange={(e) => setHeightIn(Number(e.target.value))}
+                      step="0.25"
+                      defaultValue={activeBust}
+                      onChange={(e) => setBustIn(Number(e.target.value))}
                       className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
                     />
                   </label>
@@ -560,8 +603,8 @@ export function VellGwoStudio() {
                     Waist (in)
                     <input
                       type="number"
-                      step="0.5"
-                      defaultValue={user?.waistInches || 26.5}
+                      step="0.25"
+                      defaultValue={activeWaist}
                       onChange={(e) => setWaistIn(Number(e.target.value))}
                       className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
                     />
@@ -570,9 +613,19 @@ export function VellGwoStudio() {
                     Hips (in)
                     <input
                       type="number"
-                      step="0.5"
-                      defaultValue={user?.hipsInches || 37}
+                      step="0.25"
+                      defaultValue={activeHips}
                       onChange={(e) => setHipsIn(Number(e.target.value))}
+                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
+                    />
+                  </label>
+                  <label className="text-[10px] text-[#686D76] font-semibold">
+                    Height (in)
+                    <input
+                      type="number"
+                      step="0.5"
+                      defaultValue={activeHeight}
+                      onChange={(e) => setHeightIn(Number(e.target.value))}
                       className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
                     />
                   </label>
@@ -580,15 +633,16 @@ export function VellGwoStudio() {
                     type="button"
                     onClick={async () => {
                       await updateProfilePatch({
-                        ...(heightIn ? { heightInches: heightIn } : {}),
+                        ...(bustIn ? { bustInches: bustIn } : {}),
                         ...(waistIn ? { waistInches: waistIn } : {}),
                         ...(hipsIn ? { hipsInches: hipsIn } : {}),
+                        ...(heightIn ? { heightInches: heightIn } : {}),
                       });
                       setEditingFit(false);
                     }}
-                    className="col-span-3 py-1.5 rounded-xl bg-[#141518] text-white text-xs font-semibold cursor-pointer"
+                    className="col-span-2 py-1.5 rounded-xl bg-[#141518] text-white text-xs font-semibold cursor-pointer"
                   >
-                    Save Fit Measurements
+                    Save Measurements
                   </button>
                 </div>
               )}
@@ -754,7 +808,7 @@ export function VellGwoStudio() {
                     {activeImportedProduct.title}
                   </p>
                   <p className="text-[11px] font-semibold text-[#686D76] mt-0.5">
-                    ${activeImportedProduct.price} • Size S
+                    ${activeImportedProduct.price} • Size {recSize}
                   </p>
                 </div>
 
@@ -1035,7 +1089,7 @@ export function VellGwoStudio() {
                 In This Outfit ({currentPieces.length})
               </span>
               <span className="text-[11px] font-semibold text-[#244B3B]">
-                Your Fit: Size S
+                {activeBust}&quot; • {activeWaist}&quot; • {activeHips}&quot; (Size {recSize})
               </span>
             </div>
 
@@ -1078,7 +1132,7 @@ export function VellGwoStudio() {
                               ? `@${currentLook.friendOwner}'s Closet`
                               : "GWO Studio",
                             price: piece.price,
-                            size: "S",
+                            size: recSize,
                             friendRef: friendRefCode,
                           })
                         }

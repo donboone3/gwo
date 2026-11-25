@@ -2,9 +2,13 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Camera, Rotate3d, ShoppingBag, Sparkles } from "lucide-react";
+import { Rotate3d, Ruler, ShoppingBag, Sparkles } from "lucide-react";
 import "./runway-lookbook.css";
 import { useGwo } from "@/context/GwoAppContext";
+import {
+  DEFAULT_AVATAR_MEASUREMENTS,
+  deriveStandardApparelSize,
+} from "@/lib/catalog/sizing";
 
 import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
 
@@ -118,7 +122,16 @@ function createNestedSvgCrop(
 }
 
 export function GwoRunwayLookbook() {
-  const { addToBag, customAvatar, setAvatarModalOpen } = useGwo();
+  const { user, addToBag, customAvatar, setAvatarModalOpen } = useGwo();
+
+  const activeBust = user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches;
+  const activeWaist = user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches;
+  const activeHips = user?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches;
+  const recSize = deriveStandardApparelSize({
+    bustInches: activeBust,
+    waistInches: activeWaist,
+    hipsInches: activeHips,
+  });
 
   const stageRef = useRef<HTMLElement | null>(null);
   const lineRef = useRef<HTMLDivElement | null>(null);
@@ -140,11 +153,11 @@ export function GwoRunwayLookbook() {
         title: item[4],
         brand: item[7],
         price: item[6],
-        size: "S",
+        size: recSize,
         friendRef: item[8],
       });
     },
-    [addToBag]
+    [addToBag, recSize]
   );
 
   const handleBagCurrentOutfit = useCallback(() => {
@@ -516,7 +529,8 @@ export function GwoRunwayLookbook() {
           <div className="mv-intro space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 border border-black/[0.06] text-[11px] font-bold text-[#244B3B]">
-                <Sparkles className="w-3 h-3" /> Picked for Your Fit &amp; Vibe
+                <Ruler className="w-3 h-3" /> {activeBust}&quot; B • {activeWaist}&quot; W •{" "}
+                {activeHips}&quot; H (Size {recSize})
               </div>
               <button
                 type="button"
