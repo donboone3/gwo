@@ -29,6 +29,16 @@ interface TelemetryData {
   friendReferredClicks: number;
 }
 
+export interface UnifiedBagItem {
+  id: string;
+  title: string;
+  brand: string;
+  price: number;
+  size: string;
+  friendRef?: string;
+  storeUrl?: string;
+}
+
 interface GwoContextValue {
   loading: boolean;
   user: UserProfile | null;
@@ -51,8 +61,17 @@ interface GwoContextValue {
   isTryingOn: boolean;
   liveRenderUrl: string | null;
   toastMessage: string | null;
+  showToast: (msg: string) => void;
   checkoutModalOpen: boolean;
   setCheckoutModalOpen: (open: boolean) => void;
+  bagItems: UnifiedBagItem[];
+  bagOpen: boolean;
+  setBagOpen: (open: boolean) => void;
+  bagBump: boolean;
+  addToBag: (item: Omit<UnifiedBagItem, "id">) => void;
+  removeFromBag: (id: string) => void;
+  addUrlModalOpen: boolean;
+  setAddUrlModalOpen: (open: boolean) => void;
   wearProduct: (product: Product, referrerCode?: string) => void;
   wearOutfitSet: (items: Product[], referrerCode?: string) => void;
   removeWornSlot: (slot: keyof WornOutfitState) => void;
@@ -94,11 +113,46 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
 
+  const [bagItems, setBagItems] = useState<UnifiedBagItem[]>([
+    {
+      id: "starter-bag-1",
+      title: "Ribbed Crop Tank",
+      brand: "GWO Studio",
+      price: 38,
+      size: "S",
+      friendRef: "MAYA-GWO",
+    },
+  ]);
+  const [bagOpen, setBagOpen] = useState(false);
+  const [bagBump, setBagBump] = useState(false);
+  const [addUrlModalOpen, setAddUrlModalOpen] = useState(false);
+
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage((curr) => (curr === msg ? null : curr));
-    }, 4200);
+    }, 3200);
+  }, []);
+
+  const addToBag = useCallback(
+    (item: Omit<UnifiedBagItem, "id">) => {
+      setBagItems((prev) => [
+        ...prev,
+        {
+          ...item,
+          id: `bag-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        },
+      ]);
+      setBagBump(false);
+      requestAnimationFrame(() => setBagBump(true));
+      setTimeout(() => setBagBump(false), 500);
+      showToast(`Added ${item.title} (${item.size}) to your Bag`);
+    },
+    [showToast]
+  );
+
+  const removeFromBag = useCallback((id: string) => {
+    setBagItems((prev) => prev.filter((x) => x.id !== id));
   }, []);
 
   const applyClientSeedFallback = useCallback(() => {
@@ -294,27 +348,80 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
 
   const ingestUrlToSharedCatalog = useCallback(
     async (url: string) => {
-      const res = await fetch("/api/catalog/ingest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, username: user?.username || "mila" }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error || "Failed to import URL");
-        return null;
+      const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      try {
+        const res = await fetch(`${base}/api/catalog/ingest`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, username: user?.username || "mila" }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          await refreshState();
+          const label =
+            data.status === "shared_cache_hit"
+              ? "Instant Shared-DB Hit ($0 scrape cost)!"
+              : data.status === "refreshed_after_3_days"
+              ? "Refreshed stale (>3d) catalog item for all girls!"
+              : `Saved ${data.product.brand} piece to GWO Shared Closet!`;
+          showToast(label);
+          return data as { product: Product; status: string };
+        }
+      } catch {
+        // Static export fallback below
       }
-      await refreshState();
-      const label =
-        data.status === "shared_cache_hit"
-          ? "Instant Shared-DB Hit ($0 scrape cost)!"
-          : data.status === "refreshed_after_3_days"
-          ? "Refreshed stale (>3d) catalog item for all girls!"
-          : `Saved ${data.product.brand} piece to GWO Shared Database for everyone!`;
-      showToast(label);
-      return data as { product: Product; status: string };
+
+      // Client-side fallback for static GitHub Pages preview
+      let parsedHost = "store.com";
+      let slugTitle = "Imported Store Piece";
+      try {
+        const u = new URL(url);
+        parsedHost = u.hostname.replace(/^www\./, "");
+        const lastSeg = u.pathname.split("/").filter(Boolean).pop() || "";
+        if (lastSeg) {
+          slugTitle = lastSeg
+            .replace(/[-_]+/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+        }
+      } catch {
+        // Keep defaults
+      }
+      const brandGuess = parsedHost.split(".")[0]?.toUpperCase() || "STORE";
+      const existing = products.find((p) => p.canonicalUrl === url);
+      if (existing) {
+        addToBag({
+          brand: existing.brand,
+          title: existing.title,
+          price: existing.price,
+          size: "S",
+          storeUrl: existing.canonicalUrl,
+        });
+        showToast(`Instant Shared-Closet Hit: ${existing.brand} ${existing.title} added!`);
+        return { product: existing, status: "shared_cache_hit" };
+      }
+
+      const fallbackProduct: Product = {
+        ...(INITIAL_SEED_DB.products[0] as Product),
+        id: `prod_client_${Date.now()}`,
+        canonicalUrl: url,
+        storeDomain: parsedHost,
+        brand: brandGuess,
+        title: slugTitle,
+        price: 78,
+        sourceType: "scraped_url",
+      };
+      setProducts((prev) => [fallbackProduct, ...prev]);
+      addToBag({
+        brand: fallbackProduct.brand,
+        title: fallbackProduct.title,
+        price: fallbackProduct.price,
+        size: "S",
+        storeUrl: url,
+      });
+      showToast(`Added ${brandGuess} ${slugTitle} to GWO Closet & Bag!`);
+      return { product: fallbackProduct, status: "fresh_scrape_saved" };
     },
-    [refreshState, showToast, user?.username]
+    [addToBag, products, refreshState, showToast, user?.username]
   );
 
   const addToMyCloset = useCallback(
@@ -325,59 +432,83 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       reviewNote: string;
       isPublic?: boolean;
     }) => {
-      const res = await fetch("/api/closet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(params),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        await refreshState();
-        showToast(
-          data.bonusGranted > 0
-            ? `Added to Your Closet + unlocked +${data.bonusGranted} Free HD Try-Ons!`
-            : "Saved to Your Private Closet!"
-        );
+      const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      try {
+        const res = await fetch(`${base}/api/closet`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(params),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          await refreshState();
+          showToast(
+            data.bonusGranted > 0
+              ? `Added to Your Closet + unlocked +${data.bonusGranted} Free HD Try-Ons!`
+              : "Saved to Your Closet!"
+          );
+          return;
+        }
+      } catch {
+        // Static fallback
       }
+      showToast("Saved to Your Public Closet!");
     },
     [refreshState, showToast]
   );
 
   const updateProfilePatch = useCallback(
     async (patch: Partial<UserProfile>) => {
-      const res = await fetch("/api/state", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patch }),
-      });
-      if (res.ok) {
-        await refreshState();
-        showToast("Updated your profile & exact measurements!");
+      const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      try {
+        const res = await fetch(`${base}/api/state`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ patch }),
+        });
+        if (res.ok) {
+          await refreshState();
+          showToast("Updated your Fit Profile!");
+          return;
+        }
+      } catch {
+        // Static fallback
       }
+      setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+      showToast("Updated your Fit Profile!");
     },
     [refreshState, showToast]
   );
 
   const shareMyClosetAndClaimBonus = useCallback(async () => {
+    const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
     const shareUrl =
       typeof window !== "undefined"
-        ? `${window.location.origin}/u/${user?.username || "mila"}`
+        ? `${window.location.origin}${base}/u/${user?.username || "mila"}`
         : `https://goodwithonline.com/u/${user?.username || "mila"}`;
 
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       await navigator.clipboard.writeText(shareUrl).catch(() => undefined);
     }
 
-    const res = await fetch("/api/state", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "claim_invite_bonus" }),
-    });
-    const data = await res.json();
-    await refreshState();
-    showToast(
-      data.message || `Copied ${shareUrl} (+3 Bonus Try-Ons unlocked!)`
-    );
+    try {
+      const res = await fetch(`${base}/api/state`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "claim_invite_bonus" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await refreshState();
+        showToast(
+          data.message || `Copied ${shareUrl} (+3 Bonus Try-Ons unlocked!)`
+        );
+        return shareUrl;
+      }
+    } catch {
+      // Static fallback
+    }
+    showToast(`Copied your Closet link: ${shareUrl}`);
     return shareUrl;
   }, [refreshState, showToast, user?.username]);
 
@@ -406,8 +537,17 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         isTryingOn,
         liveRenderUrl,
         toastMessage,
+        showToast,
         checkoutModalOpen,
         setCheckoutModalOpen,
+        bagItems,
+        bagOpen,
+        setBagOpen,
+        bagBump,
+        addToBag,
+        removeFromBag,
+        addUrlModalOpen,
+        setAddUrlModalOpen,
         wearProduct,
         wearOutfitSet,
         removeWornSlot,

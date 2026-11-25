@@ -1,148 +1,36 @@
 .sp-root {
   --bg: #e2e4e8;
-  --card: #ffffff;
-  --ink: #111111;
-  --mute: #7b7e84;
-  --chip: #eceef1;
+  --ink: #141518;
+  --mute: #686d76;
   --line: #b9bcc2;
 
-  position: fixed;
-  inset: 0;
+  position: relative;
+  height: calc(100svh - 64px);
+  width: 100%;
   overflow: hidden;
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-plex-mono), "IBM Plex Mono", monospace;
+  font-family: var(--font-sans), "Plus Jakarta Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   -webkit-user-select: none;
   transition: background-color 0.35s ease;
 }
 
-.sp-root * {
-  box-sizing: border-box;
-}
-
-.sp-root button {
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-}
-
-.sp-root a {
-  color: inherit;
-  text-decoration: none;
-}
-
-/* 1500x1000 Fixed Artboard */
 #sp-art {
   position: absolute;
   width: 1500px;
-  height: 1000px;
+  height: 920px;
   transform-origin: 0 0;
-}
-
-/* ==================== HEADER ==================== */
-#sp-logo {
-  position: absolute;
-  left: 28px;
-  top: 16px;
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  font-family: var(--font-inter-tight), "Inter Tight", sans-serif;
-  font-weight: 500;
-  font-size: 27px;
-  letter-spacing: -0.01em;
-  z-index: 20;
-}
-
-#sp-crumb {
-  position: absolute;
-  left: 28px;
-  top: 56px;
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  color: var(--mute);
-  z-index: 20;
-}
-
-#sp-crumb a:hover {
-  color: var(--ink);
-  text-decoration: underline;
-}
-
-.sp-pill {
-  height: 35px;
-  padding: 0 17px;
-  background: #ffffff;
-  border-radius: 4px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  clip-path: polygon(
-    0 0,
-    calc(100% - 6px) 0,
-    100% 6px,
-    100% 100%,
-    6px 100%,
-    0 calc(100% - 6px)
-  );
-  transition: background-color 0.18s ease;
-}
-
-.sp-pill:hover {
-  background: #f6f6f7;
-}
-
-#sp-nav {
-  position: absolute;
-  left: 50%;
-  top: 16px;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 6px;
-  z-index: 20;
-}
-
-#sp-acct {
-  position: absolute;
-  right: 28px;
-  top: 16px;
-  display: flex;
-  gap: 6px;
-  z-index: 20;
-}
-
-#sp-count {
-  display: inline-block;
-  font-weight: 500;
-}
-
-#sp-count.bump {
-  animation: spBagBump 0.5s cubic-bezier(0.3, 1.8, 0.5, 1);
-}
-
-@keyframes spBagBump {
-  0% { transform: translateY(0) scale(1); }
-  45% { transform: translateY(-6px) scale(1.4); }
-  100% { transform: translateY(0) scale(1); }
 }
 
 /* ==================== 360 TURNTABLE STAGE ==================== */
 #sp-stage {
   position: absolute;
   left: 480px;
-  top: 70px;
+  top: 10px;
   width: 540px;
-  height: 960px;
+  height: 900px;
   cursor: grab;
   touch-action: none;
   z-index: 14;
@@ -176,67 +64,75 @@
   pointer-events: none;
 }
 
-/* Degree Readout */
 #sp-deg {
   position: absolute;
   left: 50%;
-  bottom: 62px;
+  bottom: 24px;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   font-size: 11px;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   color: var(--mute);
-  z-index: 15;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(12px);
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(20, 21, 24, 0.07);
+  z-index: 20;
   pointer-events: none;
   white-space: nowrap;
 }
 
 .sp-deg-bar {
   position: relative;
-  width: 120px;
-  height: 1px;
-  background: var(--line);
+  width: 110px;
+  height: 2px;
+  background: rgba(20, 21, 24, 0.16);
+  border-radius: 99px;
 }
 
 .sp-deg-dot {
   position: absolute;
   top: 50%;
-  width: 7px;
-  height: 7px;
-  margin-left: -3.5px;
-  margin-top: -3.5px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  margin-top: -4px;
   border-radius: 50%;
   background: var(--ink);
 }
 
 .sp-deg-num {
   color: var(--ink);
-  font-weight: 500;
+  font-weight: 700;
   min-width: 36px;
 }
 
 /* ==================== HOTSPOTS & CALLOUTS ==================== */
 .sp-hs {
   position: absolute;
-  width: 22px;
-  height: 22px;
-  margin-left: -11px;
-  margin-top: -11px;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  margin-top: -12px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(17, 17, 17, 0.14);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(20, 21, 24, 0.14);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1;
   color: var(--ink);
   transform: scale(0);
   transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
   z-index: 25;
+  cursor: pointer;
 }
 
 .sp-hs.show {
@@ -255,193 +151,52 @@
 
 @keyframes spPing {
   0% { transform: scale(0.6); opacity: 1; }
-  100% { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.55); opacity: 0; }
 }
 
 .sp-tip {
   position: absolute;
   top: -8px;
-  width: 210px;
+  width: 215px;
   background: #ffffff;
+  border-radius: 14px;
   padding: 12px 14px;
-  font-size: 11px;
+  font-size: 11.5px;
   line-height: 1.45;
+  font-weight: 400;
   color: var(--ink);
   text-align: left;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1);
-  clip-path: inset(0 100% 0 0);
-  transition: clip-path 0.45s cubic-bezier(0.65, 0, 0.25, 1);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  clip-path: inset(0 100% 0 0 round 14px);
+  transition: clip-path 0.4s cubic-bezier(0.65, 0, 0.25, 1);
   pointer-events: none;
   z-index: 35;
 }
 
 .sp-tip.left {
-  right: 30px;
+  right: 32px;
 }
 
 .sp-tip.right {
-  left: 30px;
+  left: 32px;
 }
 
 .sp-hs:hover .sp-tip {
-  clip-path: inset(0 0 0 0);
+  clip-path: inset(0 0 0 0 round 14px);
 }
 
 .sp-tip-title {
   display: block;
-  text-transform: uppercase;
-  font-weight: 500;
-  margin-bottom: 4px;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 3px;
 }
 
-/* ==================== CONNECTOR SVG LINES ==================== */
 #sp-connectors {
   position: absolute;
   inset: 0;
   width: 1500px;
-  height: 1000px;
+  height: 920px;
   pointer-events: none;
   z-index: 8;
-}
-
-/* ==================== NOTCHED TICKET CARDS ==================== */
-#sp-info {
-  position: absolute;
-  left: 18px;
-  top: 300px;
-  width: 420px;
-  background: var(--card);
-  padding: 36px 28px 26px 38px;
-  clip-path: polygon(
-    0 0,
-    130px 0,
-    140px 8px,
-    100% 8px,
-    100% calc(100% - 8px),
-    calc(100% - 290px) calc(100% - 8px),
-    calc(100% - 300px) 100%,
-    10px 100%,
-    10px 120px,
-    0 112px
-  );
-  z-index: 18;
-}
-
-#sp-buy {
-  position: absolute;
-  left: 1105px;
-  top: 385px;
-  width: 375px;
-  background: var(--card);
-  padding: 30px 26px 26px;
-  clip-path: polygon(
-    0 8px,
-    265px 8px,
-    275px 0,
-    100% 0,
-    100% calc(100% - 8px),
-    300px calc(100% - 8px),
-    290px 100%,
-    10px 100%,
-    10px calc(100% - 40px),
-    0 calc(100% - 48px)
-  );
-  z-index: 18;
-}
-
-.sp-acc-body {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.45s cubic-bezier(0.65, 0, 0.25, 1);
-}
-
-.sp-acc-body.open {
-  grid-template-rows: 1fr;
-}
-
-.sp-acc-inner {
-  overflow: hidden;
-  font-family: var(--font-tinos), "Tinos", Georgia, serif;
-  font-size: 15.5px;
-  line-height: 1.38;
-  color: #2b2d31;
-}
-
-/* ==================== FRONT / BACK LOOK THUMBNAILS ==================== */
-#sp-looks {
-  position: absolute;
-  left: 38px;
-  top: 790px;
-  display: flex;
-  gap: 12px;
-  z-index: 20;
-}
-
-.sp-look-btn {
-  position: relative;
-  width: 56px;
-  height: 56px;
-  padding: 3px;
-  filter: grayscale(1);
-  opacity: 0.7;
-  transition: filter 0.25s ease, opacity 0.25s ease;
-}
-
-.sp-look-btn.on {
-  filter: none;
-  opacity: 1;
-}
-
-.sp-look-btn canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-  background: #dfe2e6;
-}
-
-/* Four 7px black corner brackets on active thumbnail */
-.sp-bracket {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  border-color: #111111;
-  border-style: solid;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
-}
-
-.sp-look-btn.on .sp-bracket {
-  opacity: 1;
-}
-
-.sp-bracket.tl { top: 0; left: 0; border-width: 1.5px 0 0 1.5px; }
-.sp-bracket.tr { top: 0; right: 0; border-width: 1.5px 1.5px 0 0; }
-.sp-bracket.bl { bottom: 0; left: 0; border-width: 0 0 1.5px 1.5px; }
-.sp-bracket.br { bottom: 0; right: 0; border-width: 0 1.5px 1.5px 0; }
-
-/* Rolling Pre-order button label */
-.sp-roll-wrap {
-  position: relative;
-  height: 36px;
-  overflow: hidden;
-  width: 100%;
-}
-
-.sp-roll-track {
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.45s cubic-bezier(0.65, 0, 0.25, 1);
-}
-
-.sp-roll-track.added {
-  transform: translateY(-36px);
-}
-
-.sp-roll-track span {
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }

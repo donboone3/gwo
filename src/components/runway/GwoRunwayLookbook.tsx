@@ -2,8 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Rotate3d, ShoppingBag, Sparkles } from "lucide-react";
 import "./runway-lookbook.css";
-import { GwoLogo } from "../brand/GwoLogo";
 import { useGwo } from "@/context/GwoAppContext";
 
 const MODELS_SHEET =
@@ -11,7 +11,6 @@ const MODELS_SHEET =
 const PIECES_SHEET =
   "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20261102_042057_080e85b0-b4aa-4072-8eb9-2304c7baf42b.png&w=2400&q=85";
 
-// Each model's box on the 960 x 540 sheet: [x0, x1]
 const LOOKS: Array<[number, number]> = [
   [12, 176],
   [178, 330],
@@ -22,25 +21,34 @@ const LOOKS: Array<[number, number]> = [
 ];
 const Y0 = 48;
 const Y1 = 496;
-const FIRST_LOOK = 15;
 
-// Each piece's box on the 960 x 720 sheet: [x0, x1, y0, y1, name, price, numericPrice]
-const ITEMS: Array<[number, number, number, number, string, string, number]> = [
-  [26, 224, 28, 214, "Feather Jacket", "$2,900", 2900],
-  [304, 412, 22, 236, "Satin Wide Leg Trousers", "$1,450", 1450],
-  [530, 666, 12, 242, "Pleated Dress", "$2,200", 2200],
-  [752, 922, 100, 146, "Gold Waist Belt", "$420", 420],
-  [70, 176, 246, 466, "Satin Trench Dress", "$2,350", 2350],
-  [294, 422, 294, 432, "Top Handle Bag", "$980", 980],
-  [508, 688, 240, 452, "Billow Sleeve Blouse", "$860", 860],
-  [780, 890, 252, 466, "Tie Waist Trousers", "$740", 740],
-  [64, 178, 484, 698, "Powder Long Coat", "$1,980", 1980],
-  [316, 396, 482, 698, "Ivory Straight Trousers", "$690", 690],
-  [530, 672, 508, 682, "Sculpted Ruffle Top", "$1,120", 1120],
-  [754, 916, 484, 700, "Pleated Maxi Skirt", "$1,340", 1340],
+// Cohesive everyday GWO pieces: [x0, x1, y0, y1, name, priceDisplay, priceNum, brand, friendOwner]
+const ITEMS: Array<
+  [number, number, number, number, string, string, number, string, string]
+> = [
+  [26, 224, 28, 214, "Blush Faux-Feather Cropped Jacket", "$148", 148, "Reformation", "MAYA-GWO"],
+  [304, 412, 22, 236, "Satin Wide-Leg Lounge Trousers", "$92", 92, "Aritzia", "MAYA-GWO"],
+  [530, 666, 12, 242, "Sage Pleated Maxi Dress", "$168", 168, "Reformation", "CHLOE-GWO"],
+  [752, 922, 100, 146, "Sculpted Gold Waist Belt", "$48", 48, "GWO Studio", "CHLOE-GWO"],
+  [70, 176, 246, 466, "Champagne Belted Trench Dress", "$154", 154, "Princess Polly", "MAYA-GWO"],
+  [294, 422, 294, 432, "Structured Cream Mini Bag", "$78", 78, "GWO Studio", "MAYA-GWO"],
+  [508, 688, 240, 452, "Soft Blush Billow Blouse", "$74", 74, "Aritzia", "SOFIA-GWO"],
+  [780, 890, 252, 466, "Relaxed Tie-Waist Trousers", "$86", 86, "Aritzia", "SOFIA-GWO"],
+  [64, 178, 484, 698, "Powder Blue Wool Overcoat", "$198", 198, "Aritzia", "CHLOE-GWO"],
+  [316, 396, 482, 698, "Ivory Straight Tailored Pants", "$88", 88, "Princess Polly", "CHLOE-GWO"],
+  [530, 672, 508, 682, "Ivory Ruffle Knit Top", "$68", 68, "SKIMS", "SOFIA-GWO"],
+  [754, 916, 484, 700, "Flowy Pleated Maxi Skirt", "$96", 96, "Reformation", "SOFIA-GWO"],
 ];
 
-// Depth stops from d = -1 (leaving past the rail) to d = 5 (arriving out of the haze)
+const OCCASION_PILLS = [
+  { label: "Brunch", lookIdx: 0 },
+  { label: "Evening", lookIdx: 1 },
+  { label: "Date Night", lookIdx: 2 },
+  { label: "Work / Chic", lookIdx: 3 },
+  { label: "Outerwear", lookIdx: 4 },
+  { label: "Weekend", lookIdx: 5 },
+];
+
 const KX = [1.2, 0.744, 0.496, 0.346, 0.235, 0.15, 0.085];
 const KF = [1.14, 0.89, 0.777, 0.704, 0.651, 0.616, 0.59];
 const KH = [1.18, 0.832, 0.574, 0.436, 0.334, 0.258, 0.19];
@@ -81,16 +89,8 @@ function createNestedSvgCrop(
   return s;
 }
 
-interface CartEntry {
-  id: string;
-  name: string;
-  priceLabel: string;
-  priceNum: number;
-  lookNum: number;
-}
-
 export function GwoRunwayLookbook() {
-  const { ingestUrlToSharedCatalog, products } = useGwo();
+  const { addToBag } = useGwo();
 
   const stageRef = useRef<HTMLElement | null>(null);
   const lineRef = useRef<HTMLDivElement | null>(null);
@@ -101,34 +101,28 @@ export function GwoRunwayLookbook() {
   const currentPosRef = useRef(0);
 
   const [ready, setReady] = useState(false);
-  const [cartItems, setCartItems] = useState<CartEntry[]>([]);
-  const [drawerMode, setDrawerMode] = useState<"none" | "cart" | "import">("none");
-  const [pasteUrl, setPasteUrl] = useState("");
-  const [importing, setImporting] = useState(false);
-  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const [activeLookIdx, setActiveLookIdx] = useState(0);
 
-  const addPieceIndexToCart = useCallback((idx: number) => {
-    const item = ITEMS[idx];
-    if (!item) return;
-    const lookNum = FIRST_LOOK + Math.floor(idx / 2);
-    setCartItems((prev) => [
-      ...prev,
-      {
-        id: `${idx}-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-        name: item[4],
-        priceLabel: item[5],
-        priceNum: item[6],
-        lookNum,
-      },
-    ]);
-  }, []);
+  const addItemIndexToUnifiedBag = useCallback(
+    (idx: number) => {
+      const item = ITEMS[idx];
+      if (!item) return;
+      addToBag({
+        title: item[4],
+        brand: item[7],
+        price: item[6],
+        size: "S",
+        friendRef: item[8],
+      });
+    },
+    [addToBag]
+  );
 
-  const handleShopCurrentLook = useCallback(() => {
-    const activeIdx = Math.round(wrap(currentPosRef.current, LOOKS.length)) % LOOKS.length;
-    addPieceIndexToCart(activeIdx * 2);
-    addPieceIndexToCart(activeIdx * 2 + 1);
-    setDrawerMode("cart");
-  }, [addPieceIndexToCart]);
+  const handleBagCurrentOutfit = useCallback(() => {
+    const idx = Math.round(wrap(currentPosRef.current, LOOKS.length)) % LOOKS.length;
+    addItemIndexToUnifiedBag(idx * 2);
+    addItemIndexToUnifiedBag(idx * 2 + 1);
+  }, [addItemIndexToUnifiedBag]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -145,7 +139,6 @@ export function GwoRunwayLookbook() {
     const N = LOOKS.length;
     const calm = window.matchMedia("(prefers-reduced-motion:reduce)").matches;
 
-    // 1. Mount 6 SVG-cropped Runway Models
     const people = LOOKS.map(([a, b], i) => {
       const e = document.createElement("div");
       e.className = "mv-m";
@@ -155,26 +148,24 @@ export function GwoRunwayLookbook() {
       return { e, r: (b - a) / (Y1 - Y0), f: "", o: "" };
     });
 
-    // 2. Mount 12 SVG-cropped Looping Product Cards (clicking shot/title opens 360° Spin PDP!)
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-    const cards = ITEMS.map(([a, b, c, d, name, price], i) => {
+    const cards = ITEMS.map(([a, b, c, d, name, price, , brand], i) => {
       const pdpHref = `${basePath}/product?name=${encodeURIComponent(
         name
       )}&price=${encodeURIComponent(price)}`;
       const e = document.createElement("article");
       e.className = "mv-card" + (i % 2 ? " alt" : "");
       e.dataset.idx = String(i);
-      e.innerHTML = `<button class="mv-fav" type="button" aria-pressed="false" aria-label="Save ${name}"><svg viewBox="0 0 24 24"><path d="M12 20S3.5 15 3.5 9A4.6 4.6 0 0 1 12 6.6 4.6 4.6 0 0 1 20.5 9C20.5 15 12 20 12 20Z"/></svg></button><a class="mv-shot" href="${pdpHref}" title="View 360° Product Details for ${name}"></a><div class="mv-meta"><h3 class="mv-wide"><a href="${pdpHref}">${name}</a></h3><span>${price}</span><button class="mv-add" type="button" data-idx="${i}" aria-label="Add ${name} to cart"></button></div>`;
+      e.innerHTML = `<button class="mv-fav" type="button" aria-pressed="false" aria-label="Save ${name}"><svg viewBox="0 0 24 24"><path d="M12 20S3.5 15 3.5 9A4.6 4.6 0 0 1 12 6.6 4.6 4.6 0 0 1 20.5 9C20.5 15 12 20 12 20Z"/></svg></button><a class="mv-shot" href="${pdpHref}" title="Open 360° Fit View"></a><div class="mv-meta"><div><h3><a href="${pdpHref}">${name}</a></h3><span>${brand} • ${price}</span></div><button class="mv-add" type="button" data-idx="${i}">+ Bag</button></div>`;
       const shot = e.querySelector(".mv-shot");
       shot?.append(createNestedSvgCrop(PIECES_SHEET, a, c, b - a, d - c, 960, 720));
       rail.append(e);
       return e;
     });
 
-    // 3. Mount Rolling Look Numbers (15..20, 15)
     for (let i = 0; i <= N; i++) {
       const b = document.createElement("b");
-      b.textContent = String(FIRST_LOOK + (i % N));
+      b.textContent = `0${1 + (i % N)}`;
       roll.append(b);
     }
 
@@ -189,8 +180,7 @@ export function GwoRunwayLookbook() {
       }
       const addBtn = targetEl.closest(".mv-add") as HTMLElement | null;
       if (addBtn) {
-        const idx = Number(addBtn.dataset.idx || 0);
-        addPieceIndexToCart(idx);
+        addItemIndexToUnifiedBag(Number(addBtn.dataset.idx || 0));
       }
     };
     rail.addEventListener("click", onRailClick);
@@ -204,6 +194,7 @@ export function GwoRunwayLookbook() {
     let p = 0;
     let target = 0;
     let last = 0;
+    let lastReportedIdx = 0;
 
     jumpLookRef.current = (lookIndex: number) => {
       const currMod = wrap(Math.round(target), N);
@@ -221,7 +212,7 @@ export function GwoRunwayLookbook() {
         m.e.style.width = `${base * m.r}px`;
         m.e.style.height = `${base}px`;
       });
-      cardS = side ? 160 : rail.clientHeight / 3;
+      cardS = side ? 170 : rail.clientHeight / 3;
       cards.forEach((c) => {
         c.style.height = side ? "100%" : `${cardS}px`;
       });
@@ -230,6 +221,12 @@ export function GwoRunwayLookbook() {
 
     const paint = () => {
       currentPosRef.current = p;
+      const roundedIdx = Math.round(wrap(p, N)) % N;
+      if (roundedIdx !== lastReportedIdx) {
+        lastReportedIdx = roundedIdx;
+        setActiveLookIdx(roundedIdx);
+      }
+
       people.forEach((m, i) => {
         let d = wrap(i - p, N);
         if (d > N - 1) d -= N;
@@ -273,7 +270,7 @@ export function GwoRunwayLookbook() {
       });
 
       const firstRollChild = roll.firstElementChild as HTMLElement | null;
-      const lineH = firstRollChild ? firstRollChild.offsetHeight : 38;
+      const lineH = firstRollChild ? firstRollChild.offsetHeight : 36;
       roll.style.transform = `translate3d(0,${(-wrap(p, N) * lineH).toFixed(
         1
       )}px,0)`;
@@ -417,123 +414,92 @@ export function GwoRunwayLookbook() {
       window.removeEventListener("resize", size);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [addPieceIndexToCart]);
+  }, [addItemIndexToUnifiedBag]);
 
-  const cartTotal = cartItems.reduce((s, c) => s + c.priceNum, 0);
+  const currentOutfitPrice =
+    (ITEMS[activeLookIdx * 2]?.[6] || 0) +
+    (ITEMS[activeLookIdx * 2 + 1]?.[6] || 0);
+  const currentHeroName = ITEMS[activeLookIdx * 2]?.[4] || "Metallic Puffer";
+  const currentHeroPrice = ITEMS[activeLookIdx * 2]?.[5] || "$168";
 
   return (
     <div className="mv-page">
-      <header className="mv-header">
-        <div className="mv-r1">
-          <div className="mv-brand-wrap">
-            <GwoLogo height={34} className="text-[#16191f]" />
-            <span className="mv-brand mv-wide">Maison GWO</span>
-          </div>
-
-          <nav className="mv-tabs mv-wide" aria-label="Sections">
-            <Link className="on" href="/shop" aria-current="page">
-              Recommended
-            </Link>
-            <Link href="/closet">Your Closet</Link>
-            <Link href="/friends">Girls&apos; Closets</Link>
-            <button type="button" onClick={() => setDrawerMode("import")}>
-              Import URL
-            </button>
-          </nav>
-
-          <div className="mv-acct mv-wide">
-            <Link href="/closet">Avatar Studio</Link>
-            <button
-              type="button"
-              onClick={() => setDrawerMode("import")}
-              aria-label="Import Store URL via Firecrawl"
-            >
-              <svg viewBox="0 0 24 24">
-                <circle cx="10.5" cy="10.5" r="6.5" />
-                <path d="m15.5 15.5 5 5" />
-              </svg>
-            </button>
-            <Link href="/friends" aria-label="Friends & Body Twins">
-              <svg viewBox="0 0 24 24">
-                <path d="M12 20S3.5 15 3.5 9A4.6 4.6 0 0 1 12 6.6 4.6 4.6 0 0 1 20.5 9C20.5 15 12 20 12 20Z" />
-              </svg>
-            </Link>
-            <button
-              type="button"
-              onClick={() => setDrawerMode("cart")}
-              aria-label="Bag"
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M5 8h14l1 13H4Z" />
-                <path d="M9 10V6a3 3 0 0 1 6 0v4" />
-              </svg>
-            </button>
-            <button type="button" onClick={() => setDrawerMode("cart")}>
-              Cart (<span>{cartItems.length}</span>)
-            </button>
-          </div>
-        </div>
-
-        <nav className="mv-r2 mv-wide" aria-label="Recommended Occasions">
-          <button type="button" onClick={() => jumpLookRef.current?.(0)}>
-            Collections
-          </button>
-          <button type="button" onClick={() => jumpLookRef.current?.(1)}>
-            Evening
-          </button>
-          <button type="button" onClick={() => jumpLookRef.current?.(2)}>
-            Trench Edit
-          </button>
-          <button type="button" onClick={() => jumpLookRef.current?.(3)}>
-            Day Tailoring
-          </button>
-          <button type="button" onClick={() => jumpLookRef.current?.(4)}>
-            Outerwear
-          </button>
-          <button type="button" onClick={() => jumpLookRef.current?.(5)}>
-            Gala Lookbook
-          </button>
-        </nav>
-      </header>
-
       <main className="mv-main">
         <section
           className="mv-stage"
           ref={stageRef}
-          aria-label="Runway looks. Drag, scroll or use the arrow keys to change look."
+          aria-label="Recommended outfits. Drag, scroll or use arrow keys."
           tabIndex={0}
         >
           <div className="mv-line" ref={lineRef} />
 
-          <div className="mv-intro">
-            <h2 className="mv-wide">Recommended Runway</h2>
-            <p>
-              A study in softness and strength. Drag, scroll, or use arrow keys
-              to walk six recommended full outfits forward out of the haze,
-              calibrated to your closet and Body-Twin circle.
+          {/* Clean Top-Left Occasion Card */}
+          <div className="mv-intro space-y-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/85 backdrop-blur-md border border-black/[0.06] text-[11px] font-bold text-[#244B3B]">
+              <Sparkles className="w-3 h-3" /> Picked for Your Fit &amp; Vibe
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#141518]">
+              For You Runway
+            </h1>
+            <p className="hidden sm:block text-xs sm:text-sm text-[#686D76] leading-relaxed">
+              Drag, scroll, or tap an occasion below to walk recommended outfits forward.
             </p>
+
+            {/* 1-Tap Occasion Filter Pills */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {OCCASION_PILLS.map((pill) => {
+                const active = activeLookIdx === pill.lookIdx;
+                return (
+                  <button
+                    key={pill.label}
+                    type="button"
+                    onClick={() => jumpLookRef.current?.(pill.lookIdx)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+                      active
+                        ? "bg-[#141518] text-white shadow-xs"
+                        : "bg-white/85 hover:bg-white text-[#686D76] hover:text-[#141518] border border-black/[0.06]"
+                    }`}
+                  >
+                    {pill.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="mv-tag">
-            <div className="mv-look mv-wide" aria-live="polite">
-              <span>Look</span>
+          {/* Clean Bottom-Left Outfit Counter + Unified Actions */}
+          <div className="mv-tag space-y-3">
+            <div className="mv-look" aria-live="polite">
+              <span>Outfit</span>
               <span className="mv-win">
                 <span className="mv-roll" ref={rollRef} />
               </span>
             </div>
-            <div className="mv-actions">
+
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={handleShopCurrentLook}
-                className="mv-shop mv-wide"
+                onClick={handleBagCurrentOutfit}
+                className="px-4 py-2.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-md"
               >
-                Shop the look
+                <ShoppingBag className="w-3.5 h-3.5" /> Bag Full Outfit ($
+                {currentOutfitPrice})
               </button>
-              <Link href="/product" className="mv-shop mv-shop-muted mv-wide">
-                360° Details →
+
+              <Link
+                href={`/product?name=${encodeURIComponent(
+                  currentHeroName
+                )}&price=${encodeURIComponent(currentHeroPrice)}`}
+                className="px-3.5 py-2.5 rounded-full bg-white/90 hover:bg-white border border-black/[0.08] text-[#141518] text-xs font-semibold inline-flex items-center gap-1.5"
+              >
+                <Rotate3d className="w-3.5 h-3.5" /> 360° Fit View
               </Link>
-              <Link href="/closet" className="mv-shop mv-shop-muted mv-wide">
-                Try on Avatar →
+
+              <Link
+                href="/"
+                className="px-3.5 py-2.5 rounded-full bg-white/90 hover:bg-white border border-black/[0.08] text-[#244B3B] text-xs font-semibold"
+              >
+                Try in Closet →
               </Link>
             </div>
           </div>
@@ -544,216 +510,9 @@ export function GwoRunwayLookbook() {
         <aside
           className="mv-rail"
           ref={railRef}
-          aria-label="Pieces in this look"
+          aria-label="Pieces in this outfit"
         />
       </main>
-
-      {/* ==================== MINIMALIST RUNWAY CART / FIRECRAWL OVERLAY ==================== */}
-      {drawerMode !== "none" && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 80,
-            background: "rgba(22, 25, 31, 0.24)",
-            backdropFilter: "blur(6px)",
-            display: "flex",
-            justifyContent: "flex-end",
-          }}
-          onClick={() => setDrawerMode("none")}
-        >
-          <div
-            style={{
-              width: "min(420px, 100vw)",
-              height: "100%",
-              background: "#ffffff",
-              borderLeft: "1px solid #e6ebf0",
-              padding: "32px 28px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 20,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                borderBottom: "1px solid #e6ebf0",
-                paddingBottom: 16,
-              }}
-            >
-              <span
-                className="mv-wide"
-                style={{ fontSize: 12, letterSpacing: "0.16em" }}
-              >
-                {drawerMode === "cart"
-                  ? `Runway Bag (${cartItems.length})`
-                  : "Firecrawl Store Import"}
-              </span>
-              <button
-                type="button"
-                className="mv-wide"
-                style={{ fontSize: 10, letterSpacing: "0.14em", color: "#737b86" }}
-                onClick={() => setDrawerMode("none")}
-              >
-                Close
-              </button>
-            </div>
-
-            {drawerMode === "cart" ? (
-              <>
-                <div
-                  style={{
-                    flex: 1,
-                    overflowY: "auto",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 12,
-                  }}
-                >
-                  {cartItems.length === 0 ? (
-                    <p style={{ fontSize: 13, color: "#737b86", lineHeight: 1.6 }}>
-                      Click the <strong>+</strong> button on any piece in the
-                      right rail or <strong>Shop the look</strong> at bottom-left
-                      to add pieces to your bag.
-                    </p>
-                  ) : (
-                    cartItems.map((item) => (
-                      <div
-                        key={item.id}
-                        style={{
-                          padding: "14px 16px",
-                          background: "#f3f6fa",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <div>
-                          <div
-                            className="mv-wide"
-                            style={{ fontSize: 10, letterSpacing: "0.12em" }}
-                          >
-                            {item.name}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "#737b86",
-                              marginTop: 4,
-                            }}
-                          >
-                            Look {item.lookNum} · {item.priceLabel}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          style={{ fontSize: 11, color: "#737b86" }}
-                          onClick={() =>
-                            setCartItems((p) =>
-                              p.filter((x) => x.id !== item.id)
-                            )
-                          }
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div
-                  style={{
-                    borderTop: "1px solid #e6ebf0",
-                    paddingTop: 18,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: 14,
-                    }}
-                  >
-                    <span style={{ color: "#737b86" }}>Estimated Total</span>
-                    <strong>${cartTotal.toLocaleString()}</strong>
-                  </div>
-                  <Link
-                    href="/closet"
-                    className="mv-wide"
-                    style={{
-                      padding: "14px 18px",
-                      background: "#16191f",
-                      color: "#ffffff",
-                      fontSize: 10,
-                      letterSpacing: "0.16em",
-                      textAlign: "center",
-                    }}
-                  >
-                    Try Pieces in Avatar Studio →
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <p style={{ fontSize: 13, color: "#737b86", lineHeight: 1.6 }}>
-                  Paste any Nike, Skims, Reformation, or boutique URL. Your
-                  authenticated <strong>Firecrawl</strong> engine scrapes it once
-                  into GWO&apos;s shared 3-day-refresh catalog ({products.length}{" "}
-                  SKUs live).
-                </p>
-                <input
-                  type="url"
-                  value={pasteUrl}
-                  onChange={(e) => setPasteUrl(e.target.value)}
-                  placeholder="https://www.nike.com/t/..."
-                  style={{
-                    padding: "12px 14px",
-                    border: "1px solid #d5dde6",
-                    fontSize: 13,
-                    outline: "none",
-                  }}
-                />
-                <button
-                  type="button"
-                  disabled={importing || !pasteUrl.trim()}
-                  onClick={async () => {
-                    setImporting(true);
-                    const res = await ingestUrlToSharedCatalog(pasteUrl);
-                    setImporting(false);
-                    if (res?.product) {
-                      setPasteUrl("");
-                      setImportNotice(
-                        `Saved ${res.product.brand} — ${res.product.title} ($${res.product.price}) to shared catalog!`
-                      );
-                    }
-                  }}
-                  className="mv-wide"
-                  style={{
-                    padding: "14px 18px",
-                    background: "#16191f",
-                    color: "#ffffff",
-                    fontSize: 10,
-                    letterSpacing: "0.16em",
-                  }}
-                >
-                  {importing ? "Scraping via Firecrawl..." : "Import to Shared DB"}
-                </button>
-                {importNotice && (
-                  <p style={{ fontSize: 12.5, color: "#2b5942", lineHeight: 1.5 }}>
-                    {importNotice}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       <div className={`mv-wait ${ready ? "gone" : ""}`} />
     </div>

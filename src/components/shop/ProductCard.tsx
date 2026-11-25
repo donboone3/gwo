@@ -32,6 +32,7 @@ export function ProductCard({
     activeProductIds,
     myCloset,
     addToMyCloset,
+    addToBag,
     getSizeRec,
   } = useGwo();
   const [addingCloset, setAddingCloset] = useState(false);
@@ -192,7 +193,17 @@ export function ProductCard({
         <div className="px-3.5 pb-3.5 pt-1 flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => wearProduct(product, referrerCode)}
+            onClick={() => {
+              wearProduct(product, referrerCode);
+              addToBag({
+                brand: product.brand,
+                title: product.title,
+                price: product.price,
+                size: sizeRec?.recommendedSize || "S",
+                friendRef: referrerCode,
+                storeUrl: product.canonicalUrl,
+              });
+            }}
             className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-full text-xs font-semibold transition cursor-pointer ${
               isWorn
                 ? "bg-[#2B5942] text-white"
@@ -200,7 +211,7 @@ export function ProductCard({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            {isWorn ? "Worn on Avatar" : "Try On"}
+            {isWorn ? "In Outfit Bag" : "Try & + Bag"}
           </button>
 
           {!isOwned ? (
@@ -222,7 +233,11 @@ export function ProductCard({
           )}
 
           <a
-            href={`/api/out/${product.id}${refQuery}`}
+            href={
+              process.env.NEXT_PUBLIC_BASE_PATH
+                ? product.canonicalUrl
+                : `/api/out/${product.id}${refQuery}`
+            }
             target="_blank"
             rel="noopener noreferrer"
             title={
