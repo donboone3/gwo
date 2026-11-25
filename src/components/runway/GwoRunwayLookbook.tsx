@@ -156,8 +156,9 @@ export function GwoRunwayLookbook() {
     });
 
     // 2. Mount 12 SVG-cropped Looping Product Cards (clicking shot/title opens 360° Spin PDP!)
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
     const cards = ITEMS.map(([a, b, c, d, name, price], i) => {
-      const pdpHref = `/product?name=${encodeURIComponent(
+      const pdpHref = `${basePath}/product?name=${encodeURIComponent(
         name
       )}&price=${encodeURIComponent(price)}`;
       const e = document.createElement("article");

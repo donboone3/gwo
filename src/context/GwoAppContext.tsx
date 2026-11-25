@@ -18,6 +18,7 @@ import {
 } from "@/lib/types";
 import { UserQuotaStatus } from "@/lib/tryon/budget-guard";
 import { recommendSizeForUser } from "@/lib/catalog/sizing";
+import { INITIAL_SEED_DB } from "@/lib/db/seed-data";
 
 interface TelemetryData {
   ledger: ComputeBudgetLedger;
@@ -100,10 +101,60 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
     }, 4200);
   }, []);
 
+  const applyClientSeedFallback = useCallback(() => {
+    const activeUser = INITIAL_SEED_DB.profiles[0];
+    const seedProducts = INITIAL_SEED_DB.products;
+    const prodMap = new Map(seedProducts.map((p) => [p.id, p]));
+    const seedFriends = INITIAL_SEED_DB.profiles.slice(1);
+    const friendMap = new Map(seedFriends.map((f) => [f.id, f]));
+
+    const seedMyCloset = INITIAL_SEED_DB.closetItems
+      .filter((ci) => ci.userId === activeUser.id)
+      .map((ci) => {
+        const product = prodMap.get(ci.productId);
+        return product ? { ...ci, product, owner: activeUser } : null;
+      })
+      .filter((x): x is EnrichedClosetItem => x !== null);
+
+    const seedFriendFeed = INITIAL_SEED_DB.closetItems
+      .filter((ci) => friendMap.has(ci.userId))
+      .map((ci) => {
+        const product = prodMap.get(ci.productId);
+        const owner = friendMap.get(ci.userId);
+        return product && owner ? { ...ci, product, owner } : null;
+      })
+      .filter((x): x is EnrichedClosetItem => x !== null);
+
+    setUser(activeUser);
+    setQuota({
+      dailyLimit: 6,
+      dailyUsed: 0,
+      freeDailyRemaining: 6,
+      bonusRemaining: 0,
+      totalAvailableToday: 6,
+    });
+    setProducts(seedProducts);
+    setMyCloset(seedMyCloset);
+    setFriends(seedFriends);
+    setFriendFeed(seedFriendFeed);
+    setTelemetry({
+      ledger: INITIAL_SEED_DB.budgetLedgers[0],
+      sharedSkuCount: seedProducts.length,
+      scrapedUrlCount: seedProducts.filter((p) => p.sourceType === "scraped_url").length,
+      publicClosetItemCount: INITIAL_SEED_DB.closetItems.length,
+      totalAffiliateClicks: 0,
+      friendReferredClicks: 0,
+    });
+  }, []);
+
   const refreshState = useCallback(async () => {
     try {
-      const res = await fetch("/api/state", { cache: "no-store" });
-      if (!res.ok) return;
+      const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      const res = await fetch(`${base}/api/state`, { cache: "no-store" });
+      if (!res.ok) {
+        applyClientSeedFallback();
+        return;
+      }
       const data = await res.json();
       setUser(data.user);
       setQuota(data.quota);
@@ -112,10 +163,12 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       setFriends(data.friends);
       setFriendFeed(data.friendFeed);
       setTelemetry(data.telemetry);
+    } catch {
+      applyClientSeedFallback();
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyClientSeedFallback]);
 
   useEffect(() => {
     refreshState();
