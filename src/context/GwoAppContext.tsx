@@ -455,6 +455,12 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
 
       const activeProfile = user || INITIAL_SEED_DB.profiles[0];
 
+      const matchedSeedByUrl = INITIAL_SEED_DB.products.find(
+        (p) =>
+          p.canonicalUrl.toLowerCase() ===
+          url.trim().replace(/\/+$/, "").toLowerCase()
+      );
+
       // Only short-circuit before Jina browser enrichment if serverProduct already has verified /products/ gallery + modelStats!
       if (
         serverProduct &&
@@ -465,6 +471,8 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       ) {
         const hydrated: Product = {
           ...serverProduct,
+          studioLookIndex:
+            serverProduct.studioLookIndex ?? matchedSeedByUrl?.studioLookIndex,
           imageUrl: getSafeClothingImageUrl(serverProduct.imageUrl, 960),
           fitMetadata: serverProduct.fitMetadata
             ? {
@@ -524,6 +532,8 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       const mergedProduct: Product = serverProduct
         ? {
             ...serverProduct,
+            studioLookIndex:
+              serverProduct.studioLookIndex ?? matchedSeedByUrl?.studioLookIndex,
             brand: browserScraped.product.brand || serverProduct.brand,
             title: browserScraped.product.title || serverProduct.title,
             price: browserScraped.product.price || serverProduct.price,

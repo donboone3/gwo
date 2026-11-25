@@ -131,8 +131,14 @@ function inferClientColor(text: string): {
 
 function formatBrand(hostname: string): string {
   const clean = hostname
-    .replace(/^(www\.|us\.|m\.|shop\.|store\.)/i, "")
+    .replace(/\.myshopify\.com$/i, "")
+    .replace(/^(www\.|us\.|au\.|uk\.|m\.|shop\.|store\.)/i, "")
     .split(".")[0];
+  const lower = clean.toLowerCase();
+  if (lower.includes("babyboo")) return "Babyboo Fashion";
+  if (lower.includes("houseofcb")) return "House of CB";
+  if (lower.includes("ohpolly")) return "Oh Polly";
+  if (lower.includes("meshki")) return "MESHKI";
   const map: Record<string, string> = {
     thereformation: "Reformation",
     princesspolly: "Princess Polly",
@@ -148,7 +154,7 @@ function formatBrand(hostname: string): string {
     revolve: "Revolve",
     gymshark: "Gymshark",
   };
-  return map[clean.toLowerCase()] || clean.charAt(0).toUpperCase() + clean.slice(1);
+  return map[lower] || clean.charAt(0).toUpperCase() + clean.slice(1);
 }
 
 function labelAngleFromText(alt: string, url: string, idx: number): string {

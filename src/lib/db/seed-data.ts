@@ -286,6 +286,91 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
 
     // ==================== BOUTIQUE SHARED DB STAPLES ====================
     {
+      id: "prod-babyboo-cornelia-red",
+      canonicalUrl:
+        "https://babyboofashion-com-au.myshopify.com/products/cornelia-mini-dress-red",
+      brand: "Babyboo Fashion",
+      storeDomain: "babyboofashion-com-au.myshopify.com",
+      title: "Cornelia Mini Dress - Red",
+      category: "dress",
+      silhouette: "mini-dress",
+      colorName: "Crimson Red",
+      colorHex: "#C80815",
+      accentHex: "#FAF8F5",
+      price: 132,
+      currency: "USD",
+      studioLookIndex: 8,
+      imageUrl:
+        "https://wsrv.nl/?url=https%3A%2F%2Fcdn.shopify.com%2Fs%2Ffiles%2F1%2F2060%2F7491%2Ffiles%2Fcornelia-mini-dress-red-dress-babyboo-fashion-1210135607.jpg%3Fv%3D1765144985&w=960&output=webp&q=86",
+      fitMetadata: {
+        descriptionSummary:
+          "Structured boned crepe corset mini dress with rounded square neckline, adjustable tapered straps, lace-up back, and dropped-waist lyocell cowl-pleat overlay skirt.",
+        fitNotes: [
+          "Non-stretch boned corset bodice + invisible zipper closure",
+          "Lace-up corset back & adjustable straps customize bust tension",
+          "Dropped-waist cowl-pleat mini skirt (22.8\" CF length in Size S)",
+          "No-stretch crepe runs structured—size for your natural waist",
+        ],
+        fabricComposition: "100% Non-Stretch Crepe & Woven Lyocell",
+        stretchLevel: "rigid",
+        cutType: "fitted",
+        storeFitTendency: "runs_small",
+        hemLanding: "mini",
+        hasAdjustableBack: true,
+        garmentLengthBySizeInches: {
+          XS: 22.4,
+          S: 22.8,
+          M: 23.2,
+          L: 23.6,
+          XL: 24.0,
+        },
+        modelStats: {
+          rawText:
+            "Model wears Size XS • 5'7\" (170cm) • 31.1\" B • 23.6\" W • 35.4\" H",
+          heightInches: 67,
+          heightDisplay: "5'7\" (170cm)",
+          wornSize: "XS",
+          bustInches: 31.1,
+          waistInches: 23.6,
+          hipsInches: 35.4,
+        },
+        galleryImages: [
+          {
+            url: "https://wsrv.nl/?url=https%3A%2F%2Fcdn.shopify.com%2Fs%2Ffiles%2F1%2F2060%2F7491%2Ffiles%2Fcornelia-mini-dress-red-dress-babyboo-fashion-1210135607.jpg%3Fv%3D1765144985&w=960&output=webp&q=86",
+            label: "Model Full Front",
+          },
+          {
+            url: "https://wsrv.nl/?url=https%3A%2F%2Fcdn.shopify.com%2Fs%2Ffiles%2F1%2F2060%2F7491%2Ffiles%2Fcornelia-mini-dress-red-dress-xs-babyboo-fashion-1210135604.jpg%3Fv%3D1764932595&w=960&output=webp&q=86",
+            label: "Corset Bodice",
+          },
+          {
+            url: "https://wsrv.nl/?url=https%3A%2F%2Fcdn.shopify.com%2Fs%2Ffiles%2F1%2F2060%2F7491%2Ffiles%2Fcornelia-mini-dress-red-dress-babyboo-fashion-1210135605.jpg%3Fv%3D1764932600&w=960&output=webp&q=86",
+            label: "Lace-Up Back",
+          },
+          {
+            url: "https://wsrv.nl/?url=https%3A%2F%2Fcdn.shopify.com%2Fs%2Ffiles%2F1%2F2060%2F7491%2Ffiles%2Fcornelia-mini-dress-red-dress-babyboo-fashion-1210135606.jpg%3Fv%3D1765144985&w=960&output=webp&q=86",
+            label: "3/4 Cowl Drape",
+          },
+        ],
+      },
+      occasions: ["Date Night", "Party", "Birthday", "Cocktail"],
+      vibes: ["Romantic", "Going Out"],
+      availableSizes: ["XS", "S", "M", "L", "XL"],
+      sizeChartInches: {
+        XS: { bustMin: 31.4, bustMax: 33.0, waistMin: 24.0, waistMax: 25.5, hipsMin: 34.6, hipsMax: 36.2 },
+        S: { bustMin: 33.4, bustMax: 35.0, waistMin: 25.9, waistMax: 27.5, hipsMin: 36.6, hipsMax: 38.2 },
+        M: { bustMin: 35.0, bustMax: 37.0, waistMin: 27.9, waistMax: 29.5, hipsMin: 38.6, hipsMax: 40.2 },
+        L: { bustMin: 37.4, bustMax: 38.9, waistMin: 29.9, waistMax: 31.4, hipsMin: 40.5, hipsMax: 42.1 },
+        XL: { bustMin: 39.3, bustMax: 40.9, waistMin: 32.2, waistMax: 33.4, hipsMin: 42.5, hipsMax: 44.1 },
+      },
+      estDeliveryDays: 4,
+      inStock: true,
+      sourceType: "scraped_url",
+      addedByUsername: "mila",
+      lastScrapedAt: nowIso,
+      staleAfter: inThreeDays,
+    },
+    {
       id: "prod-ref-silk-dress",
       canonicalUrl: "https://www.thereformation.com/products/casette-silk-dress",
       brand: "Reformation",
@@ -518,6 +603,18 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
   ],
   closetItems: [
     // Mila's Own Starter Closet ("Your Closet")
+    {
+      id: "ci-mila-cornelia",
+      userId: "user-mila",
+      productId: "prod-babyboo-cornelia-red",
+      purchasedSize: "S",
+      fitRating: "true_to_size",
+      reviewNote:
+        "Size S fits a 27\" waist comfortably without zipper strain, and the lace-up corset back cinches flush to a 32.25\" bust!",
+      isPublic: true,
+      timesWorn: 3,
+      createdAt: nowIso,
+    },
     {
       id: "ci-mila-1",
       userId: "user-mila",

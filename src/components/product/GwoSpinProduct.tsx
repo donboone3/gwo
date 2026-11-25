@@ -242,11 +242,21 @@ export function GwoSpinProduct() {
   );
 
   const [storeAngleIdx, setStoreAngleIdx] = useState(0);
-  const [compareAvatarScale, setCompareAvatarScale] = useState(false);
+  const [stageViewMode, setStageViewMode] = useState<"avatar" | "store" | "compare">(
+    activeProduct.studioLookIndex !== undefined ? "avatar" : "store"
+  );
 
   useEffect(() => {
     setStoreAngleIdx(0);
-  }, [activeProduct.id]);
+    setStageViewMode(
+      activeProduct.studioLookIndex !== undefined ? "avatar" : "store"
+    );
+  }, [activeProduct.id, activeProduct.studioLookIndex]);
+
+  const avatarRenderLook =
+    activeProduct.studioLookIndex !== undefined
+      ? STUDIO_LOOKS[activeProduct.studioLookIndex] || STUDIO_LOOKS[0]
+      : STUDIO_LOOKS[0];
 
   const galleryAngles = useMemo(() => {
     const raw = activeProduct.fitMetadata?.galleryImages || [];
@@ -629,9 +639,9 @@ export function GwoSpinProduct() {
 
   const modelHeightIn =
     activeProduct.fitMetadata?.modelStats?.heightInches || 69;
-  const modelHeightDisp =
-    activeProduct.fitMetadata?.modelStats?.heightDisplay ||
-    `${Math.floor(modelHeightIn / 12)}'${modelHeightIn % 12}"`;
+  const modelHeightDisp = `${Math.floor(modelHeightIn / 12)}'${
+    modelHeightIn % 12
+  }"`;
   const avatarHeightDisp = `${Math.floor(activeHeight / 12)}'${Math.round(
     activeHeight % 12
   )}"`;
@@ -752,34 +762,95 @@ export function GwoSpinProduct() {
             className="flex flex-col items-center justify-between gap-3"
           >
             {/* Stage Mode Switcher Pill */}
-            <div className="flex items-center gap-1.5 p-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm">
+            <div className="flex items-center gap-1 p-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm">
+              {activeProduct.studioLookIndex !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => setStageViewMode("avatar")}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                    stageViewMode === "avatar"
+                      ? "bg-[#141518] text-white"
+                      : "text-[#686D76] hover:text-[#141518]"
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" /> Your Avatar Fit
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setCompareAvatarScale(false)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
-                  !compareAvatarScale
+                onClick={() => setStageViewMode("compare")}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                  stageViewMode === "compare"
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Images className="w-3.5 h-3.5" /> Store Photos &amp; Fit Pins
+                <Columns2 className="w-3.5 h-3.5" /> Model vs You ({avatarHeightDisp})
               </button>
               <button
                 type="button"
-                onClick={() => setCompareAvatarScale(true)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
-                  compareAvatarScale
+                onClick={() => setStageViewMode("store")}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                  stageViewMode === "store"
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Columns2 className="w-3.5 h-3.5" /> Model ({modelHeightDisp}) vs You (
-                {avatarHeightDisp})
+                <Images className="w-3.5 h-3.5" /> Store Photos
               </button>
             </div>
 
             {/* Main Visual Frame */}
-            {!compareAvatarScale ? (
+            {stageViewMode === "avatar" && activeProduct.studioLookIndex !== undefined ? (
+              <div className="relative w-full flex-1 rounded-3xl bg-gradient-to-b from-[#F5F6F9] to-[#E8EBF0] border border-black/[0.08] shadow-[0_18px_42px_rgba(20,21,24,0.09)] overflow-hidden flex items-end justify-center pt-4">
+                <div className="relative h-full aspect-[1360/2048] flex items-end justify-center">
+                  <div
+                    className="absolute bottom-2 left-1/2 -translate-x-1/2 w-56 h-7 rounded-full pointer-events-none"
+                    style={{
+                      background:
+                        "radial-gradient(closest-side, rgba(25,26,30,0.34), transparent)",
+                    }}
+                  />
+                  <img
+                    src={H(avatarRenderLook.file, 900)}
+                    alt={`${activeProduct.title} on Your Avatar`}
+                    className="w-full h-full object-contain"
+                  />
+                  {customAvatar && (
+                    <img
+                      src={customAvatar.faceOvalDataUrl}
+                      alt="Your face"
+                      style={{
+                        left: "49.95%",
+                        top: "13.2%",
+                        width: "12.9%",
+                        height: "9.7%",
+                      }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 object-fill pointer-events-none"
+                    />
+                  )}
+                </div>
+
+                {/* Live On-Avatar Zone Fit Callouts */}
+                <div className="absolute right-3.5 top-3.5 flex flex-col items-end gap-1.5 pointer-events-none">
+                  {liveFitReport.zones.map((z) => (
+                    <div
+                      key={z.zone}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold border shadow-sm backdrop-blur-md ${getZoneBadgeStyle(
+                        z.feel
+                      )}`}
+                    >
+                      {z.zone} ({z.avatarInches}&quot;): {z.feelLabel}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="absolute left-3.5 bottom-3.5 px-3 py-1 rounded-full bg-[#141518] text-white text-[11px] font-semibold">
+                  Lifelike Fit on Your Avatar ({activeBust}&quot; • {activeWaist}&quot; •{" "}
+                  {activeHips}&quot;) • Size {selectedSize}
+                </div>
+              </div>
+            ) : stageViewMode === "store" ? (
               <div className="relative w-full flex-1 rounded-3xl bg-white/95 border border-black/[0.08] shadow-[0_18px_42px_rgba(20,21,24,0.09)] overflow-hidden flex items-center justify-center">
                 <GarmentArtwork
                   product={{
@@ -862,6 +933,9 @@ export function GwoSpinProduct() {
                       <p className="text-[11px] text-[#686D76]">
                         Wears Size{" "}
                         {activeProduct.fitMetadata?.modelStats?.wornSize || "S"}
+                        {activeProduct.fitMetadata?.modelStats?.waistInches
+                          ? ` (${activeProduct.fitMetadata.modelStats.waistInches}"W)`
+                          : ""}
                       </p>
                     </div>
                   </div>
@@ -873,7 +947,7 @@ export function GwoSpinProduct() {
                       className="relative aspect-[1360/2048] flex items-end justify-center"
                     >
                       <img
-                        src={H(STUDIO_LOOKS[0].file, 900)}
+                        src={H(avatarRenderLook.file, 900)}
                         alt="Your Signature Avatar"
                         className="w-full h-full object-contain"
                       />
@@ -918,10 +992,10 @@ export function GwoSpinProduct() {
                     type="button"
                     onClick={() => {
                       setStoreAngleIdx(idx);
-                      setCompareAvatarScale(false);
+                      setStageViewMode("store");
                     }}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold cursor-pointer transition ${
-                      storeAngleIdx === idx && !compareAvatarScale
+                      storeAngleIdx === idx && stageViewMode === "store"
                         ? "bg-[#141518] text-white border-[#141518]"
                         : "bg-white text-[#686D76] border-black/10 hover:text-[#141518]"
                     }`}

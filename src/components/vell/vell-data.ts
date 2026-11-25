@@ -39,6 +39,7 @@ export interface StudioLook {
   name: string;
   category: "everyday" | "athletic" | "sleep" | "formal" | "party" | "street";
   file: string;
+  productId?: string;
   friendOwner?: string;
   friendTwinPct?: number;
   pieces: {
@@ -183,6 +184,28 @@ export const STUDIO_LOOKS: StudioLook[] = [
       bottoms: [{ name: "Parachute cargo pants", color: "Khaki", price: 94 }],
       full: [],
       shoes: [{ name: "Platform sneakers", color: "Black", price: 150 }],
+      acc: [],
+    },
+  },
+  {
+    index: 8,
+    name: "Cornelia Mini",
+    category: "party",
+    file: "sig:8",
+    productId: "prod-babyboo-cornelia-red",
+    friendOwner: "maya",
+    friendTwinPct: 98,
+    pieces: {
+      tops: [],
+      bottoms: [],
+      full: [
+        {
+          name: "Babyboo Cornelia Mini Dress",
+          color: "Crimson Red",
+          price: 132,
+        },
+      ],
+      shoes: [{ name: "Metallic strappy heels", color: "14k Gold", price: 145 }],
       acc: [],
     },
   },

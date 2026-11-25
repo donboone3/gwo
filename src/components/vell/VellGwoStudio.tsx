@@ -85,9 +85,11 @@ export function VellGwoStudio() {
   const [drapeFlatLay, setDrapeFlatLay] = useState(false);
 
   useEffect(() => {
+    // Only use flat-lay multiply overlay if there is no full-body studio render for this piece
     setDrapeFlatLay(
       Boolean(
-        activeImportedProduct?.imageUrl &&
+        activeImportedProduct?.studioLookIndex === undefined &&
+          activeImportedProduct?.imageUrl &&
           /flt|flat/i.test(activeImportedProduct.imageUrl)
       )
     );
@@ -213,7 +215,16 @@ export function VellGwoStudio() {
     [triggerScanLine]
   );
 
-  // Keyboard ArrowLeft / ArrowRight
+  // Automatically wipe into the lifelike full-body studio render when an imported/saved store item has a dedicated studioLookIndex!
+  useEffect(() => {
+    if (
+      activeImportedProduct?.studioLookIndex !== undefined &&
+      activeImportedProduct.studioLookIndex !== lookIdx
+    ) {
+      void swapToLook(activeImportedProduct.studioLookIndex);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeImportedProduct?.id, activeImportedProduct?.studioLookIndex, swapToLook]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
@@ -495,7 +506,7 @@ export function VellGwoStudio() {
                       closetOwner === "all" ? "text-white/75" : "text-[#686D76]"
                     }`}
                   >
-                    8 complete outfits ready to try
+                    {STUDIO_LOOKS.length} complete outfits ready to try
                   </p>
                 </div>
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/15">
@@ -1032,6 +1043,11 @@ export function VellGwoStudio() {
                       <div className="absolute inset-x-1 bottom-1 px-1.5 py-0.5 rounded-lg bg-white/92 text-[10px] font-bold text-[#141518] truncate text-center">
                         {lk.name}
                       </div>
+                      {lk.productId && (
+                        <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md bg-[#C80815] text-white text-[8px] font-bold uppercase tracking-wider">
+                          Store Fit
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -1065,6 +1081,9 @@ export function VellGwoStudio() {
                           })
                         }
                         onClick={() => {
+                          if (prod.studioLookIndex !== undefined && !isWornUrl) {
+                            void swapToLook(prod.studioLookIndex);
+                          }
                           setActiveImportedProduct(
                             isWornUrl ? null : prod
                           );
@@ -1153,13 +1172,17 @@ export function VellGwoStudio() {
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Link
-                        href={`/product?name=${encodeURIComponent(
-                          piece.name
-                        )}&price=${encodeURIComponent(`$${piece.price}`)}`}
-                        title="Inspect 360° Fit & Details"
+                        href={
+                          currentLook.productId
+                            ? `/product?id=${encodeURIComponent(currentLook.productId)}`
+                            : `/product?name=${encodeURIComponent(
+                                piece.name
+                              )}&price=${encodeURIComponent(`$${piece.price}`)}`
+                        }
+                        title="Inspect Exact Fit & Angles"
                         className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold bg-white border border-black/[0.09] text-[#141518] hover:bg-[#EFF1F5] inline-flex items-center gap-1"
                       >
-                        <Rotate3d className="w-3 h-3" /> 360°
+                        <Rotate3d className="w-3 h-3" /> {currentLook.productId ? "Fit" : "360°"}
                       </Link>
 
                       <button

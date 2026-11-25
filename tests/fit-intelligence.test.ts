@@ -103,4 +103,72 @@ describe("Live Store PDP Fit, Model Stats & Exact Avatar Fit Engine", () => {
     const waistZone = xsReport.zones.find((z) => z.zone === "Waist");
     expect(waistZone?.feel).toBe("too_tight");
   });
+
+  it("parses Babyboo Cornelia Mini Dress multi-line model stats and lace-up corset physics", () => {
+    const babybooHtml = `
+      The Cornelia Mini Dress in red combines structured elegance with refined details.
+      Non-stretch crepe & woven lyocell. Boning in bodice. Lace up back. Corset bodice.
+      Dress Lengths:
+      X-Small: 57cm/22.4in
+      Small: 58cm/22.8in
+      Model’s Measurements:
+      Dress size: XS
+      Height: 170cm/66.9in
+      Bust: 79cm/31.1in
+      Waist: 60cm/23.6in
+      Hips: 90cm/35.4in
+    `;
+
+    const { fitMetadata, calibratedChart } = extractProductFitProfile({
+      rawText: babybooHtml,
+      title: "Cornelia Mini Dress - Red",
+      brand: "Babyboo Fashion",
+      category: "dress",
+      silhouette: "mini-dress",
+    });
+
+    expect(fitMetadata.modelStats?.wornSize).toBe("XS");
+    expect(fitMetadata.modelStats?.heightInches).toBe(67);
+    expect(fitMetadata.modelStats?.bustInches).toBe(31.1);
+    expect(fitMetadata.modelStats?.waistInches).toBe(23.6);
+    expect(fitMetadata.modelStats?.hipsInches).toBe(35.4);
+    expect(fitMetadata.hasAdjustableBack).toBe(true);
+    expect(fitMetadata.garmentLengthBySizeInches?.S).toBe(22.8);
+
+    const corneliaProduct: Product = {
+      id: "prod-babyboo-cornelia-red",
+      canonicalUrl:
+        "https://babyboofashion-com-au.myshopify.com/products/cornelia-mini-dress-red",
+      brand: "Babyboo Fashion",
+      storeDomain: "babyboofashion-com-au.myshopify.com",
+      title: "Cornelia Mini Dress - Red",
+      category: "dress",
+      silhouette: "mini-dress",
+      colorName: "Crimson Red",
+      colorHex: "#C80815",
+      accentHex: "#FAF8F5",
+      price: 132,
+      currency: "USD",
+      fitMetadata,
+      occasions: ["Party"],
+      vibes: ["Romantic"],
+      availableSizes: ["XS", "S", "M", "L", "XL"],
+      sizeChartInches: calibratedChart,
+      estDeliveryDays: 4,
+      inStock: true,
+      sourceType: "scraped_url",
+      lastScrapedAt: "",
+      staleAfter: "",
+    };
+
+    const rec = analyzeExactAvatarFit(SIGNATURE_AVATAR, corneliaProduct);
+    expect(rec.recommendedSize).toBe("S");
+    const bustS = rec.zones.find((z) => z.zone === "Bust");
+    const waistS = rec.zones.find((z) => z.zone === "Waist");
+    expect(waistS?.feel).toBe("tailored_ideal");
+    expect(bustS?.feelLabel).toBe("Corset Cinches Flush");
+
+    const xsCheck = analyzeExactAvatarFit(SIGNATURE_AVATAR, corneliaProduct, "XS");
+    expect(xsCheck.zones.find((z) => z.zone === "Waist")?.feel).toBe("too_tight");
+  });
 });

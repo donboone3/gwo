@@ -144,10 +144,16 @@ export function inferColorPalette(text: string): {
   return { colorName: "Studio Noir", colorHex: "#232122", accentHex: "#FAF8F5" };
 }
 
-function formatBrandFromDomain(hostname: string): string {
+function formatBrandFromDomain(hostname: string, rawVendor?: string): string {
   const clean = hostname
-    .replace(/^(www\.|us\.|m\.|shop\.|store\.)/i, "")
+    .replace(/\.myshopify\.com$/i, "")
+    .replace(/^(www\.|us\.|au\.|uk\.|m\.|shop\.|store\.)/i, "")
     .split(".")[0];
+  const lower = clean.toLowerCase();
+  if (lower.includes("babyboo")) return "Babyboo Fashion";
+  if (lower.includes("houseofcb")) return "House of CB";
+  if (lower.includes("ohpolly")) return "Oh Polly";
+  if (lower.includes("meshki")) return "MESHKI";
   const map: Record<string, string> = {
     thereformation: "Reformation",
     princesspolly: "Princess Polly",
@@ -163,7 +169,12 @@ function formatBrandFromDomain(hostname: string): string {
     revolve: "Revolve",
     gymshark: "Gymshark",
   };
-  return map[clean.toLowerCase()] || clean.charAt(0).toUpperCase() + clean.slice(1);
+  if (map[lower]) return map[lower];
+  // Ignore short factory codes like "R.F" when vendor string is <4 chars or contains dots
+  if (rawVendor && rawVendor.trim().length >= 4 && !/^[A-Z]\.[A-Z]$/i.test(rawVendor.trim())) {
+    return rawVendor.trim();
+  }
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
 }
 
 export function parseProductFromHtml(
@@ -319,21 +330,28 @@ async function extractLiveProduct(
 ): Promise<Omit<Product, "id" | "lastScrapedAt" | "staleAfter" | "sourceType">> {
   const urlObj = new URL(canonicalUrl);
 
-  // Tier 1: Shopify fast JSON endpoint if path matches /products/<handle>
+  // Tier 1: Shopify fast JSON + PDP HTML enrichment if path matches /products/<handle>
   const shopifyMatch = urlObj.pathname.match(/\/products\/([^/?#]+)/i);
   if (shopifyMatch) {
     try {
       const jsonUrl = `${urlObj.origin}/products/${shopifyMatch[1]}.json`;
-      const res = await fetch(jsonUrl, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; GWOCatalogBot/1.0)" },
-        signal: AbortSignal.timeout(4500),
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const [jsonRes, htmlRes] = await Promise.allSettled([
+        fetch(jsonUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; GWOCatalogBot/1.0)" },
+          signal: AbortSignal.timeout(5500),
+        }),
+        fetch(canonicalUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; GWOCatalogBot/1.0)" },
+          signal: AbortSignal.timeout(5500),
+        }),
+      ]);
+      if (jsonRes.status === "fulfilled" && jsonRes.value.ok) {
+        const data = await jsonRes.value.json();
         if (data?.product?.title) {
           const p = data.product;
           const variant = p.variants?.[0];
           const title = String(p.title);
+          const brandName = formatBrandFromDomain(urlObj.hostname, p.vendor);
           const { category, silhouette } = inferCategoryAndSilhouette(
             `${title} ${p.product_type || ""}`
           );
@@ -343,23 +361,44 @@ async function extractLiveProduct(
           const bodyPlain = p.body_html
             ? cheerio.load(String(p.body_html)).text()
             : "";
+          let extraHtmlText = "";
+          if (htmlRes.status === "fulfilled" && htmlRes.value.ok) {
+            const rawHtml = await htmlRes.value.text();
+            const $h = cheerio.load(rawHtml);
+            $h("script, style, noscript").remove();
+            extraHtmlText = $h("body")
+              .text()
+              .replace(/[ \t]+/g, " ")
+              .replace(/\n{2,}/g, "\n")
+              .slice(0, 12000);
+          }
           const shopifyGallery: ProductGalleryAngle[] = Array.isArray(p.images)
             ? p.images.slice(0, 5).map((im: { src?: string }, idx: number) => ({
                 url: upgradeCdnImageResolution(String(im?.src || "")),
-                label: idx === 0 ? "Model Front" : `Model Angle ${idx + 1}`,
+                label:
+                  idx === 0
+                    ? "Model Front"
+                    : idx === 1
+                    ? "Lace-Up / Back"
+                    : `Model Angle ${idx + 1}`,
               }))
             : [];
           const { fitMetadata, calibratedChart } = extractProductFitProfile({
-            rawText: `${bodyPlain}\n${Array.isArray(p.tags) ? p.tags.join(", ") : p.tags || ""}`,
+            rawText: `${bodyPlain}\n${Array.isArray(p.tags) ? p.tags.join(", ") : p.tags || ""}\n${extraHtmlText}`,
             title,
-            brand: p.vendor || formatBrandFromDomain(urlObj.hostname),
+            brand: brandName,
             category,
             silhouette,
             galleryImages: shopifyGallery.length > 0 ? shopifyGallery : undefined,
           });
+          const rawPrice = Number(variant?.price || 68);
+          const isAudDomain = /-au\b|\.com\.au$/i.test(urlObj.hostname);
+          const usdPrice = isAudDomain
+            ? Math.round(rawPrice * 0.66)
+            : Math.round(rawPrice);
           return {
             canonicalUrl,
-            brand: p.vendor || formatBrandFromDomain(urlObj.hostname),
+            brand: brandName,
             storeDomain: urlObj.hostname.replace(/^www\./, ""),
             title,
             category,
@@ -367,14 +406,18 @@ async function extractLiveProduct(
             colorName,
             colorHex,
             accentHex,
-            price: Number(variant?.price || 68),
+            price: usdPrice > 0 ? usdPrice : 68,
             currency: "USD",
             imageUrl: shopifyGallery[0]?.url || p.image?.src || p.images?.[0]?.src,
             fitMetadata,
-            occasions: ["Coffee Run", "Date Night", "Campus / Class"],
-            vibes: ["Model Off-Duty", "Clean Girl Athleisure"],
+            occasions: ["Date Night", "Party", "Going Out"],
+            vibes: ["Model Off-Duty", "Romantic"],
             availableSizes:
-              category === "shoes"
+              Array.isArray(p.variants) && p.variants.length > 0
+                ? p.variants
+                    .map((v: { title?: string }) => String(v.title || "").trim())
+                    .filter((s: string) => Boolean(s) && s !== "Default Title")
+                : category === "shoes"
                 ? ["6.5", "7", "7.5", "8", "8.5"]
                 : ["XS", "S", "M", "L", "XL"],
             sizeChartInches: category === "shoes" ? {} : calibratedChart,

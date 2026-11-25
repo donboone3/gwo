@@ -64,6 +64,8 @@ export interface ProductFitMetadata {
   storeFitTendency: FitRating;
   hemLanding?: HemLandingType;
   inseamInches?: number;
+  hasAdjustableBack?: boolean;
+  garmentLengthBySizeInches?: Record<string, number>;
   modelStats?: StoreModelStats;
   galleryImages?: ProductGalleryAngle[];
 }
@@ -91,6 +93,7 @@ export interface Product {
   price: number;
   currency: string;
   imageUrl?: string;
+  studioLookIndex?: number;
   fitMetadata?: ProductFitMetadata;
   occasions: string[];
   vibes: string[];
@@ -172,6 +175,7 @@ export interface TryOnRender {
   userId: string;
   productIds: string[];
   renderedImageUrl?: string;
+  fitPromptUsed?: string;
   provider: "fashn_fal" | "studio_composite";
   costUsd: number;
   cached: boolean;

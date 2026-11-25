@@ -137,7 +137,80 @@ export function isolatePrimaryPdpText(fullText: string, title = ""): string {
 export function parseStoreModelStats(pdpText: string): StoreModelStats | undefined {
   const clean = pdpText.replace(/\*\*/g, "");
 
-  // Split by newlines AND sentence boundaries before normalizing spaces so markdown headings don't merge
+  // 1. Check structured multi-line "Model's Measurements:" block (Babyboo, Oh Polly, House of CB, Meshki, Revolve)
+  const blockMatch = clean.match(
+    /model[’']?s?\s+measurements\s*:?([\s\S]{10,280})/i
+  );
+  if (blockMatch) {
+    const blk = blockMatch[1];
+    let wornSize: string | undefined;
+    let heightInches: number | undefined;
+    let heightDisplay: string | undefined;
+    let bustInches: number | undefined;
+    let waistInches: number | undefined;
+    let hipsInches: number | undefined;
+
+    const szM = blk.match(
+      /(?:dress\s+size|wears(?:\s+a)?\s+size|size)[:\s]+(XXS|XS|S|M|L|XL|XXL)\b/i
+    );
+    if (szM) wornSize = szM[1].toUpperCase();
+
+    const hInM = blk.match(
+      /height[:\s]+(?:(\d{3})\s*cm\s*\/?\s*)?(\d{2}(?:\.\d+)?)\s*(?:in|")/i
+    );
+    const hFtM = blk.match(/height[:\s]+([456])\s*(?:'|’|ft\.?)\s*(\d{1,2})/i);
+    const hCmOnly = blk.match(/height[:\s]+(1[5-8]\d)\s*cm/i);
+    if (hInM) {
+      heightInches = Math.round(Number(hInM[2]));
+      const ft = Math.floor(heightInches / 12);
+      const rem = heightInches % 12;
+      heightDisplay = hInM[1] ? `${ft}'${rem}" (${hInM[1]}cm)` : `${ft}'${rem}"`;
+    } else if (hFtM) {
+      heightInches = Number(hFtM[1]) * 12 + Number(hFtM[2]);
+      heightDisplay = `${hFtM[1]}'${hFtM[2]}"`;
+    } else if (hCmOnly) {
+      const cm = Number(hCmOnly[1]);
+      heightInches = Math.round(cm / 2.54);
+      heightDisplay = `${Math.floor(heightInches / 12)}'${heightInches % 12}" (${cm}cm)`;
+    }
+
+    const extractInOrCm = (label: string): number | undefined => {
+      const reIn = new RegExp(
+        `${label}[:\\s]+(?:\\d{2,3}(?:\\.\\d+)?\\s*cm\\s*\\/\\s*)?(\\d{2}(?:\\.\\d+)?)\\s*(?:in|")`,
+        "i"
+      );
+      const mIn = blk.match(reIn);
+      if (mIn) return Number(Number(mIn[1]).toFixed(1));
+      const reCm = new RegExp(`${label}[:\\s]+(\\d{2,3}(?:\\.\\d+)?)\\s*cm`, "i");
+      const mCm = blk.match(reCm);
+      if (mCm) return Number((Number(mCm[1]) / 2.54).toFixed(1));
+      return undefined;
+    };
+
+    bustInches = extractInOrCm("bust");
+    waistInches = extractInOrCm("waist");
+    hipsInches = extractInOrCm("hips?");
+
+    if (heightInches || wornSize || waistInches) {
+      const parts: string[] = [];
+      if (wornSize) parts.push(`wears Size ${wornSize}`);
+      if (heightDisplay) parts.push(heightDisplay);
+      if (bustInches && waistInches && hipsInches) {
+        parts.push(`${bustInches}" B • ${waistInches}" W • ${hipsInches}" H`);
+      }
+      return {
+        rawText: `Model ${parts.join(" • ")}`,
+        heightInches,
+        heightDisplay,
+        wornSize,
+        bustInches,
+        waistInches,
+        hipsInches,
+      };
+    }
+  }
+
+  // 2. Single-line sentence patterns ("Model is 5'8\" / Size S", etc.)
   const sentences = clean.split(/\n+|(?<=[.!•])\s+|\s+\|\s+/);
   let matchedLine = "";
   let heightInches: number | undefined;
@@ -320,7 +393,16 @@ export function buildBrandCalibratedSizeChart(
   // Base chart selection by brand family
   let base: Record<string, SizeMeasurementSpec>;
 
-  if (/skims|alo|lululemon|gymshark|outdoor voices/.test(b)) {
+  if (/babyboo|house of cb|meshki|oh polly/.test(b)) {
+    // Official Babyboo / structured occasionwear corset chart (exact inches)
+    return {
+      XS: { bustMin: 31.4, bustMax: 33.0, waistMin: 24.0, waistMax: 25.5, hipsMin: 34.6, hipsMax: 36.2 },
+      S: { bustMin: 33.4, bustMax: 35.0, waistMin: 25.9, waistMax: 27.5, hipsMin: 36.6, hipsMax: 38.2 },
+      M: { bustMin: 35.0, bustMax: 37.0, waistMin: 27.9, waistMax: 29.5, hipsMin: 38.6, hipsMax: 40.2 },
+      L: { bustMin: 37.4, bustMax: 38.9, waistMin: 29.9, waistMax: 31.4, hipsMin: 40.5, hipsMax: 42.1 },
+      XL: { bustMin: 39.3, bustMax: 40.9, waistMin: 32.2, waistMax: 33.4, hipsMin: 42.5, hipsMax: 44.1 },
+    };
+  } else if (/skims|alo|lululemon|gymshark|outdoor voices/.test(b)) {
     // Sculpting / activewear chart
     base = {
       XS: { bustMin: 30.5, bustMax: 32.5, waistMin: 24, waistMax: 25.5, hipsMin: 34, hipsMax: 35.5 },
@@ -530,6 +612,25 @@ export function extractProductFitProfile(params: {
     storeFitTendency
   );
 
+  // Detect corset lace-up back / adjustable straps & per-size garment lengths
+  const hasAdjustableBack =
+    /\b(lace[\s-]up\s+back|corset\s+bodice|adjustable\s+(?:tapered\s+)?(?:shoulder\s+)?straps)\b/i.test(
+      combined
+    );
+
+  const garmentLengthBySizeInches: Record<string, number> = {};
+  const sizeLenPairs: Array<[string, RegExp]> = [
+    ["XS", /(?:x-small|xs)[:\s]+(?:\d+(?:\.\d+)?\s*cm\s*\/\s*)?(\d{2}(?:\.\d+)?)\s*in/i],
+    ["S", /(?:^|[\s*•])small[:\s]+(?:\d+(?:\.\d+)?\s*cm\s*\/\s*)?(\d{2}(?:\.\d+)?)\s*in/im],
+    ["M", /(?:^|[\s*•])medium[:\s]+(?:\d+(?:\.\d+)?\s*cm\s*\/\s*)?(\d{2}(?:\.\d+)?)\s*in/im],
+    ["L", /(?:^|[\s*•])large[:\s]+(?:\d+(?:\.\d+)?\s*cm\s*\/\s*)?(\d{2}(?:\.\d+)?)\s*in/im],
+    ["XL", /(?:x-large|xl)[:\s]+(?:\d+(?:\.\d+)?\s*cm\s*\/\s*)?(\d{2}(?:\.\d+)?)\s*in/i],
+  ];
+  for (const [szKey, rx] of sizeLenPairs) {
+    const lm = primaryText.match(rx);
+    if (lm) garmentLengthBySizeInches[szKey] = Number(lm[1]);
+  }
+
   return {
     fitMetadata: {
       descriptionSummary,
@@ -541,6 +642,11 @@ export function extractProductFitProfile(params: {
       storeFitTendency,
       hemLanding,
       inseamInches,
+      hasAdjustableBack: hasAdjustableBack || undefined,
+      garmentLengthBySizeInches:
+        Object.keys(garmentLengthBySizeInches).length > 0
+          ? garmentLengthBySizeInches
+          : undefined,
       modelStats,
       galleryImages,
     },
@@ -555,8 +661,17 @@ function evaluateSingleZone(params: {
   max?: number;
   stretchLevel: FabricStretchLevel;
   cutType: GarmentCutType;
+  hasAdjustableBack?: boolean;
 }): ZoneFitDetail {
-  const { zone, avatarVal, min = avatarVal - 1, max = avatarVal + 1, stretchLevel, cutType } = params;
+  const {
+    zone,
+    avatarVal,
+    min = avatarVal - 1,
+    max = avatarVal + 1,
+    stretchLevel,
+    cutType,
+    hasAdjustableBack,
+  } = params;
   const mid = (min + max) / 2;
 
   // Stretch allowance: high-stretch knits comfortably expand +2.2" past unstretched spec
@@ -586,7 +701,7 @@ function evaluateSingleZone(params: {
         : `Pulls Tight (-${deficit}")`;
     detailNote =
       stretchLevel === "rigid"
-        ? `Non-stretch fabric maxes at ${max}"—will pinch your ${avatarVal}" ${zone.toLowerCase()}. Size up.`
+        ? `Non-stretch fabric maxes at ${max}"—will not zip cleanly over your ${avatarVal}" ${zone.toLowerCase()}. Size up.`
         : `Exceeds comfortable stretch range (${rangeStr}) at your ${avatarVal}" ${zone.toLowerCase()}.`;
   } else if (avatarVal > max) {
     feel = "sculpted_snug";
@@ -600,6 +715,14 @@ function evaluateSingleZone(params: {
       cutType === "body-hugging"
         ? `Clean second-skin contour right inside the ${rangeStr} ${zone.toLowerCase()} spec.`
         : `Sits naturally at your ${avatarVal}" ${zone.toLowerCase()} (${rangeStr} spec) with zero pulling.`;
+  } else if (
+    zone === "Bust" &&
+    hasAdjustableBack &&
+    min - avatarVal <= 2.4
+  ) {
+    feel = "tailored_ideal";
+    feelLabel = "Corset Cinches Flush";
+    detailNote = `Lace-up corset back & adjustable straps cinch the ${rangeStr} bodice flush against your ${avatarVal}" bust.`;
   } else if (min - avatarVal <= 2.25) {
     feel = "relaxed_skim";
     const room = (mid - avatarVal).toFixed(1);
@@ -720,6 +843,7 @@ export function analyzeExactAvatarFit(
               : spec.hipsMax,
           stretchLevel: meta.stretchLevel,
           cutType: meta.cutType,
+          hasAdjustableBack: meta.hasAdjustableBack,
         })
       );
 
@@ -805,20 +929,33 @@ export function analyzeExactAvatarFit(
     : `Studio Ref Model: ~${modelHeightLabel} wearing Size ${modelWornLabel}`;
 
   let proportionNote: string;
+  const curveComparison =
+    meta.modelStats?.waistInches && meta.modelStats?.hipsInches
+      ? `Vs. model (${meta.modelStats.waistInches}"W / ${meta.modelStats.hipsInches}"H in ${modelWornLabel}), Size ${inspectedSize} honors your ${avatar.waistInches}" waist while giving sleek, non-clinging drape over your ${avatar.hipsInches}" hips. `
+      : "";
+
+  const sizeLen = meta.garmentLengthBySizeInches?.[inspectedSize];
+  const modelLen = meta.garmentLengthBySizeInches?.[modelWornLabel];
+  const lenDelta =
+    sizeLen !== undefined && modelLen !== undefined
+      ? Number((sizeLen - modelLen).toFixed(1))
+      : 0;
+
   if (Math.abs(heightDiff) <= 1) {
-    proportionNote = `Your ${avatarHeightStr} height matches the ${modelHeightLabel} model closely—hem length will land almost identically to the store photos.`;
+    proportionNote = `${curveComparison}Your ${avatarHeightStr} height matches the ${modelHeightLabel} model closely—hem length lands almost identically to the store photos.`;
   } else {
     const torsoShift = Math.abs(heightDiff * 0.36).toFixed(1);
-    const legShift = Math.abs(heightDiff * 0.62).toFixed(1);
-    const lowerOrHigher = heightDiff < 0 ? "lower / longer" : "higher / shorter";
+    const legShift = (Math.abs(heightDiff * 0.62) + (heightDiff < 0 ? lenDelta : 0)).toFixed(1);
+    const lowerOrHigher = heightDiff < 0 ? "lower / more coverage" : "higher / shorter";
     if (product.category === "top" || product.category === "outerwear") {
-      proportionNote = `At ${avatarHeightStr} vs the ${modelHeightLabel} model, expect the hem to land ~${torsoShift}" ${
+      proportionNote = `${curveComparison}At ${avatarHeightStr} vs the ${modelHeightLabel} model, expect the hem to land ~${torsoShift}" ${
         heightDiff < 0 ? "lower on your waist/hip" : "higher/more cropped"
       } than shown on the model.`;
     } else if (meta.inseamInches) {
-      proportionNote = `${meta.inseamInches}" inseam: at ${avatarHeightStr} (vs ${modelHeightLabel} model), hem falls ~${legShift}" ${lowerOrHigher} at the ankle/shoe.`;
+      proportionNote = `${curveComparison}${meta.inseamInches}" inseam: at ${avatarHeightStr} (vs ${modelHeightLabel} model), hem falls ~${legShift}" ${lowerOrHigher} at the ankle/shoe.`;
     } else {
-      proportionNote = `At ${avatarHeightStr} vs the ${modelHeightLabel} model, expect the skirt/pant hem to drape ~${legShift}" ${lowerOrHigher} than on the store model.`;
+      const cfInfo = sizeLen ? ` (${sizeLen}" CF length)` : "";
+      proportionNote = `${curveComparison}At ${avatarHeightStr} vs the ${modelHeightLabel} model${cfInfo}, expect the skirt/dress hem to sit ~${legShift}" ${lowerOrHigher} on the thigh/leg.`;
     }
   }
 
@@ -865,4 +1002,39 @@ export function analyzeExactAvatarFit(
     fabricSummary,
     extractedFactsCount,
   };
+}
+
+/**
+ * Translates extracted store model stats, garment construction physics, and exact avatar
+ * measurements into a fit-conditioned visual try-on prompt so AI renders accurately reflect
+ * real-world tension, waist taper, hip ease, and hem drop on the customer's body.
+ */
+export function buildFitDrivenAvatarPrompt(
+  avatar: Pick<
+    UserProfile,
+    "bustInches" | "waistInches" | "hipsInches" | "heightInches"
+  >,
+  product: Product,
+  fitReport?: AvatarExactFitReport
+): string {
+  const report =
+    fitReport ||
+    analyzeExactAvatarFit(
+      { ...avatar, shoeSize: "7.5" },
+      product
+    );
+  const avatarH = `${Math.floor(avatar.heightInches / 12)}'${Math.round(
+    avatar.heightInches % 12
+  )}"`;
+  const zoneDirectives = report.zones
+    .map((z) => `${z.zone} (${z.avatarInches}"): ${z.feelLabel} (${z.detailNote})`)
+    .join("; ");
+
+  return [
+    `Photorealistic full-body try-on of ${product.brand} ${product.title} (${product.colorName}) in Size ${report.inspectedSize}.`,
+    `Customer body geometry: ${avatarH}, ${avatar.bustInches}" bust, ${avatar.waistInches}" natural waist, ${avatar.hipsInches}" hips.`,
+    `Fabric & cut physics: ${report.fabricSummary}.`,
+    `Zone-by-zone drape instructions: ${zoneDirectives}.`,
+    `Length & model comparison: ${report.lengthComparison.proportionNote}`,
+  ].join(" ");
 }

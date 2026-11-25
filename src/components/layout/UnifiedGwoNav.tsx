@@ -37,12 +37,12 @@ const STEPS = [
 
 const QUICK_SAMPLE_LINKS = [
   {
-    label: "SKIMS Cotton Tee",
-    url: "https://skims.com/products/cotton-jersey-t-shirt-soot",
+    label: "Babyboo Cornelia Red",
+    url: "https://babyboofashion-com-au.myshopify.com/products/cornelia-mini-dress-red",
   },
   {
-    label: "OV Exercise Dress",
-    url: "https://www.outdoorvoices.com/products/w-the-exercise-dress",
+    label: "SKIMS Cotton Tee",
+    url: "https://skims.com/products/cotton-jersey-t-shirt-soot",
   },
   {
     label: "Vuori Halo Hoodie",

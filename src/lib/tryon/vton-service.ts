@@ -15,6 +15,7 @@ import {
   UserQuotaStatus,
 } from "./budget-guard";
 import { ComputeBudgetLedger, TryOnRender } from "../types";
+import { buildFitDrivenAvatarPrompt } from "../catalog/fit-intelligence";
 
 export function computeTryOnCacheKey(
   avatarIdentity: string,
@@ -97,36 +98,37 @@ export async function executeVirtualTryOn(params: {
     };
   }
 
-  // 3. Live FASHN AI v1.6 via fal.ai when FAL_KEY + user photo + garment photo exist
+  // 3. Live FASHN AI v1.6 via fal.ai + Fit-Driven Avatar Prompting
   let renderedImageUrl: string | undefined;
   let provider: TryOnRender["provider"] = "studio_composite";
+  const primaryProduct = await getProductById(cleanIds[0]);
+  const fitPromptUsed = primaryProduct
+    ? buildFitDrivenAvatarPrompt(user, primaryProduct)
+    : undefined;
 
-  if (process.env.FAL_KEY && user.avatarPhotoUrl) {
-    const primaryProduct = await getProductById(cleanIds[0]);
-    if (primaryProduct?.imageUrl) {
-      try {
-        fal.config({ credentials: process.env.FAL_KEY });
-        const falResult = await fal.subscribe("fal-ai/fashn/tryon/v1.6", {
-          input: {
-            model_image: user.avatarPhotoUrl,
-            garment_image: primaryProduct.imageUrl,
-            category:
-              primaryProduct.category === "bottom"
-                ? "bottoms"
-                : primaryProduct.category === "dress"
-                ? "one-pieces"
-                : "tops",
-          },
-        });
-        const outputImages = (falResult.data as { images?: Array<{ url: string }> })
-          ?.images;
-        if (outputImages?.[0]?.url) {
-          renderedImageUrl = outputImages[0].url;
-          provider = "fashn_fal";
-        }
-      } catch {
-        // Gracefully fall back to Studio Composite if external FAL call fails
+  if (process.env.FAL_KEY && user.avatarPhotoUrl && primaryProduct?.imageUrl) {
+    try {
+      fal.config({ credentials: process.env.FAL_KEY });
+      const falResult = await fal.subscribe("fal-ai/fashn/tryon/v1.6", {
+        input: {
+          model_image: user.avatarPhotoUrl,
+          garment_image: primaryProduct.imageUrl,
+          category:
+            primaryProduct.category === "bottom"
+              ? "bottoms"
+              : primaryProduct.category === "dress"
+              ? "one-pieces"
+              : "tops",
+        },
+      });
+      const outputImages = (falResult.data as { images?: Array<{ url: string }> })
+        ?.images;
+      if (outputImages?.[0]?.url) {
+        renderedImageUrl = outputImages[0].url;
+        provider = "fashn_fal";
       }
+    } catch {
+      // Gracefully fall back to Studio Composite if external FAL call fails
     }
   }
 
@@ -136,6 +138,7 @@ export async function executeVirtualTryOn(params: {
     userId: user.id,
     productIds: cleanIds,
     renderedImageUrl: renderedImageUrl || `studio://composite/${cacheKey.slice(0, 12)}`,
+    fitPromptUsed,
     provider,
     costUsd: FASHN_COST_PER_RENDER_USD,
     cached: false,
