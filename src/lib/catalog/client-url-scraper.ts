@@ -20,8 +20,12 @@ export function getSafeClothingImageUrl(
   width = 880
 ): string | undefined {
   if (!rawImgUrl) return undefined;
-  const trimmed = rawImgUrl.trim();
+  let trimmed = rawImgUrl.trim();
   if (!trimmed) return undefined;
+  // Normalize protocol-relative CDN URLs (e.g. //cdn.shopify.com/...) BEFORE checking local "/" paths!
+  if (trimmed.startsWith("//")) {
+    trimmed = `https:${trimmed}`;
+  }
   if (
     trimmed.startsWith("/") ||
     trimmed.includes("/models/") ||
@@ -236,22 +240,26 @@ export function extractProductGalleryAngles(
       }
     }
 
-    if (/\/products\/|\/files\/|pdp|front|-flt|-fr\.|-bk\./i.test(upgraded)) {
-      score += 24;
+    if (
+      /\/products\/|\/files\/|pdp|front|-flt|-fr\.|-bk\.|revolveassets|scene7|cloudinary|demandware|zara\.net|asos-media|nordstrommedia|princesspolly|babyboo|houseofcb|ohpolly|meshki|thereformation|aritzia|lululemon|skims|nike\.com\/a\/images/i.test(
+        upgraded
+      )
+    ) {
+      score += 26;
     }
-    if (/on a model|front view|back view|image \d/i.test(lowerAlt)) {
+    if (/on a model|front view|back view|image \d|product/i.test(lowerAlt)) {
       score += 22;
     }
     // Penalize cross-sell tiny cards on SKIMS (w=1&h=1 or h=205) and generic CMS hero banners (contentstack/sanity)
     if (
-      /[?&]w=1(&|$)|[?&]h=205(&|$)|skims-sanity\.imgix\.net|images\.contentstack\.io/i.test(
+      /[?&]w=1(&|$)|[?&]h=205(&|$)|skims-sanity\.imgix\.net|images\.contentstack\.io|100x100|50x50|avatar|review/i.test(
         url
       )
     ) {
       score -= 55;
     }
-    if (keywordHits === 0 && titleKeywords.length >= 2) {
-      score -= 15;
+    if (keywordHits === 0 && titleKeywords.length >= 2 && score === 0) {
+      score -= 5;
     }
 
     const baseKey = upgraded.split("?")[0].replace(/_\d+x\d*\./, ".");
@@ -264,7 +272,7 @@ export function extractProductGalleryAngles(
   const angles: ProductGalleryAngle[] = [];
 
   for (const item of scored) {
-    if (item.score < 5 && angles.length > 0) break;
+    if (item.score < -10 && angles.length > 0) break;
     if (seenBase.has(item.baseKey)) continue;
     seenBase.add(item.baseKey);
 
@@ -287,6 +295,228 @@ export function pickBestHeroProductImage(
 ): string | undefined {
   const gallery = extractProductGalleryAngles(candidates, titleKeywords);
   return gallery[0]?.url;
+}
+
+export function convertStoreCurrencyToUsd(
+  rawAmount: number,
+  currencyOrHost = ""
+): number {
+  if (!Number.isFinite(rawAmount) || rawAmount <= 0) return 0;
+  const s = currencyOrHost.toUpperCase();
+  if (s === "AUD" || /(?:\.COM\.AU|-AU\b|^AU\.)/i.test(currencyOrHost)) {
+    return Math.max(8, Math.round(rawAmount * 0.66));
+  }
+  if (s === "CAD" || /(?:\.CA$|^CA\.)/i.test(currencyOrHost)) {
+    return Math.max(8, Math.round(rawAmount * 0.73));
+  }
+  if (s === "GBP" || s === "£" || /(?:\.CO\.UK$|^UK\.)/i.test(currencyOrHost)) {
+    return Math.max(8, Math.round(rawAmount * 1.27));
+  }
+  if (s === "EUR" || s === "€" || /(?:\.EU$|\.FR$|\.DE$|\.IT$)/i.test(currencyOrHost)) {
+    return Math.max(8, Math.round(rawAmount * 1.08));
+  }
+  if (s === "NZD" || /\.CO\.NZ$/i.test(currencyOrHost)) {
+    return Math.max(8, Math.round(rawAmount * 0.6));
+  }
+  return Math.round(rawAmount);
+}
+
+/**
+ * Extracts the true product retail price from PDP markdown/text while ignoring
+ * header promo banners ("Free Shipping on Orders Over $100") and BNPL installments ("4 payments of $33").
+ */
+export function extractAccurateProductPrice(
+  rawText: string,
+  hostname = "",
+  productTitle = ""
+): number | null {
+  if (!rawText) return null;
+
+  const promoNoiseRe =
+    /free\s+(?:express\s+|standard\s+)?shipping|orders?\s+over|spend\s+\$|off\s+your\s+first|afterpay|klarna|clearpay|sezzle|zip\s+pay|4\s+interest|installments?|payments?\s+of|gift\s+card|refer\s+a\s+friend/i;
+
+  // Focus search window starting near the product H1/title if present so header banners are skipped
+  let working = rawText;
+  if (productTitle.length >= 5) {
+    const firstWord = productTitle.split(/\s+/)[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const hIdx = working.search(new RegExp(`(?:#\\s+|\\b)${firstWord}`, "i"));
+    if (hIdx > 80 && hIdx < working.length - 40) {
+      working = working.slice(Math.max(0, hIdx - 40));
+    }
+  }
+
+  const cleanLines = working
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !promoNoiseRe.test(l));
+
+  const joined = cleanLines.slice(0, 120).join("\n");
+
+  const patterns: Array<{ re: RegExp; curr?: string }> = [
+    { re: /\b(?:USD|US\$)\s*([1-9]\d{0,3}(?:,\d{3})*(?:\.\d{1,2})?)/i, curr: "USD" },
+    { re: /\b(?:AUD|AU\$|A\$)\s*([1-9]\d{0,3}(?:,\d{3})*(?:\.\d{1,2})?)/i, curr: "AUD" },
+    { re: /\b(?:CAD|CA\$|C\$)\s*([1-9]\d{0,3}(?:,\d{3})*(?:\.\d{1,2})?)/i, curr: "CAD" },
+    { re: /(?:£|GBP\s*)([1-9]\d{0,3}(?:,\d{3})*(?:\.\d{1,2})?)/i, curr: "GBP" },
+    { re: /(?:€|EUR\s*)([1-9]\d{0,3}(?:,\d{3})*(?:\.\d{1,2})?)/i, curr: "EUR" },
+    { re: /\$\s*([1-9]\d{0,3}(?:,\d{3})*(?:\.\d{2})?)/ },
+  ];
+
+  for (const { re, curr } of patterns) {
+    const m = joined.match(re);
+    if (m?.[1]) {
+      const val = Number(m[1].replace(/,/g, ""));
+      if (val >= 6 && val <= 4500) {
+        return convertStoreCurrencyToUsd(val, curr || hostname);
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Browser-safe Schema.org Product JSON-LD + OpenGraph meta parser.
+ * Extracts exact product title, full image array, exact offer price + currency, brand, and description!
+ */
+export function extractStructuredHtmlProductData(
+  html: string,
+  hostname = ""
+): {
+  title?: string;
+  brand?: string;
+  priceUsd?: number;
+  description?: string;
+  images: string[];
+  sizes: string[];
+} {
+  const images: string[] = [];
+  const sizes: string[] = [];
+  let title: string | undefined;
+  let brand: string | undefined;
+  let priceUsd: number | undefined;
+  let description: string | undefined;
+
+  if (!html) return { images, sizes };
+
+  const readMeta = (attrVal: string): string | undefined => {
+    const escaped = attrVal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const m1 = html.match(
+      new RegExp(
+        `<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["']`,
+        "i"
+      )
+    );
+    if (m1?.[1]) return stripHtmlToReadableText(m1[1]);
+    const m2 = html.match(
+      new RegExp(
+        `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escaped}["']`,
+        "i"
+      )
+    );
+    return m2?.[1] ? stripHtmlToReadableText(m2[1]) : undefined;
+  };
+
+  const ogTitle = readMeta("og:title") || readMeta("twitter:title");
+  if (ogTitle) title = ogTitle.split(/\s+\|\s+/)[0].trim();
+
+  const ogDesc = readMeta("og:description") || readMeta("description");
+  if (ogDesc) description = ogDesc;
+
+  const ogImg = readMeta("og:image:secure_url") || readMeta("og:image");
+  if (ogImg && !isJunkIconOrLogo(ogImg)) images.push(ogImg);
+
+  const metaPriceRaw =
+    readMeta("product:price:amount") || readMeta("og:price:amount");
+  const metaCurr =
+    readMeta("product:price:currency") || readMeta("og:price:currency") || hostname;
+  if (metaPriceRaw) {
+    const pNum = Number(metaPriceRaw.replace(/[^0-9.]/g, ""));
+    if (pNum > 0) priceUsd = convertStoreCurrencyToUsd(pNum, metaCurr);
+  }
+
+  // Parse all <script type="application/ld+json"> blocks
+  const ldRegex =
+    /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = ldRegex.exec(html)) !== null) {
+    try {
+      const parsed = JSON.parse(match[1].trim());
+      const queue: unknown[] = Array.isArray(parsed) ? [...parsed] : [parsed];
+      while (queue.length > 0) {
+        const node = queue.shift() as Record<string, unknown> | null;
+        if (!node || typeof node !== "object") continue;
+        if (Array.isArray(node["@graph"])) {
+          queue.push(...(node["@graph"] as unknown[]));
+        }
+        const tRaw = node["@type"];
+        const tStr = Array.isArray(tRaw) ? tRaw.join(",") : String(tRaw || "");
+        if (!/Product/i.test(tStr)) continue;
+
+        if (typeof node.name === "string" && node.name.trim()) {
+          title = node.name.split(/\s+\|\s+/)[0].trim();
+        }
+        if (typeof node.description === "string" && node.description.trim()) {
+          description = stripHtmlToReadableText(node.description);
+        }
+        if (node.brand) {
+          if (typeof node.brand === "string") brand = node.brand.trim();
+          else if (
+            typeof (node.brand as Record<string, unknown>).name === "string"
+          ) {
+            brand = String((node.brand as Record<string, unknown>).name).trim();
+          }
+        }
+
+        const rawImgs = Array.isArray(node.image)
+          ? node.image
+          : node.image
+          ? [node.image]
+          : [];
+        for (const im of rawImgs) {
+          const u =
+            typeof im === "string"
+              ? im
+              : typeof (im as Record<string, unknown>)?.url === "string"
+              ? String((im as Record<string, unknown>).url)
+              : "";
+          if (u && !isJunkIconOrLogo(u) && !images.includes(u)) {
+            images.push(u);
+          }
+        }
+
+        const rawOffers = node.offers;
+        const offerList = Array.isArray(rawOffers)
+          ? rawOffers
+          : rawOffers && typeof rawOffers === "object" && Array.isArray((rawOffers as Record<string, unknown>).offers)
+          ? ((rawOffers as Record<string, unknown>).offers as unknown[])
+          : rawOffers
+          ? [rawOffers]
+          : [];
+
+        for (const off of offerList) {
+          const o = off as Record<string, unknown>;
+          const pVal = Number(o?.price ?? o?.lowPrice ?? 0);
+          const curr = String(o?.priceCurrency || metaCurr || hostname);
+          if (pVal > 0 && !priceUsd) {
+            priceUsd = convertStoreCurrencyToUsd(pVal, curr);
+          }
+          if (typeof o?.name === "string") {
+            const sz = o.name.trim().toUpperCase();
+            if (/^(XXS|XS|S|M|L|XL|XXL)$/.test(sz) && !sizes.includes(sz)) {
+              sizes.push(sz);
+            }
+          }
+        }
+
+        if (Array.isArray(node.hasVariant)) {
+          queue.push(...(node.hasVariant as unknown[]));
+        }
+      }
+    } catch {
+      // Ignore malformed JSON-LD block
+    }
+  }
+
+  return { title, brand, priceUsd, description, images, sizes };
 }
 
 export interface BrowserScrapeResult {
@@ -407,18 +637,53 @@ export async function scrapeProductInBrowser(
     }
   }
 
-  // Tier 1: Jina Reader CORS JSON with full Markdown + Images Summary
+  // Tier 1: Parallel Jina Markdown + Structured HTML JSON-LD / OpenGraph Extraction
   try {
-    const jinaRes = await fetch(`https://r.jina.ai/${normalizedUrl}`, {
-      headers: {
-        Accept: "application/json",
-        "X-Return-Format": "markdown",
-        "X-With-Images-Summary": "true",
-      },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (jinaRes.ok) {
-      const json = await jinaRes.json();
+    const [jinaMdRes, jinaHtmlRes] = await Promise.allSettled([
+      fetch(`https://r.jina.ai/${normalizedUrl}`, {
+        headers: {
+          Accept: "application/json",
+          "X-Return-Format": "markdown",
+          "X-With-Images-Summary": "true",
+        },
+        signal: AbortSignal.timeout(8000),
+      }),
+      fetch(`https://r.jina.ai/${normalizedUrl}`, {
+        headers: {
+          Accept: "application/json",
+          "X-Return-Format": "html",
+        },
+        signal: AbortSignal.timeout(7000),
+      }),
+    ]);
+
+    if (jinaHtmlRes.status === "fulfilled" && jinaHtmlRes.value.ok) {
+      const htmlJson = await jinaHtmlRes.value.json();
+      const rawHtml = String(htmlJson?.data?.html || htmlJson?.data?.content || "");
+      if (
+        rawHtml &&
+        !/verify you are human|captcha|access denied/i.test(rawHtml.slice(0, 600))
+      ) {
+        const ld = extractStructuredHtmlProductData(rawHtml, host);
+        if (ld.title) extractedTitle = ld.title;
+        if (ld.priceUsd && ld.priceUsd > 0) extractedPrice = ld.priceUsd;
+        if (ld.description) pdpMarkdown = ld.description;
+        if (ld.images.length > 0) {
+          galleryAngles = ld.images
+            .slice(0, 5)
+            .map((u, idx) => {
+              const safe = getSafeClothingImageUrl(u, 960);
+              return safe
+                ? { url: safe, label: labelAngleFromText("", u, idx) }
+                : null;
+            })
+            .filter((g): g is ProductGalleryAngle => g !== null);
+        }
+      }
+    }
+
+    if (jinaMdRes.status === "fulfilled" && jinaMdRes.value.ok) {
+      const json = await jinaMdRes.value.json();
       const pageTitle = String(json?.data?.title || "").trim();
       const content = String(json?.data?.content || "");
       const blocked =
@@ -427,18 +692,25 @@ export async function scrapeProductInBrowser(
         );
 
       if (!blocked) {
-        pdpMarkdown = content;
-        if (pageTitle && !/^nike store\.|^gymshark$/i.test(pageTitle)) {
+        pdpMarkdown = pdpMarkdown ? `${pdpMarkdown}\n${content}` : content;
+        if (
+          !extractedTitle &&
+          pageTitle &&
+          !/^nike store\.|^gymshark$/i.test(pageTitle)
+        ) {
           extractedTitle = pageTitle.split(/\s+[|\-–—]\s+/)[0].trim();
         }
-        const priceMatch = content.match(/\$\s?([1-9][0-9]{1,3}(?:\.[0-9]{2})?)/);
-        if (priceMatch) {
-          const p = Number(priceMatch[1]);
-          if (p >= 8 && p <= 2500) extractedPrice = p;
+        if (!extractedPrice) {
+          const smartPrice = extractAccurateProductPrice(
+            content,
+            host,
+            extractedTitle || cleanSlugTitle
+          );
+          if (smartPrice) extractedPrice = smartPrice;
         }
 
         const imgsObj = json?.data?.images as Record<string, string> | undefined;
-        if (imgsObj && typeof imgsObj === "object") {
+        if (galleryAngles.length === 0 && imgsObj && typeof imgsObj === "object") {
           const candidates = Object.entries(imgsObj).map(([alt, url]) => ({
             alt,
             url: String(url),
@@ -446,7 +718,9 @@ export async function scrapeProductInBrowser(
           const kwSource = `${extractedTitle || cleanSlugTitle}`
             .toLowerCase()
             .split(/\s+/)
-            .filter((w) => w.length >= 3 && !/^(the|and|for|with|womens|women)$/.test(w));
+            .filter(
+              (w) => w.length >= 3 && !/^(the|and|for|with|womens|women)$/.test(w)
+            );
           galleryAngles = extractProductGalleryAngles(candidates, kwSource);
         }
       }
@@ -455,11 +729,11 @@ export async function scrapeProductInBrowser(
     // Fall through to Microlink backup
   }
 
-  // Tier 2: Microlink OpenGraph backup if Jina didn't find an image
-  if (galleryAngles.length === 0) {
+  // Tier 2: Microlink OpenGraph + Price Metadata backup if Jina didn't find image or price
+  if (galleryAngles.length === 0 || !extractedPrice) {
     try {
       const mlRes = await fetch(
-        `https://api.microlink.io/?url=${encodeURIComponent(normalizedUrl)}`,
+        `https://api.microlink.io/?url=${encodeURIComponent(normalizedUrl)}&meta=true`,
         { signal: AbortSignal.timeout(6500) }
       );
       if (mlRes.ok) {
@@ -467,17 +741,29 @@ export async function scrapeProductInBrowser(
         const mlTitle = String(ml?.data?.title || "");
         const mlDesc = String(ml?.data?.description || "");
         const mlImg = String(ml?.data?.image?.url || "");
+        const mlRawPrice = Number(
+          String(ml?.data?.price?.amount || ml?.data?.price || "").replace(
+            /[^0-9.]/g,
+            ""
+          )
+        );
         if (
-          mlImg &&
-          !/404 not found|just a moment|verify you are human/i.test(mlTitle) &&
-          !isJunkIconOrLogo(mlImg, mlTitle)
+          !/404 not found|just a moment|verify you are human/i.test(mlTitle)
         ) {
-          const safeHero = getSafeClothingImageUrl(mlImg, 960);
-          if (safeHero) {
-            galleryAngles = [{ url: safeHero, label: "Model Front" }];
+          if (galleryAngles.length === 0 && mlImg && !isJunkIconOrLogo(mlImg, mlTitle)) {
+            const safeHero = getSafeClothingImageUrl(mlImg, 960);
+            if (safeHero) {
+              galleryAngles = [{ url: safeHero, label: "Model Front" }];
+            }
           }
           if (!extractedTitle && mlTitle) {
             extractedTitle = mlTitle.split(/\s+[|\-–—]\s+/)[0].trim();
+          }
+          if (!extractedPrice && mlRawPrice > 0) {
+            extractedPrice = convertStoreCurrencyToUsd(mlRawPrice, host);
+          } else if (!extractedPrice && mlDesc) {
+            const descPrice = extractAccurateProductPrice(mlDesc, host, extractedTitle);
+            if (descPrice) extractedPrice = descPrice;
           }
           if (!pdpMarkdown && mlDesc) {
             pdpMarkdown = mlDesc;

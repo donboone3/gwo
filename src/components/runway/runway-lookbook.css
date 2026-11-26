@@ -5,15 +5,14 @@
   --dim: #9aa0aa;
   --line: #e5e8ee;
 
-  height: calc(100svh - 64px);
-  min-height: 520px;
-  display: grid;
-  grid-template-rows: 1fr;
+  min-height: calc(100svh - 64px);
+  display: flex;
+  flex-direction: column;
   background: #f4f5f7;
   color: var(--ink);
   font-family: var(--font-sans), "Plus Jakarta Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
+  overflow-x: hidden;
   position: relative;
   isolation: isolate;
   z-index: 1;
@@ -36,9 +35,9 @@
 .mv-main {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(290px, 24vw, 370px);
-  min-height: 0;
-  height: 100%;
+  grid-template-columns: minmax(0, 1fr) clamp(304px, 25vw, 384px);
+  height: calc(100svh - 64px);
+  min-height: 620px;
 }
 
 /* Dedicated 3-Row Left Column: Top Controls -> Unobstructed Runway Stage -> Bottom Checkout Dock */
@@ -203,10 +202,12 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 12px 18px;
+  gap: 4px;
+  padding: 9px 14px;
   will-change: transform;
   background: #f4f6f9;
   border-bottom: 1px solid rgba(20, 21, 24, 0.06);
+  box-sizing: border-box;
 }
 
 .mv-card.alt {
@@ -214,22 +215,24 @@
 }
 
 .mv-card-top {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  min-height: 24px;
+  gap: 6px;
+  height: 24px;
 }
 
 .mv-fav {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   padding: 3px !important;
   z-index: 2;
   color: var(--ink);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .mv-fav svg {
@@ -247,22 +250,37 @@
 }
 
 .mv-store-inline-badge {
-  padding: 3px 8px;
+  padding: 2px 8px;
   border-radius: 999px;
   background: #c80815;
   color: #ffffff;
   font-size: 9.5px;
   font-weight: 800;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
+/* Guaranteed Product Photo Frame — NEVER collapses to 0px on mobile or laptop! */
 .mv-shot {
-  flex: 1;
-  min-height: 54px;
+  flex: 1 1 78px;
+  min-height: 74px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid rgba(20, 21, 24, 0.05);
+  overflow: hidden;
+  position: relative;
+}
+
+.mv-shot img.mv-real-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center top;
   display: block;
-  margin: 2px 0;
 }
 
 .mv-shot svg {
@@ -272,54 +290,82 @@
 }
 
 .mv-meta {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 4px;
 }
 
 .mv-meta h3 {
-  font-weight: 600;
-  font-size: 12.5px;
-  line-height: 1.25;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.2;
   color: var(--ink);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mv-title-link {
-  display: inline-block;
-  padding: 4px 0;
-  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.mv-meta span {
+.mv-meta .mv-price-line {
   display: block;
   font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mv-meta .mv-detail-line {
+  display: block;
+  font-size: 10px;
   font-weight: 600;
-  color: var(--mid);
+  color: #244b3b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mv-card-actions {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
 }
 
-.mv-pill-link {
+.mv-pill-link,
+.mv-rail button.mv-pill-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 24px;
-  padding: 4px 10px;
+  padding: 4px 9px;
   border-radius: 999px;
   background: rgba(20, 21, 24, 0.06);
   color: var(--ink) !important;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   white-space: nowrap;
   transition: background 0.16s;
+}
+
+.mv-pill-link.fit,
+.mv-rail button.mv-pill-link.fit {
+  background: #e7f3ee;
+  color: #1d4232 !important;
 }
 
 .mv-pill-link:hover {
@@ -345,13 +391,14 @@
 }
 
 .mv-add {
+  flex-shrink: 0;
   min-height: 26px;
-  padding: 5px 12px !important;
+  padding: 4px 10px !important;
   border-radius: 999px;
   background: #141518 !important;
   color: #ffffff !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
   white-space: nowrap;
   transition: opacity 0.2s;
 }
@@ -369,12 +416,13 @@
   }
   .mv-main {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 224px;
+    grid-template-rows: auto 258px;
     height: auto;
+    min-height: 0;
   }
   .mv-left-col {
     height: auto;
-    grid-template-rows: auto 400px auto;
+    grid-template-rows: auto 226px auto;
   }
   .mv-stage,
   .mv-m {
@@ -384,29 +432,35 @@
     display: none;
   }
   .mv-top-bar {
-    padding: 10px 14px;
+    padding: 8px 12px;
   }
   .mv-bottom-bar {
-    padding: 10px 14px;
+    padding: 8px 12px 10px;
+    gap: 8px 10px;
   }
   .mv-look {
-    font-size: 20px;
-    line-height: 28px;
+    font-size: 18px;
+    line-height: 26px;
   }
   .mv-win,
   .mv-roll b {
-    height: 28px;
+    height: 26px;
   }
   .mv-rail {
     border-left: 0;
     border-top: 1px solid rgba(20, 21, 24, 0.08);
-    height: 224px;
+    height: 258px;
   }
   .mv-card {
-    width: 224px;
-    height: 100%;
-    padding: 10px 12px;
+    width: 232px;
+    height: 258px;
+    padding: 9px 11px;
     border-bottom: 0;
     border-right: 1px solid rgba(20, 21, 24, 0.06);
+  }
+  .mv-shot {
+    flex: 0 0 106px;
+    height: 106px;
+    min-height: 106px;
   }
 }

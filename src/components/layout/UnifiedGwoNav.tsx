@@ -621,24 +621,28 @@ export function UnifiedGwoNav() {
                           className="rounded-2xl bg-[#F7F8FA] border border-black/[0.07] overflow-hidden flex flex-col justify-between"
                         >
                           <div>
-                            <div className="relative h-36 bg-white border-b border-black/[0.05]">
+                            <div className="h-40 bg-white border-b border-black/[0.05] overflow-hidden">
                               <GarmentArtwork
                                 product={prod}
                                 className="w-full h-full"
                               />
-                              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-[#141518]/90 text-white text-[10px] font-bold">
-                                Size {fit.recommendedSize} ({fit.confidencePct}%)
-                              </span>
-                              <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-white/95 text-[#141518] text-[11px] font-bold shadow-xs">
-                                ${prod.price}
-                              </span>
                             </div>
-                            <div className="p-2.5 space-y-0.5">
-                              <p className="text-[10px] font-bold uppercase tracking-wider text-[#244B3B] truncate">
-                                {prod.brand} • {prod.fitMetadata?.stretchLevel || "woven"}
-                              </p>
+                            <div className="p-2.5 space-y-1">
+                              <div className="flex items-center justify-between gap-1 text-[10.5px] font-bold">
+                                <span className="text-[#244B3B] truncate">
+                                  {prod.brand} • Size {fit.recommendedSize}
+                                </span>
+                                <span className="text-xs font-extrabold text-[#141518] shrink-0">
+                                  ${prod.price}
+                                </span>
+                              </div>
                               <p className="text-xs font-bold text-[#141518] line-clamp-1">
                                 {prod.title}
+                              </p>
+                              <p className="text-[10.5px] text-[#5C6068] line-clamp-2 leading-snug">
+                                {prod.fitMetadata?.fabricComposition ||
+                                  prod.fitMetadata?.descriptionSummary ||
+                                  `${prod.fitMetadata?.stretchLevel || "Tailored"} • ${fit.confidencePct}% Fit`}
                               </p>
                             </div>
                           </div>

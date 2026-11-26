@@ -13,6 +13,10 @@ import {
   upgradeCdnImageResolution,
 } from "./fit-intelligence";
 import {
+  convertStoreCurrencyToUsd,
+  extractAccurateProductPrice,
+} from "./client-url-scraper";
+import {
   getProductByCanonicalUrl,
   upsertSharedProduct,
 } from "../db/repository";
@@ -242,7 +246,8 @@ export function parseProductFromHtml(
             : node.offers;
           if (offer) {
             const p = Number(offer.price || offer.lowPrice || 0);
-            if (p > 0) price = p;
+            const curr = String(offer.priceCurrency || storeDomain);
+            if (p > 0) price = convertStoreCurrencyToUsd(p, curr);
             if (
               typeof offer.availability === "string" &&
               /OutOfStock/i.test(offer.availability)
@@ -463,10 +468,9 @@ async function extractLiveProduct(
             `${cleanTitle} ${urlObj.pathname}`
           );
 
-          const priceMatch = content.match(
-            /\$\s?([1-9][0-9]{1,3}(?:\.[0-9]{2})?)/
-          );
-          const parsedPrice = priceMatch ? Number(priceMatch[1]) : 68;
+          const parsedPrice =
+            extractAccurateProductPrice(content, urlObj.hostname, cleanTitle) ||
+            68;
 
           const imgsObj = jinaJson?.data?.images as
             | Record<string, string>
@@ -497,8 +501,14 @@ async function extractLiveProduct(
                     s += 20;
                   }
                 }
-                if (/\/products\/|\/files\/|-fr\.|-bk\.|-flt/i.test(up)) s += 25;
-                if (/on a model|front view|image \d/i.test(alt)) s += 20;
+                if (
+                  /\/products\/|\/files\/|-fr\.|-bk\.|-flt|revolveassets|scene7|cloudinary|demandware|zara\.net|asos-media|nordstrommedia|princesspolly|babyboo|houseofcb|ohpolly|meshki|thereformation|aritzia|lululemon|skims/i.test(
+                    up
+                  )
+                ) {
+                  s += 25;
+                }
+                if (/on a model|front view|image \d|product/i.test(alt)) s += 20;
                 if (
                   /[?&]w=1(&|$)|[?&]h=205(&|$)|skims-sanity\.imgix\.net|images\.contentstack\.io/i.test(
                     u
@@ -513,7 +523,7 @@ async function extractLiveProduct(
                   score: s,
                 };
               })
-              .filter((x): x is NonNullable<typeof x> => x !== null && x.score >= 10)
+              .filter((x): x is NonNullable<typeof x> => x !== null && x.score >= 0)
               .sort((a, b) => b.score - a.score);
 
             const seen = new Set<string>();

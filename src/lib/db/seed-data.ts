@@ -604,6 +604,35 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       price: 72,
       currency: "USD",
       imageUrl: `${ASSET_BASE}/models/catalog/pp_denim.webp`,
+      fitMetadata: {
+        descriptionSummary:
+          "Relaxed low-to-mid rise vintage straight-leg jeans in structured 100% organic cotton denim with classic 5-pocket tailoring and puddle-ready full length.",
+        fitNotes: [
+          "Non-stretch vintage cotton denim softens with wear",
+          "Relaxed hip & straight leg elongates a 5'2\" petite frame",
+          "Zipper fly with brushed nickel button closure",
+        ],
+        fabricComposition: "100% Organic Cotton Vintage Denim",
+        stretchLevel: "rigid",
+        cutType: "oversized",
+        storeFitTendency: "true_to_size",
+        hemLanding: "full-length",
+        inseamInches: 30.5,
+        modelStats: {
+          rawText: "Model wears US 4 / Size S • 5'8\" (173cm) • 25\" W • 35.5\" H",
+          heightInches: 68,
+          heightDisplay: "5'8\" (173cm)",
+          wornSize: "S",
+          waistInches: 25,
+          hipsInches: 35.5,
+        },
+        galleryImages: [
+          {
+            url: `${ASSET_BASE}/models/catalog/pp_denim.webp`,
+            label: "Model Front",
+          },
+        ],
+      },
       occasions: ["Coffee Run", "Campus / Class", "Concert", "Date Night", "Weekend Trip"],
       vibes: ["Model Off-Duty", "Streetwear Luxe"],
       availableSizes: ["XS", "S", "M", "L"],
@@ -628,6 +657,26 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#D4AF37",
       price: 268,
       currency: "USD",
+      imageUrl: `${ASSET_BASE}/models/dropship/ds_noir_slingbacks.webp`,
+      fitMetadata: {
+        descriptionSummary:
+          "Soft nappa leather ballet flats with an adjustable gold-tone vamp buckle strap, rounded almond toe, and cushioned leather footbed.",
+        fitNotes: [
+          "Fits true to US shoe size with supple zero-break-in leather",
+          "Adjustable vamp strap secures narrow or standard insteps",
+          "Low 0.4\" stacked leather heel for all-day comfort",
+        ],
+        fabricComposition: "100% Vegetable-Tanned Nappa Leather",
+        stretchLevel: "low",
+        cutType: "fitted",
+        storeFitTendency: "true_to_size",
+        galleryImages: [
+          {
+            url: `${ASSET_BASE}/models/dropship/ds_noir_slingbacks.webp`,
+            label: "Studio Side & Vamp",
+          },
+        ],
+      },
       occasions: ["Date Night", "Coffee Run", "Weekend Trip"],
       vibes: ["Model Off-Duty", "Soft Romantic"],
       availableSizes: ["6", "6.5", "7", "7.5", "8", "8.5", "9"],

@@ -191,14 +191,29 @@ export function Avatar360Modal() {
                 </div>
               </div>
 
-              {/* Fit Verdict */}
+              {/* Fit Verdict & Scraped Product Details */}
               <div className="p-3 rounded-xl bg-white border border-[#CBE2D4] space-y-1">
-                <p className="text-xs font-bold text-[#1D4232] flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5" /> Exact Fit Verdict
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-[#1D4232] flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5" /> Exact Fit Verdict
+                  </p>
+                  <span className="text-xs font-extrabold text-[#141518]">
+                    ${primaryProduct.price}
+                  </span>
+                </div>
                 <p className="text-[11px] text-[#4E5A54] leading-snug">
                   {liveFit.headlineVerdict}
                 </p>
+                {primaryProduct.fitMetadata?.fabricComposition && (
+                  <p className="text-[10.5px] font-semibold text-[#141518] pt-0.5">
+                    Fabric: {primaryProduct.fitMetadata.fabricComposition}
+                  </p>
+                )}
+                {primaryProduct.fitMetadata?.descriptionSummary && (
+                  <p className="text-[10.5px] text-[#5C6068] line-clamp-2 leading-snug">
+                    {primaryProduct.fitMetadata.descriptionSummary}
+                  </p>
+                )}
               </div>
 
               {/* Store Reference Thumbnail(s) (Front + Back if available) */}

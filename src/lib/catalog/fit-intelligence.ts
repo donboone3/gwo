@@ -564,9 +564,14 @@ export function extractProductFitProfile(params: {
     if (val >= 20 && val <= 37) inseamInches = val;
   }
 
-  // Clean description summary & fit bullet notes (strictly reject nav links, prices, and cross-sell cards)
-  const lines = primaryText
+  // Clean description summary & fit bullet notes (split long paragraphs rather than dropping >320-char descriptions!)
+  const rawChunks = primaryText
     .split(/\n+/)
+    .flatMap((chunk) =>
+      chunk.length > 300 ? chunk.split(/(?<=[.!?])\s+/) : [chunk]
+    );
+
+  const lines = rawChunks
     .map((l) =>
       l
         .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
@@ -577,32 +582,45 @@ export function extractProductFitProfile(params: {
     )
     .filter(
       (l) =>
-        l.length >= 16 &&
-        l.length <= 320 &&
-        !/https?:\/\/|\]\(|refslotid|original price|sale price|\$\d+|skip to|select a? size|size guide|waitlist|add to bag|sign in|shipping & returns|sort by|details fit|how was the fit|out of 5/i.test(
+        l.length >= 14 &&
+        l.length <= 420 &&
+        !/https?:\/\/|\]\(|refslotid|original price|sale price|\$\d+|free shipping|orders over|afterpay|klarna|skip to|select a? size|size guide|waitlist|add to bag|sign in|shipping & returns|sort by|details fit|how was the fit|out of 5|cookie|privacy policy/i.test(
           l
         )
     );
 
-  const descriptionSummary = lines.find(
-    (l) =>
-      l.length >= 48 &&
-      /[a-z]{4,}.*\./.test(l) &&
-      !/^model is/i.test(l)
-  );
+  const rawDescLine =
+    lines.find(
+      (l) => l.length >= 42 && /[a-z]{4,}/i.test(l) && !/^model\b/i.test(l)
+    ) ||
+    lines.find((l) => l.length >= 22 && !/^model\b/i.test(l));
+
+  const descriptionSummary = rawDescLine
+    ? rawDescLine.length > 260
+      ? `${rawDescLine.slice(0, 257).trim()}...`
+      : rawDescLine
+    : `${brand} ${title} crafted in a ${cutType} silhouette (${stretchLevel} stretch).`;
 
   const fitNotes: string[] = [];
   for (const l of lines) {
     if (
-      l !== descriptionSummary &&
-      l.length <= 120 &&
-      /\b(fits?\s+true|true\s+to\s+size|runs?\s+small|runs?\s+large|hits?\s+(?:right\s+|just\s+)?(?:at|below|above)|natural\s+waist|cropped|relaxed\s+fit|slim\s+fit|fitted\s+crew|body-hugging|4-way\s+stretch|moisture[\s-]wicking|inseam|high-rise|mid-rise|low-rise|built-in|adjustable\s+straps)\b/i.test(
+      l !== rawDescLine &&
+      l.length <= 140 &&
+      /\b(fits?\s+true|true\s+to\s+size|runs?\s+small|runs?\s+large|hits?\s+(?:right\s+|just\s+)?(?:at|below|above)|natural\s+waist|cropped|relaxed\s+fit|slim\s+fit|fitted|body-hugging|stretch|moisture[\s-]wicking|inseam|high-rise|mid-rise|low-rise|built-in|adjustable|boned|corset|zipper|zip|lined|lining|pleat|cowl|halter|strap|neckline|slit|drape|tailored)\b/i.test(
         l
       ) &&
       !fitNotes.includes(l)
     ) {
       fitNotes.push(l);
       if (fitNotes.length >= 4) break;
+    }
+  }
+  if (fitNotes.length === 0) {
+    for (const l of lines) {
+      if (l !== rawDescLine && l.length >= 16 && l.length <= 110 && !fitNotes.includes(l)) {
+        fitNotes.push(l);
+        if (fitNotes.length >= 3) break;
+      }
     }
   }
 

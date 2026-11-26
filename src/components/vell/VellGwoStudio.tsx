@@ -1256,8 +1256,8 @@ export function VellGwoStudio() {
                     Tap to wear
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {scrapedCommunityItems.slice(0, 3).map((prod) => {
+                <div className="grid grid-cols-2 gap-2">
+                  {scrapedCommunityItems.slice(0, 4).map((prod) => {
                     const isWornUrl = activeImportedProduct?.id === prod.id;
                     return (
                       <button
@@ -1291,24 +1291,28 @@ export function VellGwoStudio() {
                             : "border-black/[0.08] hover:-translate-y-0.5"
                         }`}
                       >
-                        <div className="relative h-20 w-full bg-[#F6F7F9] overflow-hidden">
+                        <div className="h-24 w-full bg-[#F6F7F9] border-b border-black/[0.05] overflow-hidden">
                           <GarmentArtwork
                             product={prod}
                             className="w-full h-full"
                           />
-                          <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-[#E7F3EE]/95 text-[9px] font-bold text-[#244B3B]">
-                            Size {scrapedFitById.get(prod.id) || recSize}
-                          </span>
-                          <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-white/92 text-[10px] font-bold text-[#141518]">
-                            ${prod.price}
-                          </span>
                         </div>
-                        <div className="p-1.5">
-                          <p className="text-[9px] font-bold text-[#686D76] uppercase truncate">
-                            {prod.brand}
-                          </p>
-                          <p className="text-[11px] font-semibold text-[#141518] truncate">
+                        <div className="p-2 space-y-0.5">
+                          <div className="flex items-center justify-between gap-1 text-[10px] font-bold">
+                            <span className="text-[#244B3B] truncate">
+                              {prod.brand} • {scrapedFitById.get(prod.id) || recSize}
+                            </span>
+                            <span className="text-[#141518] shrink-0">
+                              ${prod.price}
+                            </span>
+                          </div>
+                          <p className="text-[11px] font-bold text-[#141518] truncate">
                             {prod.title}
+                          </p>
+                          <p className="text-[9.5px] text-[#686D76] truncate">
+                            {prod.fitMetadata?.fabricComposition ||
+                              prod.fitMetadata?.descriptionSummary ||
+                              prod.colorName}
                           </p>
                         </div>
                       </button>
