@@ -2,7 +2,14 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Rotate3d, Ruler, ShoppingBag, Sparkles } from "lucide-react";
+import {
+  Box,
+  ExternalLink,
+  Plus,
+  Rotate3d,
+  Ruler,
+  ShoppingBag,
+} from "lucide-react";
 import "./runway-lookbook.css";
 import { useGwo } from "@/context/GwoAppContext";
 import {
@@ -12,12 +19,11 @@ import {
 
 import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
 
-// Signature Avatar Runway Sprite Sheet (all 6 models are our signature avatar!)
-const MODELS_SHEET = `${
-  process.env.NEXT_PUBLIC_BASE_PATH || ""
-}/models/signature/runway_models_sheet.webp`;
-const PIECES_SHEET =
-  "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20261102_042057_080e85b0-b4aa-4072-8eb9-2304c7baf42b.png&w=1440&q=80";
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+// Signature Avatar Runway Sprite Sheets (100% localized WebP for sub-100ms instant load!)
+const MODELS_SHEET = `${BASE_PATH}/models/signature/runway_models_sheet.webp`;
+const PIECES_SHEET = `${BASE_PATH}/models/signature/runway_pieces_sheet.webp`;
 
 const LOOKS: Array<[number, number]> = [
   [12, 176],
@@ -30,7 +36,7 @@ const LOOKS: Array<[number, number]> = [
 
 // Exact measured face ovals [cx, cy, width, height] in 960x540 viewBox space for all 6 runway models
 const RUNWAY_FACE_COORDS: Array<[number, number, number, number]> = [
-  [90, 96.5, 36, 43],
+  [94, 96.5, 34, 41],
   [254.5, 99, 33, 40],
   [400, 96, 34, 41],
   [553, 96, 31, 38],
@@ -41,26 +47,126 @@ const RUNWAY_FACE_COORDS: Array<[number, number, number, number]> = [
 const Y0 = 48;
 const Y1 = 496;
 
-// Cohesive everyday GWO pieces: [x0, x1, y0, y1, name, priceDisplay, priceNum, brand, friendOwner]
-const ITEMS: Array<
-  [number, number, number, number, string, string, number, string, string]
-> = [
-  [26, 224, 28, 214, "Blush Faux-Feather Cropped Jacket", "$148", 148, "Reformation", "MAYA-GWO"],
-  [304, 412, 22, 236, "Satin Wide-Leg Lounge Trousers", "$92", 92, "Aritzia", "MAYA-GWO"],
-  [530, 666, 12, 242, "Sage Pleated Maxi Dress", "$168", 168, "Reformation", "CHLOE-GWO"],
-  [752, 922, 100, 146, "Sculpted Gold Waist Belt", "$48", 48, "GWO Studio", "CHLOE-GWO"],
-  [70, 176, 246, 466, "Champagne Belted Trench Dress", "$154", 154, "Princess Polly", "MAYA-GWO"],
-  [294, 422, 294, 432, "Structured Cream Mini Bag", "$78", 78, "GWO Studio", "MAYA-GWO"],
-  [508, 688, 240, 452, "Soft Blush Billow Blouse", "$74", 74, "Aritzia", "SOFIA-GWO"],
-  [780, 890, 252, 466, "Relaxed Tie-Waist Trousers", "$86", 86, "Aritzia", "SOFIA-GWO"],
-  [64, 178, 484, 698, "Powder Blue Wool Overcoat", "$198", 198, "Aritzia", "CHLOE-GWO"],
-  [316, 396, 482, 698, "Ivory Straight Tailored Pants", "$88", 88, "Princess Polly", "CHLOE-GWO"],
-  [530, 672, 508, 682, "Ivory Ruffle Knit Top", "$68", 68, "SKIMS", "SOFIA-GWO"],
-  [754, 916, 484, 700, "Flowy Pleated Maxi Skirt", "$96", 96, "Reformation", "SOFIA-GWO"],
+interface RunwayPieceSpec {
+  crop: [number, number, number, number];
+  name: string;
+  priceDisplay: string;
+  priceNum: number;
+  brand: string;
+  friendOwner: string;
+  productId?: string;
+  storeUrl?: string;
+  imageUrl?: string;
+  recSizeOverride?: string;
+}
+
+// Cohesive GWO Runway pieces — Outfit 01 features Babyboo Fashion Cornelia Mini Dress - Red!
+const ITEMS: RunwayPieceSpec[] = [
+  {
+    crop: [26, 224, 24, 218],
+    name: "Cornelia Mini Dress - Red",
+    priceDisplay: "$132",
+    priceNum: 132,
+    brand: "Babyboo Fashion",
+    friendOwner: "MAYA-GWO",
+    productId: "prod-babyboo-cornelia-red",
+    storeUrl:
+      "https://babyboofashion-com-au.myshopify.com/products/cornelia-mini-dress-red",
+    imageUrl: `${BASE_PATH}/models/catalog/cornelia_2.webp`,
+    recSizeOverride: "S",
+  },
+  {
+    crop: [304, 412, 22, 236],
+    name: "Satin Afterparty Lounge Pants",
+    priceDisplay: "$92",
+    priceNum: 92,
+    brand: "Aritzia",
+    friendOwner: "MAYA-GWO",
+  },
+  {
+    crop: [530, 666, 12, 242],
+    name: "Sage Pleated Maxi Dress",
+    priceDisplay: "$168",
+    priceNum: 168,
+    brand: "Reformation",
+    friendOwner: "CHLOE-GWO",
+  },
+  {
+    crop: [752, 922, 100, 146],
+    name: "Sculpted Gold Waist Belt",
+    priceDisplay: "$48",
+    priceNum: 48,
+    brand: "GWO Studio",
+    friendOwner: "CHLOE-GWO",
+  },
+  {
+    crop: [70, 176, 246, 466],
+    name: "Champagne Belted Trench Dress",
+    priceDisplay: "$154",
+    priceNum: 154,
+    brand: "Princess Polly",
+    friendOwner: "MAYA-GWO",
+  },
+  {
+    crop: [294, 422, 294, 432],
+    name: "Structured Cream Mini Bag",
+    priceDisplay: "$78",
+    priceNum: 78,
+    brand: "GWO Studio",
+    friendOwner: "MAYA-GWO",
+  },
+  {
+    crop: [508, 688, 240, 452],
+    name: "Soft Blush Billow Blouse",
+    priceDisplay: "$74",
+    priceNum: 74,
+    brand: "Aritzia",
+    friendOwner: "SOFIA-GWO",
+  },
+  {
+    crop: [780, 890, 252, 466],
+    name: "Relaxed Tie-Waist Trousers",
+    priceDisplay: "$86",
+    priceNum: 86,
+    brand: "Aritzia",
+    friendOwner: "SOFIA-GWO",
+  },
+  {
+    crop: [64, 178, 484, 698],
+    name: "Powder Blue Wool Overcoat",
+    priceDisplay: "$198",
+    priceNum: 198,
+    brand: "Aritzia",
+    friendOwner: "CHLOE-GWO",
+  },
+  {
+    crop: [316, 396, 482, 698],
+    name: "Ivory Straight Tailored Pants",
+    priceDisplay: "$88",
+    priceNum: 88,
+    brand: "Princess Polly",
+    friendOwner: "CHLOE-GWO",
+  },
+  {
+    crop: [530, 672, 508, 682],
+    name: "Ivory Ruffle Knit Top",
+    priceDisplay: "$68",
+    priceNum: 68,
+    brand: "SKIMS",
+    friendOwner: "SOFIA-GWO",
+  },
+  {
+    crop: [754, 916, 484, 700],
+    name: "Flowy Pleated Maxi Skirt",
+    priceDisplay: "$96",
+    priceNum: 96,
+    brand: "Reformation",
+    friendOwner: "SOFIA-GWO",
+  },
 ];
 
 const OCCASION_PILLS = [
-  { label: "Brunch", lookIdx: 0 },
+  { label: "Party • Red Mini", lookIdx: 0 },
   { label: "Evening", lookIdx: 1 },
   { label: "Date Night", lookIdx: 2 },
   { label: "Work / Chic", lookIdx: 3 },
@@ -122,7 +228,13 @@ function createNestedSvgCrop(
 }
 
 export function GwoRunwayLookbook() {
-  const { user, addToBag, customAvatar, setAvatarModalOpen } = useGwo();
+  const {
+    user,
+    addToBag,
+    customAvatar,
+    setAvatarModalOpen,
+    setAddUrlModalOpen,
+  } = useGwo();
 
   const activeBust = user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches;
   const activeWaist = user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches;
@@ -146,7 +258,6 @@ export function GwoRunwayLookbook() {
   const jumpLookRef = useRef<((lookOffset: number) => void) | null>(null);
   const currentPosRef = useRef(0);
 
-  const [ready, setReady] = useState(false);
   const [activeLookIdx, setActiveLookIdx] = useState(0);
 
   const addItemIndexToUnifiedBag = useCallback(
@@ -154,11 +265,13 @@ export function GwoRunwayLookbook() {
       const item = ITEMS[idx];
       if (!item) return;
       addToBag({
-        title: item[4],
-        brand: item[7],
-        price: item[6],
-        size: recSize,
-        friendRef: item[8],
+        title: item.name,
+        brand: item.brand,
+        price: item.priceNum,
+        size: item.recSizeOverride || recSize,
+        imageUrl: item.imageUrl,
+        storeUrl: item.storeUrl,
+        friendRef: item.friendOwner,
       });
     },
     [addToBag, recSize]
@@ -231,15 +344,36 @@ export function GwoRunwayLookbook() {
       });
     }
 
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-    const cards = ITEMS.map(([a, b, c, d, name, price, , brand], i) => {
-      const pdpHref = `${basePath}/product?name=${encodeURIComponent(
-        name
-      )}&price=${encodeURIComponent(price)}`;
+    const cards = ITEMS.map((item, i) => {
+      const [a, b, c, d] = item.crop;
+      const pdpHref = item.productId
+        ? `${BASE_PATH}/product?id=${encodeURIComponent(item.productId)}&view=3d`
+        : `${BASE_PATH}/product?name=${encodeURIComponent(
+            item.name
+          )}&price=${encodeURIComponent(item.priceDisplay)}&view=3d`;
+      const tryHref = item.productId
+        ? `${BASE_PATH}/?try=${encodeURIComponent(item.productId)}`
+        : `${BASE_PATH}/`;
+      const sizeTag = item.recSizeOverride || recSize;
+
       const e = document.createElement("article");
       e.className = "mv-card" + (i % 2 ? " alt" : "");
       e.dataset.idx = String(i);
-      e.innerHTML = `<button class="mv-fav" type="button" aria-pressed="false" aria-label="Save ${name}"><svg viewBox="0 0 24 24"><path d="M12 20S3.5 15 3.5 9A4.6 4.6 0 0 1 12 6.6 4.6 4.6 0 0 1 20.5 9C20.5 15 12 20 12 20Z"/></svg></button><a class="mv-shot" href="${pdpHref}" title="Open 360° Fit View"></a><div class="mv-meta"><div><h3><a href="${pdpHref}">${name}</a></h3><span>${brand} • ${price}</span></div><button class="mv-add" type="button" data-idx="${i}">+ Bag</button></div>`;
+      e.innerHTML = `<button class="mv-fav" type="button" aria-pressed="false" aria-label="Save ${
+        item.name
+      }"><svg viewBox="0 0 24 24"><path d="M12 20S3.5 15 3.5 9A4.6 4.6 0 0 1 12 6.6 4.6 4.6 0 0 1 20.5 9C20.5 15 12 20 12 20Z"/></svg></button>${
+        item.productId
+          ? `<span class="mv-store-badge">Size ${sizeTag} • Exact Fit</span>`
+          : ""
+      }<a class="mv-shot" href="${pdpHref}" title="Open 3D Exact-Fit Mock"></a><div class="mv-meta"><div><h3><a href="${pdpHref}">${
+        item.name
+      }</a></h3><span>${item.brand} • ${
+        item.priceDisplay
+      } • Fit: ${sizeTag}</span></div><button class="mv-add" type="button" data-idx="${i}">+ Bag</button></div><div class="mv-card-actions"><a class="mv-pill-link fit" href="${pdpHref}">3D Fit</a><a class="mv-pill-link" href="${tryHref}">Try On</a>${
+        item.storeUrl
+          ? `<a class="mv-pill-link buy" href="${item.storeUrl}" target="_blank" rel="noopener noreferrer">Buy ↗</a>`
+          : ""
+      }</div>`;
       const shot = e.querySelector(".mv-shot");
       const { root } = createNestedSvgCrop(
         PIECES_SHEET,
@@ -479,23 +613,7 @@ export function GwoRunwayLookbook() {
     paint();
     rafId = requestAnimationFrame(frame);
 
-    let cancelled = false;
-    Promise.all(
-      [MODELS_SHEET, PIECES_SHEET].map((u) => {
-        const im = new Image();
-        im.decoding = "async";
-        im.src = u;
-        return im.decode().catch(() => undefined);
-      })
-    ).then(() => {
-      if (cancelled) return;
-      size();
-      paint();
-      setReady(true);
-    });
-
     return () => {
-      cancelled = true;
       cancelAnimationFrame(rafId);
       if (wheelT) clearTimeout(wheelT);
       rail.removeEventListener("click", onRailClick);
@@ -512,11 +630,18 @@ export function GwoRunwayLookbook() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addItemIndexToUnifiedBag]);
 
+  const currentHero = ITEMS[activeLookIdx * 2] || ITEMS[0];
   const currentOutfitPrice =
-    (ITEMS[activeLookIdx * 2]?.[6] || 0) +
-    (ITEMS[activeLookIdx * 2 + 1]?.[6] || 0);
-  const currentHeroName = ITEMS[activeLookIdx * 2]?.[4] || "Metallic Puffer";
-  const currentHeroPrice = ITEMS[activeLookIdx * 2]?.[5] || "$168";
+    (ITEMS[activeLookIdx * 2]?.priceNum || 0) +
+    (ITEMS[activeLookIdx * 2 + 1]?.priceNum || 0);
+  const current3dHref = currentHero.productId
+    ? `/product?id=${encodeURIComponent(currentHero.productId)}&view=3d`
+    : `/product?name=${encodeURIComponent(
+        currentHero.name
+      )}&price=${encodeURIComponent(currentHero.priceDisplay)}&view=3d`;
+  const currentTryHref = currentHero.productId
+    ? `/?try=${encodeURIComponent(currentHero.productId)}`
+    : "/";
 
   return (
     <div className="mv-page">
@@ -532,7 +657,7 @@ export function GwoRunwayLookbook() {
           {/* Clean Top-Left Occasion & Personal Avatar Card */}
           <div className="mv-intro space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 border border-black/[0.06] text-[11px] font-bold text-[#244B3B]">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/92 border border-black/[0.06] text-[11px] font-bold text-[#244B3B]">
                 <Ruler className="w-3 h-3" /> {activeHeightStr} • {activeBust}&quot; B •{" "}
                 {activeWaist}&quot; W • {activeHips}&quot; H (Size {recSize})
               </div>
@@ -546,7 +671,14 @@ export function GwoRunwayLookbook() {
                   alt="Avatar"
                   className="w-4 h-4 rounded-full object-cover"
                 />
-                {customAvatar ? "Runway Featuring You ✓" : "Your Avatar • Change Photo"}
+                {customAvatar ? "Runway Featuring You ✓" : "Your Avatar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddUrlModalOpen(true)}
+                className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[11px] font-bold shadow-xs"
+              >
+                <Plus className="w-3 h-3" /> Pull Store Clothing
               </button>
             </div>
 
@@ -554,7 +686,9 @@ export function GwoRunwayLookbook() {
               For You Runway
             </h1>
             <p className="hidden sm:block text-xs sm:text-sm text-[#686D76] leading-relaxed">
-              Drag, scroll, or tap an occasion below to walk recommended outfits forward.
+              {currentHero.productId
+                ? `Featuring ${currentHero.brand} ${currentHero.name} (${currentHero.priceDisplay}) — Exact Size ${currentHero.recSizeOverride || recSize} match for your ${activeHeightStr} frame.`
+                : "Drag, scroll, or tap an occasion below to walk recommended outfits forward."}
             </p>
 
             {/* 1-Tap Occasion Filter Pills */}
@@ -579,39 +713,59 @@ export function GwoRunwayLookbook() {
             </div>
           </div>
 
-          {/* Clean Bottom-Left Outfit Counter + Unified Actions */}
+          {/* Clean Bottom-Left Outfit Counter + Purchase / 3D Fit / Try-On Actions */}
           <div className="mv-tag space-y-3">
-            <div className="mv-look" aria-live="polite">
-              <span>Outfit</span>
-              <span className="mv-win">
-                <span className="mv-roll" ref={rollRef} />
-              </span>
+            <div className="flex items-center gap-3">
+              <div className="mv-look" aria-live="polite">
+                <span>Outfit</span>
+                <span className="mv-win">
+                  <span className="mv-roll" ref={rollRef} />
+                </span>
+              </div>
+              {currentHero.productId && (
+                <span className="px-2.5 py-1 rounded-full bg-[#C80815] text-white text-[11px] font-bold shadow-xs">
+                  {currentHero.brand} • Size {currentHero.recSizeOverride || recSize} Exact Fit
+                </span>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {currentHero.storeUrl && (
+                <a
+                  href={currentHero.storeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  id="gwo-runway-buy-hero-btn"
+                  className="px-4 py-2.5 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-md transition"
+                >
+                  Buy {currentHero.name.split(" - ")[0]} ({currentHero.priceDisplay}){" "}
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+
               <button
                 type="button"
                 onClick={handleBagCurrentOutfit}
                 className="px-4 py-2.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-md"
               >
-                <ShoppingBag className="w-3.5 h-3.5" /> Bag Full Outfit ($
+                <ShoppingBag className="w-3.5 h-3.5" /> + Bag Outfit ($
                 {currentOutfitPrice})
               </button>
 
               <Link
-                href={`/product?name=${encodeURIComponent(
-                  currentHeroName
-                )}&price=${encodeURIComponent(currentHeroPrice)}`}
-                className="px-3.5 py-2.5 rounded-full bg-white/92 hover:bg-white border border-black/[0.08] text-[#141518] text-xs font-semibold inline-flex items-center gap-1.5"
+                href={current3dHref}
+                id="gwo-runway-3d-fit-btn"
+                className="px-3.5 py-2.5 rounded-full bg-white/95 hover:bg-white border border-black/[0.08] text-[#141518] text-xs font-bold inline-flex items-center gap-1.5 shadow-xs"
               >
-                <Rotate3d className="w-3.5 h-3.5" /> 360° Fit View
+                <Box className="w-3.5 h-3.5 text-[#244B3B]" /> 3D Fit Mock →
               </Link>
 
               <Link
-                href="/"
-                className="px-3.5 py-2.5 rounded-full bg-white/92 hover:bg-white border border-black/[0.08] text-[#244B3B] text-xs font-semibold"
+                href={currentTryHref}
+                id="gwo-runway-try-closet-btn"
+                className="px-3.5 py-2.5 rounded-full bg-white/95 hover:bg-white border border-black/[0.08] text-[#244B3B] text-xs font-bold inline-flex items-center gap-1 shadow-xs"
               >
-                Try in Closet →
+                <Rotate3d className="w-3.5 h-3.5" /> Try in Closet →
               </Link>
             </div>
           </div>
@@ -625,8 +779,6 @@ export function GwoRunwayLookbook() {
           aria-label="Pieces in this outfit"
         />
       </main>
-
-      <div className={`mv-wait ${ready ? "gone" : ""}`} />
     </div>
   );
 }

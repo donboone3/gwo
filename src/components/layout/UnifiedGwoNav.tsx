@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
+  Box,
   Camera,
   Check,
   ExternalLink,
@@ -15,6 +16,7 @@ import {
   Share2,
   ShoppingBag,
   Sparkles,
+  Store,
   Trash2,
   X,
 } from "lucide-react";
@@ -23,6 +25,7 @@ import { CustomerAvatarModal } from "../avatar/CustomerAvatarModal";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
 import { useGwo } from "@/context/GwoAppContext";
+import { VERIFIED_LIVE_STORE_RACKS } from "@/lib/catalog/client-url-scraper";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 import {
   DEFAULT_AVATAR_MEASUREMENTS,
@@ -32,7 +35,7 @@ import { Product } from "@/lib/types";
 const STEPS = [
   { href: "/", match: ["/", "/closet"], label: "Closet & Try-On" },
   { href: "/shop", match: ["/shop", "/recommended"], label: "For You Runway" },
-  { href: "/product", match: ["/product"], label: "360° Fit View" },
+  { href: "/product", match: ["/product"], label: "3D & 360° Fit" },
 ];
 
 const QUICK_SAMPLE_LINKS = [
@@ -41,12 +44,12 @@ const QUICK_SAMPLE_LINKS = [
     url: "https://babyboofashion-com-au.myshopify.com/products/cornelia-mini-dress-red",
   },
   {
-    label: "SKIMS Cotton Tee",
-    url: "https://skims.com/products/cotton-jersey-t-shirt-soot",
+    label: "Babyboo Aluma Silver",
+    url: "https://babyboofashion-com-au.myshopify.com/products/aluma-mini-dress-silver",
   },
   {
-    label: "Vuori Halo Hoodie",
-    url: "https://www.vuoriclothing.com/products/womens-halo-performance-hoodie-pale-grey-heather",
+    label: "Princess Polly Rack",
+    url: "https://us.princesspolly.com/products/pacifica-relaxed-straight-leg-jeans",
   },
 ];
 
@@ -61,6 +64,7 @@ export function UnifiedGwoNav() {
     bagOpen,
     setBagOpen,
     bagBump,
+    addToBag,
     removeFromBag,
     addUrlModalOpen,
     setAddUrlModalOpen,
@@ -69,17 +73,26 @@ export function UnifiedGwoNav() {
     customAvatar,
     setAvatarModalOpen,
     ingestUrlToSharedCatalog,
+    pullStoreRackToCatalog,
     shareMyClosetAndClaimBonus,
     toastMessage,
   } = useGwo();
 
   const photoFileRef = useRef<HTMLInputElement | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [modalTab, setModalTab] = useState<"url" | "rack">("url");
   const [urlInput, setUrlInput] = useState("");
   const [importing, setImporting] = useState(false);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   const [previewAngleIdx, setPreviewAngleIdx] = useState(0);
   const [manualImgUrl, setManualImgUrl] = useState("");
+
+  const [storeDomainInput, setStoreDomainInput] = useState(
+    "babyboofashion-com-au.myshopify.com"
+  );
+  const [pullingRack, setPullingRack] = useState(false);
+  const [pulledRackItems, setPulledRackItems] = useState<Product[]>([]);
+  const [rackError, setRackError] = useState<string | null>(null);
 
   const bagTotal = bagItems.reduce((sum, item) => sum + item.price, 0);
 
@@ -94,6 +107,29 @@ export function UnifiedGwoNav() {
   const previewFitReport = previewProduct
     ? analyzeExactAvatarFit(activeAvatarStats, previewProduct)
     : null;
+
+  const handlePullStoreRack = async (domainOverride?: string) => {
+    const targetDomain = (domainOverride ?? storeDomainInput).trim();
+    if (!targetDomain) return;
+    setStoreDomainInput(targetDomain);
+    setPullingRack(true);
+    setRackError(null);
+    try {
+      const items = await pullStoreRackToCatalog(targetDomain, 6);
+      setPulledRackItems(items);
+      if (items.length === 0) {
+        setRackError(
+          "No public catalog items returned—paste an individual product link in the Paste URL tab instead."
+        );
+      }
+    } catch {
+      setRackError(
+        "This storefront restricts bulk /products.json feeds—paste a single product URL in the Paste URL tab instead."
+      );
+    } finally {
+      setPullingRack(false);
+    }
+  };
 
   const handleImportSubmit = async (sample?: string) => {
     const target = (sample ?? urlInput).trim();
@@ -378,16 +414,24 @@ export function UnifiedGwoNav() {
           onPaste={handlePasteClipboardImage}
         >
           <div
-            className="w-full max-w-xl rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-black/[0.08] space-y-4"
+            className="w-full max-w-2xl rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-black/[0.08] space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-bold text-[#141518]">
-                  Add Any Store Piece to GWO
+                  Pull Store Clothing &amp; Generate 3D Exact-Fit Mocks
                 </h3>
                 <p className="text-xs text-[#686D76] mt-1">
-                  Paste a product link (or direct clothing image link) from SKIMS, Reformation, Princess Polly, Nike, or any store to pull its photo into your Closet &amp; Avatar.
+                  Paste any single product URL or pull a live 6-piece clothing rack from Babyboo Fashion, Princess Polly, EDIKTED, or any Shopify store—automatically matched to your{" "}
+                  <strong>
+                    {Math.floor(activeAvatarStats.heightInches / 12)}&apos;
+                    {Math.round(activeAvatarStats.heightInches % 12)}&quot; •{" "}
+                    {activeAvatarStats.bustInches}&quot; •{" "}
+                    {activeAvatarStats.waistInches}&quot; •{" "}
+                    {activeAvatarStats.hipsInches}&quot;
+                  </strong>{" "}
+                  avatar.
                 </p>
               </div>
               <button
@@ -399,58 +443,244 @@ export function UnifiedGwoNav() {
               </button>
             </div>
 
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Link2 className="w-4 h-4 text-[#8A9099] absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  id="gwo-url-input"
-                  type="url"
-                  value={urlInput}
-                  onChange={(e) => setUrlInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && urlInput.trim() && !importing) {
-                      void handleImportSubmit();
-                    }
-                  }}
-                  placeholder="Paste product URL or image URL..."
-                  className="w-full pl-10 pr-4 py-2.5 rounded-full text-xs sm:text-sm bg-[#F4F5F7] border border-black/[0.08] focus:outline-none focus:border-[#141518]"
-                />
-              </div>
+            {/* 2-Tab Mode Switcher: Single Product URL vs Live Multi-Item Store Rack */}
+            <div className="inline-flex items-center p-1 rounded-full bg-[#F1F2F5] border border-black/[0.06]">
               <button
                 type="button"
-                id="gwo-url-submit-btn"
-                disabled={importing || !urlInput.trim()}
-                onClick={() => void handleImportSubmit()}
-                className="px-5 py-2.5 rounded-full text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                id="gwo-modal-tab-url"
+                onClick={() => setModalTab("url")}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                  modalTab === "url"
+                    ? "bg-white text-[#141518] shadow-xs"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
               >
-                {importing ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Fetching Photo...
-                  </>
-                ) : (
-                  "Import Piece"
-                )}
+                <Link2 className="w-3.5 h-3.5" /> Paste Product URL
+              </button>
+              <button
+                type="button"
+                id="gwo-modal-tab-rack"
+                onClick={() => {
+                  setModalTab("rack");
+                  if (pulledRackItems.length === 0 && !pullingRack) {
+                    void handlePullStoreRack("babyboofashion-com-au.myshopify.com");
+                  }
+                }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                  modalTab === "rack"
+                    ? "bg-white text-[#141518] shadow-xs"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+              >
+                <Store className="w-3.5 h-3.5 text-[#244B3B]" /> Pull Live Store Rack
               </button>
             </div>
 
-            {/* Quick Verified Sample Store Links */}
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[#686D76]">
-              <span>Try a live store link:</span>
-              {QUICK_SAMPLE_LINKS.map((s) => (
-                <button
-                  key={s.label}
-                  type="button"
-                  disabled={importing}
-                  onClick={() => void handleImportSubmit(s.url)}
-                  className="px-2.5 py-1 rounded-full bg-[#F1F2F5] hover:bg-[#E5E7EC] text-[#141518] font-semibold cursor-pointer"
-                >
-                  + {s.label}
-                </button>
-              ))}
-            </div>
+            {modalTab === "rack" ? (
+              <div className="space-y-3.5">
+                {/* Preset Verified Store Racks */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {VERIFIED_LIVE_STORE_RACKS.map((st) => {
+                    const active =
+                      storeDomainInput.toLowerCase() === st.domain.toLowerCase();
+                    return (
+                      <button
+                        key={st.domain}
+                        type="button"
+                        disabled={pullingRack}
+                        onClick={() => void handlePullStoreRack(st.domain)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${
+                          active
+                            ? "bg-[#141518] text-white border-[#141518]"
+                            : "bg-[#F4F5F7] hover:bg-[#EAECEF] text-[#141518] border-black/[0.06]"
+                        }`}
+                      >
+                        {st.label}{" "}
+                        <span
+                          className={`text-[10px] font-medium ${
+                            active ? "text-white/75" : "text-[#686D76]"
+                          }`}
+                        >
+                          • {st.badge}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom Store Domain Input */}
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Store className="w-4 h-4 text-[#8A9099] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      id="gwo-rack-domain-input"
+                      type="text"
+                      value={storeDomainInput}
+                      onChange={(e) => setStoreDomainInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (
+                          e.key === "Enter" &&
+                          storeDomainInput.trim() &&
+                          !pullingRack
+                        ) {
+                          void handlePullStoreRack();
+                        }
+                      }}
+                      placeholder="Enter any Shopify store domain or /collections/dresses URL..."
+                      className="w-full pl-10 pr-4 py-2 rounded-full text-xs bg-[#F4F5F7] border border-black/[0.08] focus:outline-none focus:border-[#141518]"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    id="gwo-rack-pull-btn"
+                    disabled={pullingRack || !storeDomainInput.trim()}
+                    onClick={() => void handlePullStoreRack()}
+                    className="px-4 py-2 rounded-full text-xs font-bold bg-[#244B3B] hover:bg-[#1D3E30] text-white disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    {pullingRack ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Pulling Rack...
+                      </>
+                    ) : (
+                      "Pull 6 Pieces"
+                    )}
+                  </button>
+                </div>
+
+                {rackError && (
+                  <p className="text-xs text-[#9E2A22] bg-[#FDECEB] border border-[#F5C6C2] rounded-xl px-3 py-2">
+                    {rackError}
+                  </p>
+                )}
+
+                {pulledRackItems.length > 0 && (
+                  <div
+                    id="gwo-pulled-rack-grid"
+                    className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[50vh] overflow-y-auto pr-1"
+                  >
+                    {pulledRackItems.map((prod) => {
+                      const fit = analyzeExactAvatarFit(activeAvatarStats, prod);
+                      return (
+                        <div
+                          key={prod.id}
+                          className="rounded-2xl bg-[#F7F8FA] border border-black/[0.07] overflow-hidden flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="relative h-36 bg-white border-b border-black/[0.05]">
+                              <GarmentArtwork
+                                product={prod}
+                                className="w-full h-full"
+                              />
+                              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-[#141518]/90 text-white text-[10px] font-bold">
+                                Size {fit.recommendedSize} ({fit.confidencePct}%)
+                              </span>
+                              <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-white/95 text-[#141518] text-[11px] font-bold shadow-xs">
+                                ${prod.price}
+                              </span>
+                            </div>
+                            <div className="p-2.5 space-y-0.5">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-[#244B3B] truncate">
+                                {prod.brand} • {prod.fitMetadata?.stretchLevel || "woven"}
+                              </p>
+                              <p className="text-xs font-bold text-[#141518] line-clamp-1">
+                                {prod.title}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="px-2.5 pb-2.5 flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveImportedProduct(prod);
+                                setAddUrlModalOpen(false);
+                                router.push(
+                                  `/product?id=${encodeURIComponent(prod.id)}&view=3d`
+                                );
+                              }}
+                              className="flex-1 py-1.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[10px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <Box className="w-3 h-3 text-[#A7D7C5]" /> 3D Fit Mock
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                addToBag({
+                                  brand: prod.brand,
+                                  title: prod.title,
+                                  price: prod.price,
+                                  size: fit.recommendedSize,
+                                  imageUrl: prod.imageUrl,
+                                  storeUrl: prod.canonicalUrl,
+                                });
+                              }}
+                              className="px-2.5 py-1.5 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[10px] font-bold text-[#141518] cursor-pointer"
+                            >
+                              + Bag
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Link2 className="w-4 h-4 text-[#8A9099] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      id="gwo-url-input"
+                      type="url"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && urlInput.trim() && !importing) {
+                          void handleImportSubmit();
+                        }
+                      }}
+                      placeholder="Paste product URL or image URL..."
+                      className="w-full pl-10 pr-4 py-2.5 rounded-full text-xs sm:text-sm bg-[#F4F5F7] border border-black/[0.08] focus:outline-none focus:border-[#141518]"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    id="gwo-url-submit-btn"
+                    disabled={importing || !urlInput.trim()}
+                    onClick={() => void handleImportSubmit()}
+                    className="px-5 py-2.5 rounded-full text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    {importing ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Pulling Fit...
+                      </>
+                    ) : (
+                      "Import & 3D Fit"
+                    )}
+                  </button>
+                </div>
+
+                {/* Quick Verified Sample Store Links */}
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[#686D76]">
+                  <span>Try a live store link:</span>
+                  {QUICK_SAMPLE_LINKS.map((s) => (
+                    <button
+                      key={s.label}
+                      type="button"
+                      disabled={importing}
+                      onClick={() => void handleImportSubmit(s.url)}
+                      className="px-2.5 py-1 rounded-full bg-[#F1F2F5] hover:bg-[#E5E7EC] text-[#141518] font-semibold cursor-pointer"
+                    >
+                      + {s.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* ==================== IMPORTED CLOTHING PHOTO + EXACT FIT PREVIEW CARD ==================== */}
-            {previewProduct && previewFitReport && (
+            {modalTab === "url" && previewProduct && previewFitReport && (
               <div
                 id="gwo-imported-preview-card"
                 className="rounded-2xl bg-[#F6F7F9] border border-black/[0.08] p-4 space-y-3.5 max-h-[62vh] overflow-y-auto"
@@ -619,13 +849,13 @@ export function UnifiedGwoNav() {
                           setActiveImportedProduct(previewProduct);
                           setAddUrlModalOpen(false);
                           router.push(
-                            `/product?id=${encodeURIComponent(previewProduct.id)}`
+                            `/product?id=${encodeURIComponent(previewProduct.id)}&view=3d`
                           );
                         }}
                         className="px-4 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" />
-                        Inspect Exact Fit &amp; Angles{" "}
+                        <Box className="w-3.5 h-3.5 text-[#A7D7C5]" />
+                        Open 3D Exact-Fit Mock{" "}
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
 
@@ -636,12 +866,14 @@ export function UnifiedGwoNav() {
                           setActiveImportedProduct(previewProduct);
                           setAddUrlModalOpen(false);
                           if (cleanPath !== "/" && cleanPath !== "/closet") {
-                            router.push("/");
+                            router.push(
+                              `/?try=${encodeURIComponent(previewProduct.id)}`
+                            );
                           }
                         }}
                         className="px-3.5 py-2 rounded-full bg-white hover:bg-[#ECEEF2] border border-black/10 text-xs font-semibold text-[#141518] cursor-pointer"
                       >
-                        Pin in Closet
+                        Try On in Closet
                       </button>
                     </div>
                   </div>

@@ -1,5 +1,7 @@
 import { LocalDatabaseSchema, SizeMeasurementSpec } from "../types";
 
+const ASSET_BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 const STANDARD_WOMEN_CHART: Record<string, SizeMeasurementSpec> = {
   XS: { bustMin: 30, bustMax: 32.5, waistMin: 23.5, waistMax: 25.5, hipsMin: 33.5, hipsMax: 35.5 },
   S: { bustMin: 32.5, bustMax: 35, waistMin: 25.5, waistMax: 28, hipsMin: 35.5, hipsMax: 38 },
@@ -121,8 +123,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#181615",
       price: 75,
       currency: "USD",
-      imageUrl:
-        "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=640&q=85",
+      imageUrl: `${ASSET_BASE}/models/catalog/nike_hoodie.webp`,
       occasions: ["Coffee Run", "Campus / Class", "Weekend Trip", "Gym / Pilates"],
       vibes: ["Clean Girl Athleisure", "Streetwear Luxe"],
       availableSizes: ["XS", "S", "M", "L", "XL"],
@@ -146,8 +147,6 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#181615",
       price: 40,
       currency: "USD",
-      imageUrl:
-        "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=640&q=85",
       occasions: ["Coffee Run", "Gym / Pilates", "Campus / Class", "Weekend Trip"],
       vibes: ["Clean Girl Athleisure", "Model Off-Duty"],
       availableSizes: ["XS", "S", "M", "L"],
@@ -171,8 +170,6 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#FAF8F5",
       price: 42,
       currency: "USD",
-      imageUrl:
-        "https://images.unsplash.com/photo-1571945153237-4929e783af4a?auto=format&fit=crop&w=640&q=85",
       occasions: ["Gym / Pilates", "Coffee Run"],
       vibes: ["Clean Girl Athleisure"],
       availableSizes: ["XS", "S", "M", "L", "XL"],
@@ -196,8 +193,6 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#EDE6DF",
       price: 100,
       currency: "USD",
-      imageUrl:
-        "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?auto=format&fit=crop&w=640&q=85",
       occasions: ["Gym / Pilates", "Coffee Run", "Campus / Class", "Weekend Trip"],
       vibes: ["Clean Girl Athleisure"],
       availableSizes: ["XS", "S", "M", "L", "XL"],
@@ -221,8 +216,6 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#181615",
       price: 90,
       currency: "USD",
-      imageUrl:
-        "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=640&q=85",
       occasions: ["Campus / Class", "Concert", "Weekend Trip", "Coffee Run"],
       vibes: ["Streetwear Luxe", "Model Off-Duty"],
       availableSizes: ["XS", "S", "M", "L"],
@@ -246,8 +239,6 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#2B5942",
       price: 95,
       currency: "USD",
-      imageUrl:
-        "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=640&q=85",
       occasions: ["Coffee Run", "Campus / Class", "Weekend Trip", "Gym / Pilates", "Concert"],
       vibes: ["Clean Girl Athleisure", "Model Off-Duty", "Streetwear Luxe"],
       availableSizes: ["6", "6.5", "7", "7.5", "8", "8.5", "9"],
@@ -271,8 +262,6 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#7C858E",
       price: 120,
       currency: "USD",
-      imageUrl:
-        "https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?auto=format&fit=crop&w=640&q=85",
       occasions: ["Gym / Pilates", "Coffee Run", "Campus / Class"],
       vibes: ["Clean Girl Athleisure", "Streetwear Luxe"],
       availableSizes: ["6", "6.5", "7", "7.5", "8", "8.5", "9"],
@@ -300,8 +289,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       price: 132,
       currency: "USD",
       studioLookIndex: 8,
-      imageUrl:
-        "https://wsrv.nl/?url=https%3A%2F%2Fcdn.shopify.com%2Fs%2Ffiles%2F1%2F2060%2F7491%2Ffiles%2Fcornelia-mini-dress-red-dress-babyboo-fashion-1210135607.jpg%3Fv%3D1765144985&w=960&output=webp&q=86",
+      imageUrl: `${ASSET_BASE}/models/catalog/cornelia_2.webp`,
       fitMetadata: {
         descriptionSummary:
           "Structured boned crepe corset mini dress with rounded square neckline, adjustable tapered straps, lace-up back, and dropped-waist lyocell cowl-pleat overlay skirt.",
@@ -336,19 +324,19 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
         },
         galleryImages: [
           {
-            url: "https://wsrv.nl/?url=https%3A%2F%2Fcdn.shopify.com%2Fs%2Ffiles%2F1%2F2060%2F7491%2Ffiles%2Fcornelia-mini-dress-red-dress-babyboo-fashion-1210135607.jpg%3Fv%3D1765144985&w=960&output=webp&q=86",
+            url: `${ASSET_BASE}/models/catalog/cornelia_2.webp`,
             label: "Model Full Front",
           },
           {
-            url: "https://wsrv.nl/?url=https%3A%2F%2Fcdn.shopify.com%2Fs%2Ffiles%2F1%2F2060%2F7491%2Ffiles%2Fcornelia-mini-dress-red-dress-xs-babyboo-fashion-1210135604.jpg%3Fv%3D1764932595&w=960&output=webp&q=86",
+            url: `${ASSET_BASE}/models/catalog/cornelia_0.webp`,
             label: "Corset Bodice",
           },
           {
-            url: "https://wsrv.nl/?url=https%3A%2F%2Fcdn.shopify.com%2Fs%2Ffiles%2F1%2F2060%2F7491%2Ffiles%2Fcornelia-mini-dress-red-dress-babyboo-fashion-1210135605.jpg%3Fv%3D1764932600&w=960&output=webp&q=86",
+            url: `${ASSET_BASE}/models/catalog/cornelia_1.webp`,
             label: "Lace-Up Back",
           },
           {
-            url: "https://wsrv.nl/?url=https%3A%2F%2Fcdn.shopify.com%2Fs%2Ffiles%2F1%2F2060%2F7491%2Ffiles%2Fcornelia-mini-dress-red-dress-babyboo-fashion-1210135606.jpg%3Fv%3D1765144985&w=960&output=webp&q=86",
+            url: `${ASSET_BASE}/models/catalog/cornelia_3.webp`,
             label: "3/4 Cowl Drape",
           },
         ],
@@ -371,6 +359,73 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       staleAfter: inThreeDays,
     },
     {
+      id: "prod-babyboo-aluma-silver",
+      canonicalUrl:
+        "https://babyboofashion-com-au.myshopify.com/products/aluma-mini-dress-silver",
+      brand: "Babyboo Fashion",
+      storeDomain: "babyboofashion-com-au.myshopify.com",
+      title: "Aluma Embellished Mini Dress - Silver",
+      category: "dress",
+      silhouette: "mini-dress",
+      colorName: "Crystal Silver",
+      colorHex: "#C7CDD6",
+      accentHex: "#141518",
+      price: 231,
+      currency: "USD",
+      imageUrl: `${ASSET_BASE}/models/catalog/aluma_silver_0.webp`,
+      fitMetadata: {
+        descriptionSummary:
+          "Sculpted crystal-embellished halter mini dress with low plunge back and structured bodycon lining.",
+        fitNotes: [
+          "Structured crystal mesh overlay; minimal stretch",
+          "Adjustable halter neck ties customize bust lift",
+          "Mini hem hits mid-thigh on 5'2\" petite frame",
+        ],
+        fabricComposition: "95% Embellished Mesh / 5% Elastane Lining",
+        elastanePct: 5,
+        stretchLevel: "low",
+        cutType: "body-hugging",
+        storeFitTendency: "true_to_size",
+        hemLanding: "mini",
+        hasAdjustableBack: true,
+        modelStats: {
+          rawText:
+            "Model wears Size XS • 5'7\" (170cm) • 31.1\" B • 23.6\" W • 35.4\" H",
+          heightInches: 67,
+          heightDisplay: "5'7\" (170cm)",
+          wornSize: "XS",
+          bustInches: 31.1,
+          waistInches: 23.6,
+          hipsInches: 35.4,
+        },
+        galleryImages: [
+          {
+            url: `${ASSET_BASE}/models/catalog/aluma_silver_0.webp`,
+            label: "Model Front",
+          },
+          {
+            url: `${ASSET_BASE}/models/catalog/aluma_silver_1.webp`,
+            label: "Back & Detail",
+          },
+        ],
+      },
+      occasions: ["Party", "Birthday", "Evening"],
+      vibes: ["Going Out", "Sparkle"],
+      availableSizes: ["XS", "S", "M", "L", "XL"],
+      sizeChartInches: {
+        XS: { bustMin: 31.4, bustMax: 33.0, waistMin: 24.0, waistMax: 25.5, hipsMin: 34.6, hipsMax: 36.2 },
+        S: { bustMin: 33.4, bustMax: 35.0, waistMin: 25.9, waistMax: 27.5, hipsMin: 36.6, hipsMax: 38.2 },
+        M: { bustMin: 35.0, bustMax: 37.0, waistMin: 27.9, waistMax: 29.5, hipsMin: 38.6, hipsMax: 40.2 },
+        L: { bustMin: 37.4, bustMax: 38.9, waistMin: 29.9, waistMax: 31.4, hipsMin: 40.5, hipsMax: 42.1 },
+      },
+      estDeliveryDays: 4,
+      inStock: true,
+      sourceType: "scraped_url",
+      addedByUsername: "maya",
+      lastScrapedAt: nowIso,
+      staleAfter: inThreeDays,
+    },
+    {
       id: "prod-ref-silk-dress",
       canonicalUrl: "https://www.thereformation.com/products/casette-silk-dress",
       brand: "Reformation",
@@ -383,8 +438,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#FAF8F5",
       price: 248,
       currency: "USD",
-      imageUrl:
-        "https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=960&q=85",
+      imageUrl: `${ASSET_BASE}/models/catalog/reformation_silk.webp`,
       fitMetadata: {
         descriptionSummary:
           "Lightweight bias-cut midi silk slip dress with a draped cowl neckline, adjustable spaghetti straps, and fluid skirt movement.",
@@ -398,6 +452,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
         cutType: "fitted",
         storeFitTendency: "true_to_size",
         hemLanding: "midi",
+        hasAdjustableBack: true,
         modelStats: {
           rawText: "Model is 5'9\" and wears a size S (32\" bust, 25\" waist, 35\" hips)",
           heightInches: 69,
@@ -409,12 +464,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
         },
         galleryImages: [
           {
-            url: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=960&q=85",
+            url: `${ASSET_BASE}/models/catalog/reformation_silk.webp`,
             label: "Model Front",
-          },
-          {
-            url: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=960&q=85",
-            label: "Drape & Movement",
           },
         ],
       },
@@ -442,8 +493,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#FAF8F5",
       price: 48,
       currency: "USD",
-      imageUrl:
-        "https://cdn.shopify.com/s/files/1/0259/5448/4284/files/SKIMS-LOUNGEWEAR-AP-TSH-0638-SOT-FLT_337890eb-b813-4d8c-b4fd-b94fb1ae7e59.jpg?v=1767136369",
+      imageUrl: `${ASSET_BASE}/models/catalog/skims_tee.webp`,
       fitMetadata: {
         descriptionSummary:
           "Stretchy, lightweight cotton crew-neck tee that contours curves with a body-hugging fit, pickstitch sleeve/hem detail, and hits right at the natural waist.",
@@ -469,15 +519,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
         },
         galleryImages: [
           {
-            url: "https://wsrv.nl/?url=https%3A%2F%2Fskims.imgix.net%2Fs%2Ffiles%2F1%2F0259%2F5448%2F4284%2Ffiles%2FAP-TSH-0638-SOT-MA-SKIMS-LOUNGEWEAR_0006-FR.webp%3Fv%3D1783027126%26w%3D1200&w=960&output=webp&q=86",
-            label: "Model Front",
-          },
-          {
-            url: "https://wsrv.nl/?url=https%3A%2F%2Fskims.imgix.net%2Fs%2Ffiles%2F1%2F0259%2F5448%2F4284%2Ffiles%2FAP-TSH-0638-SOT-MA-SKIMS-LOUNGEWEAR_0020-FR.webp%3Fv%3D1783027127%26w%3D1200&w=960&output=webp&q=86",
-            label: "Close-Up Fit",
-          },
-          {
-            url: "https://cdn.shopify.com/s/files/1/0259/5448/4284/files/SKIMS-LOUNGEWEAR-AP-TSH-0638-SOT-FLT_337890eb-b813-4d8c-b4fd-b94fb1ae7e59.jpg?v=1767136369",
+            url: `${ASSET_BASE}/models/catalog/skims_tee.webp`,
             label: "Flat-Lay Cut",
           },
         ],
@@ -506,8 +548,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#FAF8F5",
       price: 68,
       currency: "USD",
-      imageUrl:
-        "https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?auto=format&fit=crop&w=960&q=85",
+      imageUrl: `${ASSET_BASE}/models/catalog/aritzia_mini.webp`,
       fitMetadata: {
         descriptionSummary:
           "Mid-rise knife-pleated micro mini skirt in structured suiting twill with built-in jersey liner shorts and concealed side zip.",
@@ -532,7 +573,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
         },
         galleryImages: [
           {
-            url: "https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?auto=format&fit=crop&w=960&q=85",
+            url: `${ASSET_BASE}/models/catalog/aritzia_mini.webp`,
             label: "Model Front",
           },
         ],
@@ -561,8 +602,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#E8DFD5",
       price: 72,
       currency: "USD",
-      imageUrl:
-        "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=640&q=85",
+      imageUrl: `${ASSET_BASE}/models/catalog/pp_denim.webp`,
       occasions: ["Coffee Run", "Campus / Class", "Concert", "Date Night", "Weekend Trip"],
       vibes: ["Model Off-Duty", "Streetwear Luxe"],
       availableSizes: ["XS", "S", "M", "L"],
@@ -587,8 +627,6 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#D4AF37",
       price: 268,
       currency: "USD",
-      imageUrl:
-        "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=640&q=85",
       occasions: ["Date Night", "Coffee Run", "Weekend Trip"],
       vibes: ["Model Off-Duty", "Soft Romantic"],
       availableSizes: ["6", "6.5", "7", "7.5", "8", "8.5", "9"],

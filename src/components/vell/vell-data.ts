@@ -23,7 +23,7 @@ export function H(file: string, w: number, q = 82): string {
 
 export const LOFT_BG_FILE =
   "hf_20261112_034551_6394b127-5366-40a8-9c82-3c416f1161f1.png";
-export const LOFT_BG_URL = H(LOFT_BG_FILE, 1600, 80);
+export const LOFT_BG_URL = `${BASE_PATH}/models/signature/loft_bg.webp`;
 
 export interface PieceItem {
   id: string;

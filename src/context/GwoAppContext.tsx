@@ -26,6 +26,7 @@ import {
 } from "@/lib/avatar/customer-avatar";
 import {
   getSafeClothingImageUrl,
+  pullLiveShopifyStoreRack,
   scrapeProductInBrowser,
 } from "@/lib/catalog/client-url-scraper";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
@@ -96,6 +97,7 @@ interface GwoContextValue {
   removeWornSlot: (slot: keyof WornOutfitState) => void;
   runHdTryOn: () => Promise<void>;
   ingestUrlToSharedCatalog: (url: string) => Promise<{ product: Product; status: string } | null>;
+  pullStoreRackToCatalog: (domainOrUrl: string, limit?: number) => Promise<Product[]>;
   addToMyCloset: (params: {
     productId: string;
     purchasedSize: string;
@@ -135,12 +137,13 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
   const [bagItems, setBagItems] = useState<UnifiedBagItem[]>([
     {
       id: "starter-bag-1",
-      title: "Ribbed Crop Tank",
-      brand: "GWO Studio",
-      price: 38,
+      title: "Cornelia Mini Dress - Red",
+      brand: "Babyboo Fashion",
+      price: 132,
       size: "S",
-      imageUrl:
-        "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=320&q=80",
+      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/catalog/cornelia_2.webp`,
+      storeUrl:
+        "https://babyboofashion-com-au.myshopify.com/products/cornelia-mini-dress-red",
       friendRef: "MAYA-GWO",
     },
   ]);
@@ -433,81 +436,13 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
 
   const ingestUrlToSharedCatalog = useCallback(
     async (url: string) => {
-      const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
-      let serverProduct: Product | null = null;
-      let serverStatus = "newly_scraped_to_shared_db";
-
-      try {
-        const res = await fetch(`${base}/api/catalog/ingest`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, username: user?.username || "mila" }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          await refreshState();
-          serverProduct = data.product as Product;
-          serverStatus = data.status;
-        }
-      } catch {
-        // Static export mode: proceed to live browser scraper
-      }
-
       const activeProfile = user || INITIAL_SEED_DB.profiles[0];
+      const normalizedTarget = url.trim().replace(/\/+$/, "").toLowerCase();
 
-      const matchedSeedByUrl = INITIAL_SEED_DB.products.find(
-        (p) =>
-          p.canonicalUrl.toLowerCase() ===
-          url.trim().replace(/\/+$/, "").toLowerCase()
-      );
-
-      // Only short-circuit before Jina browser enrichment if serverProduct already has verified /products/ gallery + modelStats!
-      if (
-        serverProduct &&
-        serverProduct.imageUrl &&
-        /\/products\/|\/files\//i.test(serverProduct.imageUrl) &&
-        (serverProduct.fitMetadata?.galleryImages?.length || 0) >= 2 &&
-        Boolean(serverProduct.fitMetadata?.modelStats)
-      ) {
-        const hydrated: Product = {
-          ...serverProduct,
-          studioLookIndex:
-            serverProduct.studioLookIndex ?? matchedSeedByUrl?.studioLookIndex,
-          imageUrl: getSafeClothingImageUrl(serverProduct.imageUrl, 960),
-          fitMetadata: serverProduct.fitMetadata
-            ? {
-                ...serverProduct.fitMetadata,
-                galleryImages: serverProduct.fitMetadata.galleryImages?.map((g) => ({
-                  ...g,
-                  url: getSafeClothingImageUrl(g.url, 960) || g.url,
-                })),
-              }
-            : undefined,
-        };
-        const fitRec = analyzeExactAvatarFit(activeProfile, hydrated);
-        setProducts((prev) => [
-          hydrated,
-          ...prev.filter((p) => p.id !== hydrated.id),
-        ]);
-        setActiveImportedProduct(hydrated);
-        addToBag({
-          brand: hydrated.brand,
-          title: hydrated.title,
-          price: hydrated.price,
-          size: fitRec.recommendedSize,
-          imageUrl: hydrated.imageUrl,
-          storeUrl: hydrated.canonicalUrl,
-        });
-        showToast(
-          `Matched ${hydrated.brand} ${hydrated.title} → Size ${fitRec.recommendedSize} (${fitRec.confidencePct}% Fit)`
-        );
-        return { product: hydrated, status: serverStatus };
-      }
-
-      // Live Browser Scraper (runs on static GitHub Pages AND enriches server scrape with multi-angle Jina markdown!)
+      // Instant <5ms cache hit if this exact URL is already hydrated in memory with gallery & fitMetadata!
       const existingWithImg = products.find(
         (p) =>
-          p.canonicalUrl === url.trim() &&
+          p.canonicalUrl.replace(/\/+$/, "").toLowerCase() === normalizedTarget &&
           Boolean(p.imageUrl) &&
           Boolean(p.fitMetadata)
       );
@@ -528,24 +463,59 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         return { product: existingWithImg, status: "shared_cache_hit" };
       }
 
-      const browserScraped = await scrapeProductInBrowser(url);
+      const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      let serverProduct: Product | null = null;
+      let serverStatus = "newly_scraped_to_shared_db";
+
+      // Run browser Tier-0 / Jina scrape in parallel with optional server DB write so static & dev are both <200ms!
+      const [browserScraped] = await Promise.all([
+        scrapeProductInBrowser(url),
+        (async () => {
+          try {
+            const res = await fetch(`${base}/api/catalog/ingest`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url, username: user?.username || "mila" }),
+              signal: AbortSignal.timeout(3500),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              serverProduct = data.product as Product;
+              serverStatus = data.status;
+            }
+          } catch {
+            // Static export mode: browserScraped handles everything cleanly
+          }
+        })(),
+      ]);
+
+      const matchedSeedByUrl = INITIAL_SEED_DB.products.find(
+        (p) => p.canonicalUrl.replace(/\/+$/, "").toLowerCase() === normalizedTarget
+      );
+
       const mergedProduct: Product = serverProduct
         ? {
-            ...serverProduct,
+            ...(serverProduct as Product),
             studioLookIndex:
-              serverProduct.studioLookIndex ?? matchedSeedByUrl?.studioLookIndex,
-            brand: browserScraped.product.brand || serverProduct.brand,
-            title: browserScraped.product.title || serverProduct.title,
-            price: browserScraped.product.price || serverProduct.price,
+              (serverProduct as Product).studioLookIndex ??
+              matchedSeedByUrl?.studioLookIndex,
+            brand: browserScraped.product.brand || (serverProduct as Product).brand,
+            title: browserScraped.product.title || (serverProduct as Product).title,
+            price: browserScraped.product.price || (serverProduct as Product).price,
+            colorHex:
+              browserScraped.product.colorHex || (serverProduct as Product).colorHex,
+            colorName:
+              browserScraped.product.colorName || (serverProduct as Product).colorName,
             imageUrl:
               browserScraped.product.imageUrl ||
-              getSafeClothingImageUrl(serverProduct.imageUrl, 960),
+              getSafeClothingImageUrl((serverProduct as Product).imageUrl, 960),
             sizeChartInches:
               Object.keys(browserScraped.product.sizeChartInches || {}).length > 0
                 ? browserScraped.product.sizeChartInches
-                : serverProduct.sizeChartInches,
+                : (serverProduct as Product).sizeChartInches,
             fitMetadata:
-              browserScraped.product.fitMetadata || serverProduct.fitMetadata,
+              browserScraped.product.fitMetadata ||
+              (serverProduct as Product).fitMetadata,
           }
         : browserScraped.product;
 
@@ -566,12 +536,34 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       });
       showToast(
         mergedProduct.imageUrl
-          ? `Extracted Fit & Photos: Size ${fitRec.recommendedSize} (${fitRec.confidencePct}% Match)`
+          ? `Extracted Fit & 3D Mock: Size ${fitRec.recommendedSize} (${fitRec.confidencePct}% Match)`
           : `Calculated Size ${fitRec.recommendedSize} Fit—paste or upload photo if store blocked image`
       );
-      return { product: mergedProduct, status: "newly_scraped_to_shared_db" };
+      return { product: mergedProduct, status: serverStatus };
     },
-    [addToBag, products, refreshState, showToast, user]
+    [addToBag, products, showToast, user]
+  );
+
+  const pullStoreRackToCatalog = useCallback(
+    async (domainOrUrl: string, limit = 6): Promise<Product[]> => {
+      const pulled = await pullLiveShopifyStoreRack(domainOrUrl, limit);
+      if (pulled.length > 0) {
+        setProducts((prev) => {
+          const pulledUrls = new Set(
+            pulled.map((x) => x.canonicalUrl.replace(/\/+$/, "").toLowerCase())
+          );
+          const remaining = prev.filter(
+            (x) => !pulledUrls.has(x.canonicalUrl.replace(/\/+$/, "").toLowerCase())
+          );
+          return [...pulled, ...remaining];
+        });
+        showToast(
+          `Pulled ${pulled.length} live garments from ${pulled[0].brand} with 3D Exact-Fit Sizing!`
+        );
+      }
+      return pulled;
+    },
+    [showToast]
   );
 
   const addToMyCloset = useCallback(
@@ -723,6 +715,7 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         removeWornSlot,
         runHdTryOn,
         ingestUrlToSharedCatalog,
+        pullStoreRackToCatalog,
         addToMyCloset,
         updateProfilePatch,
         shareMyClosetAndClaimBonus,

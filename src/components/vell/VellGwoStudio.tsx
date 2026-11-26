@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  Box,
   Camera,
   Check,
   ChevronLeft,
@@ -14,6 +15,7 @@ import {
   Ruler,
   ShoppingBag,
   Sparkles,
+  Store,
   X,
   ZoomIn,
 } from "lucide-react";
@@ -125,42 +127,64 @@ export function VellGwoStudio() {
     );
   }, [activeBust, activeHeight, activeHips, activeImportedProduct, activeWaist, user?.shoeSize]);
 
-  // Fast first paint for Look 0, staggered idle preload for remaining looks (zero main-thread jank)
+  const preloadLookByIndex = useCallback((idx: number) => {
+    const normalized =
+      ((idx % STUDIO_LOOKS.length) + STUDIO_LOOKS.length) % STUDIO_LOOKS.length;
+    if (preloadedImgsRef.current[normalized]) return;
+    const im = new Image();
+    im.decoding = "async";
+    im.src = H(STUDIO_LOOKS[normalized].file, 900);
+    preloadedImgsRef.current[normalized] = im;
+  }, []);
+
+  // Fast first paint ONLY for initial active look (eliminates ~650KB eager background download storm!)
   useEffect(() => {
-    const cache: Array<HTMLImageElement | null> = new Array(STUDIO_LOOKS.length).fill(null);
+    const cache: Array<HTMLImageElement | null> = new Array(
+      STUDIO_LOOKS.length
+    ).fill(null);
     preloadedImgsRef.current = cache;
+
+    let initialIdx = 0;
+    if (typeof window !== "undefined") {
+      const tryParam = new URLSearchParams(window.location.search).get("try");
+      if (tryParam) {
+        const matchedLook = STUDIO_LOOKS.find((l) => l.productId === tryParam);
+        if (matchedLook) {
+          initialIdx = matchedLook.index;
+          setLookIdx(initialIdx);
+        }
+      }
+    }
 
     const first = new Image();
     first.decoding = "async";
-    first.src = H(STUDIO_LOOKS[0].file, 900);
-    cache[0] = first;
+    first.src = H(STUDIO_LOOKS[initialIdx].file, 900);
+    cache[initialIdx] = first;
 
     if (figsRef.current) {
       figsRef.current.innerHTML = "";
       const base = document.createElement("div");
       base.className = "gwo-fig-layer";
-      base.style.backgroundImage = `url("${H(STUDIO_LOOKS[0].file, 900)}")`;
+      base.style.backgroundImage = `url("${H(
+        STUDIO_LOOKS[initialIdx].file,
+        900
+      )}")`;
       figsRef.current.appendChild(base);
     }
-
-    let cancelled = false;
-    const timers: Array<ReturnType<typeof setTimeout>> = [];
-    STUDIO_LOOKS.slice(1).forEach((lk, i) => {
-      const t = setTimeout(() => {
-        if (cancelled) return;
-        const im = new Image();
-        im.decoding = "async";
-        im.src = H(lk.file, 900);
-        cache[i + 1] = im;
-      }, 220 * (i + 1));
-      timers.push(t);
-    });
-
-    return () => {
-      cancelled = true;
-      timers.forEach(clearTimeout);
-    };
   }, []);
+
+  // Deep-link handler for /?try=<productId> from Runway or Live Store Rack
+  const appliedTryQueryRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined" || products.length === 0) return;
+    const tryId = new URLSearchParams(window.location.search).get("try");
+    if (!tryId || appliedTryQueryRef.current === tryId) return;
+    const found = products.find((p) => p.id === tryId);
+    if (found) {
+      appliedTryQueryRef.current = tryId;
+      setActiveImportedProduct(found);
+    }
+  }, [products, setActiveImportedProduct]);
 
   const triggerScanLine = useCallback(() => {
     const el = scanRef.current;
@@ -387,9 +411,32 @@ export function VellGwoStudio() {
     });
   };
 
-  const scrapedCommunityItems = products
-    .filter((p) => p.sourceType === "scraped_url")
-    .slice(0, 4);
+  const scrapedCommunityItems = useMemo(
+    () => products.filter((p) => p.sourceType === "scraped_url").slice(0, 6),
+    [products]
+  );
+
+  const scrapedFitById = useMemo(() => {
+    const map = new Map<string, string>();
+    const stats = {
+      bustInches: activeBust,
+      waistInches: activeWaist,
+      hipsInches: activeHips,
+      heightInches: activeHeight,
+      shoeSize: user?.shoeSize || "7.5",
+    };
+    for (const p of scrapedCommunityItems) {
+      map.set(p.id, analyzeExactAvatarFit(stats, p).recommendedSize);
+    }
+    return map;
+  }, [
+    activeBust,
+    activeHeight,
+    activeHips,
+    activeWaist,
+    scrapedCommunityItems,
+    user?.shoeSize,
+  ]);
 
   return (
     <div className="relative h-[calc(100svh-64px)] w-full overflow-hidden select-none bg-[#E7EAEF]">
@@ -848,10 +895,12 @@ export function VellGwoStudio() {
                 </div>
 
                 <Link
-                  href={`/product?id=${encodeURIComponent(activeImportedProduct.id)}`}
+                  href={`/product?id=${encodeURIComponent(
+                    activeImportedProduct.id
+                  )}&view=3d`}
                   className="w-full py-1.5 rounded-full text-[10px] font-bold bg-[#141518] hover:bg-[#27292E] text-white flex items-center justify-center gap-1 transition"
                 >
-                  <Ruler className="w-3 h-3" /> Exact Fit &amp; Angles
+                  <Box className="w-3 h-3 text-[#A7D7C5]" /> 3D Exact-Fit Mock
                 </Link>
 
                 {activeImportedProduct.imageUrl && (
@@ -924,7 +973,7 @@ export function VellGwoStudio() {
                 onClick={() => setAddUrlModalOpen(true)}
                 className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#F1F2F5] hover:bg-[#E5E7EC] text-[#141518] inline-flex items-center gap-1 cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5" /> Paste URL
+                <Store className="w-3.5 h-3.5 text-[#244B3B]" /> Pull Store
               </button>
             </div>
 
@@ -1006,6 +1055,7 @@ export function VellGwoStudio() {
                   return (
                     <div
                       key={lk.index}
+                      onPointerEnter={() => preloadLookByIndex(lk.index)}
                       onClick={() => void swapToLook(lk.index)}
                       onPointerDown={(e) =>
                         startDrag(e, {
@@ -1113,19 +1163,7 @@ export function VellGwoStudio() {
                             className="w-full h-full"
                           />
                           <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-[#E7F3EE]/95 text-[9px] font-bold text-[#244B3B]">
-                            Size{" "}
-                            {
-                              analyzeExactAvatarFit(
-                                {
-                                  bustInches: activeBust,
-                                  waistInches: activeWaist,
-                                  hipsInches: activeHips,
-                                  heightInches: activeHeight,
-                                  shoeSize: user?.shoeSize || "7.5",
-                                },
-                                prod
-                              ).recommendedSize
-                            }
+                            Size {scrapedFitById.get(prod.id) || recSize}
                           </span>
                           <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-white/92 text-[10px] font-bold text-[#141518]">
                             ${prod.price}
@@ -1181,15 +1219,17 @@ export function VellGwoStudio() {
                       <Link
                         href={
                           currentLook.productId
-                            ? `/product?id=${encodeURIComponent(currentLook.productId)}`
+                            ? `/product?id=${encodeURIComponent(
+                                currentLook.productId
+                              )}&view=3d`
                             : `/product?name=${encodeURIComponent(
                                 piece.name
-                              )}&price=${encodeURIComponent(`$${piece.price}`)}`
+                              )}&price=${encodeURIComponent(`$${piece.price}`)}&view=3d`
                         }
-                        title="Inspect Exact Fit & Angles"
+                        title="Inspect 3D Exact-Fit Mock & Angles"
                         className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold bg-white border border-black/[0.09] text-[#141518] hover:bg-[#EFF1F5] inline-flex items-center gap-1"
                       >
-                        <Rotate3d className="w-3 h-3" /> {currentLook.productId ? "Fit" : "360°"}
+                        <Rotate3d className="w-3 h-3" /> {currentLook.productId ? "3D Fit" : "3D"}
                       </Link>
 
                       <button

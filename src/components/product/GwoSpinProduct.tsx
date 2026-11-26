@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
+  Box,
   Check,
   ChevronDown,
   Columns2,
@@ -20,6 +21,7 @@ import {
 import "./spin-product.css";
 import { H, SIGNATURE_BADGE_URL, STUDIO_LOOKS } from "../vell/vell-data";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
+import { Parametric3DFitMock } from "./Parametric3DFitMock";
 import { useGwo } from "@/context/GwoAppContext";
 import {
   analyzeExactAvatarFit,
@@ -146,6 +148,7 @@ function getZoneBarColor(feel: ZoneFeel): string {
 export function GwoSpinProduct() {
   const searchParams = useSearchParams();
   const queryId = searchParams.get("id");
+  const viewParam = searchParams.get("view");
   const rawName = searchParams.get("name") || "Contour Metallic Cropped Puffer";
   const rawPriceStr = searchParams.get("price") || "$168";
   const parsedPrice = Number(rawPriceStr.replace(/[^0-9.]/g, "")) || 168;
@@ -171,15 +174,18 @@ export function GwoSpinProduct() {
   }, [activeImportedProduct, products, queryId]);
 
   const [forceTurntableMode, setForceTurntableMode] = useState(false);
+  const [turntable3dMode, setTurntable3dMode] = useState(viewParam === "3d");
 
   useEffect(() => {
     setForceTurntableMode(false);
-  }, [queryId]);
+    setTurntable3dMode(viewParam === "3d");
+  }, [queryId, viewParam]);
 
   const inspectedExternalProduct = !forceTurntableMode
     ? matchedCatalogProduct
     : null;
   const isStoreUrlMode = Boolean(inspectedExternalProduct);
+  const showRichFitStage = isStoreUrlMode || turntable3dMode;
 
   const activeProduct: Product = useMemo(
     () =>
@@ -242,16 +248,26 @@ export function GwoSpinProduct() {
   );
 
   const [storeAngleIdx, setStoreAngleIdx] = useState(0);
-  const [stageViewMode, setStageViewMode] = useState<"avatar" | "store" | "compare">(
-    activeProduct.studioLookIndex !== undefined ? "avatar" : "store"
+  const [stageViewMode, setStageViewMode] = useState<
+    "3d" | "avatar" | "store" | "compare"
+  >(
+    viewParam === "3d"
+      ? "3d"
+      : activeProduct.studioLookIndex !== undefined
+      ? "avatar"
+      : "3d"
   );
 
   useEffect(() => {
     setStoreAngleIdx(0);
     setStageViewMode(
-      activeProduct.studioLookIndex !== undefined ? "avatar" : "store"
+      viewParam === "3d"
+        ? "3d"
+        : activeProduct.studioLookIndex !== undefined
+        ? "avatar"
+        : "3d"
     );
-  }, [activeProduct.id, activeProduct.studioLookIndex]);
+  }, [activeProduct.id, activeProduct.studioLookIndex, viewParam]);
 
   const avatarRenderLook =
     activeProduct.studioLookIndex !== undefined
@@ -306,8 +322,9 @@ export function GwoSpinProduct() {
     return () => window.removeEventListener("resize", applyBoardScale);
   }, []);
 
-  // Instant 8-Angle Signature Avatar Turnaround Engine (kept mounted for 0ms switching!)
+  // Instant 8-Angle Signature Avatar Turnaround Engine (only decodes/runs when 360° turntable is visible!)
   useEffect(() => {
+    if (showRichFitStage) return;
     const cv = cvRef.current;
     const stage = stageRef.current;
     const root = rootRef.current;
@@ -401,10 +418,22 @@ export function GwoSpinProduct() {
         lastPaintedKey = "";
         showFrame(ang);
 
-        await Promise.all([1, 2, 3, 4, 5, 6, 7].map((idx) => loadIndex(idx)));
-        if (cancelled) return;
-        lastPaintedKey = "";
-        showFrame(ang);
+        // Defer angles 1..7 slightly so initial paint & page load complete instantaneously
+        const deferFn =
+          typeof window !== "undefined" && "requestIdleCallback" in window
+            ? (cb: () => void) =>
+                (window as Window & { requestIdleCallback: (fn: () => void) => void }).requestIdleCallback(cb)
+            : (cb: () => void) => setTimeout(cb, 260);
+        deferFn(() => {
+          if (cancelled) return;
+          void Promise.all([1, 2, 3, 4, 5, 6, 7].map((idx) => loadIndex(idx))).then(
+            () => {
+              if (cancelled) return;
+              lastPaintedKey = "";
+              showFrame(ang);
+            }
+          );
+        });
       } catch {
         // Ignore transient decode error
       }
@@ -549,7 +578,7 @@ export function GwoSpinProduct() {
       window.removeEventListener("pointercancel", onPointerUp);
       root.removeEventListener("pointermove", resetIdle);
     };
-  }, []);
+  }, [showRichFitStage]);
 
   const handleAddToBag = useCallback(() => {
     setJustAdded(true);
@@ -653,7 +682,7 @@ export function GwoSpinProduct() {
     <div className="sp-root" ref={rootRef}>
       <div id="sp-art" ref={artRef}>
         {/* Subtle White Connector Lines when in 360 Turntable Mode */}
-        {!isStoreUrlMode && (
+        {!showRichFitStage && (
           <svg id="sp-connectors" viewBox="0 0 1500 920">
             <path
               d="M450 350H562L592 318H618"
@@ -690,7 +719,7 @@ export function GwoSpinProduct() {
         <div
           id="sp-stage"
           ref={stageRef}
-          style={{ display: isStoreUrlMode ? "none" : "block" }}
+          style={{ display: showRichFitStage ? "none" : "block" }}
           className={isDraggingUi ? "dragging" : ""}
         >
           <canvas id="sp-cv" ref={cvRef} width={STAGE_W} height={STAGE_H} />
@@ -736,7 +765,7 @@ export function GwoSpinProduct() {
           ))}
         </div>
 
-        {!isStoreUrlMode && (
+        {!showRichFitStage && (
           <div id="sp-deg">
             <span>DRAG MODEL TO SPIN 360°</span>
             <span className="sp-deg-bar">
@@ -748,8 +777,8 @@ export function GwoSpinProduct() {
           </div>
         )}
 
-        {/* ==================== CENTER STAGE B: LIVE STORE URL MULTI-ANGLE & AVATAR PROPORTION VIEW ==================== */}
-        {isStoreUrlMode && (
+        {/* ==================== CENTER STAGE B: 3D PARAMETRIC MOCK, MULTI-ANGLE & AVATAR PROPORTION VIEW ==================== */}
+        {showRichFitStage && (
           <div
             style={{
               position: "absolute",
@@ -762,10 +791,23 @@ export function GwoSpinProduct() {
             className="flex flex-col items-center justify-between gap-3"
           >
             {/* Stage Mode Switcher Pill */}
-            <div className="flex items-center gap-1 p-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm">
+            <div className="flex flex-wrap items-center justify-center gap-1 p-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm">
+              <button
+                type="button"
+                id="gwo-stage-tab-3d"
+                onClick={() => setStageViewMode("3d")}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                  stageViewMode === "3d"
+                    ? "bg-[#141518] text-white"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+              >
+                <Box className="w-3.5 h-3.5 text-[#A7D7C5]" /> 3D Fit Mock
+              </button>
               {activeProduct.studioLookIndex !== undefined && (
                 <button
                   type="button"
+                  id="gwo-stage-tab-avatar"
                   onClick={() => setStageViewMode("avatar")}
                   className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
                     stageViewMode === "avatar"
@@ -773,35 +815,63 @@ export function GwoSpinProduct() {
                       : "text-[#686D76] hover:text-[#141518]"
                   }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" /> Your Avatar Fit
+                  <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" /> Your Avatar
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => setStageViewMode("compare")}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
-                  stageViewMode === "compare"
-                    ? "bg-[#141518] text-white"
-                    : "text-[#686D76] hover:text-[#141518]"
-                }`}
-              >
-                <Columns2 className="w-3.5 h-3.5" /> Model vs You ({avatarHeightDisp})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStageViewMode("store")}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
-                  stageViewMode === "store"
-                    ? "bg-[#141518] text-white"
-                    : "text-[#686D76] hover:text-[#141518]"
-                }`}
-              >
-                <Images className="w-3.5 h-3.5" /> Store Photos
-              </button>
+              {isStoreUrlMode ? (
+                <>
+                  <button
+                    type="button"
+                    id="gwo-stage-tab-compare"
+                    onClick={() => setStageViewMode("compare")}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                      stageViewMode === "compare"
+                        ? "bg-[#141518] text-white"
+                        : "text-[#686D76] hover:text-[#141518]"
+                    }`}
+                  >
+                    <Columns2 className="w-3.5 h-3.5" /> Model vs You ({avatarHeightDisp})
+                  </button>
+                  <button
+                    type="button"
+                    id="gwo-stage-tab-store"
+                    onClick={() => setStageViewMode("store")}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                      stageViewMode === "store"
+                        ? "bg-[#141518] text-white"
+                        : "text-[#686D76] hover:text-[#141518]"
+                    }`}
+                  >
+                    <Images className="w-3.5 h-3.5" /> Store Photos
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setTurntable3dMode(false)}
+                  className="px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 text-[#686D76] hover:text-[#141518] cursor-pointer transition"
+                >
+                  <Rotate3d className="w-3.5 h-3.5" /> 360° Studio Spin
+                </button>
+              )}
             </div>
 
             {/* Main Visual Frame */}
-            {stageViewMode === "avatar" && activeProduct.studioLookIndex !== undefined ? (
+            {stageViewMode === "3d" ? (
+              <Parametric3DFitMock
+                product={activeProduct}
+                selectedSize={selectedSize}
+                fitReport={liveFitReport}
+                avatar={{
+                  heightInches: activeHeight,
+                  bustInches: activeBust,
+                  waistInches: activeWaist,
+                  hipsInches: activeHips,
+                  skinTone: customAvatar?.skinToneHex || user?.skinTone || "#D9A482",
+                }}
+                faceBadgeUrl={customAvatar?.badgeDataUrl}
+              />
+            ) : stageViewMode === "avatar" && activeProduct.studioLookIndex !== undefined ? (
               <div className="relative w-full flex-1 rounded-3xl bg-gradient-to-b from-[#F5F6F9] to-[#E8EBF0] border border-black/[0.08] shadow-[0_18px_42px_rgba(20,21,24,0.09)] overflow-hidden flex items-end justify-center pt-4">
                 <div className="relative h-full aspect-[1360/2048] flex items-end justify-center">
                   <div
@@ -1050,13 +1120,26 @@ export function GwoSpinProduct() {
                 <Sparkles className="w-3 h-3" /> Inspect {activeImportedProduct.brand} URL
               </Link>
             ) : (
-              <button
-                type="button"
-                onClick={() => setAddUrlModalOpen(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F1F2F5] hover:bg-[#E4E7EC] text-[11px] font-bold text-[#141518] cursor-pointer"
-              >
-                <Plus className="w-3 h-3" /> Paste Store URL
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTurntable3dMode((v) => !v);
+                    setStageViewMode("3d");
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#E7F3EE] hover:bg-[#D5EAE0] text-[11px] font-bold text-[#1D4232] cursor-pointer"
+                >
+                  <Box className="w-3 h-3" />
+                  {turntable3dMode ? "360° Spin" : "3D Fit Mock"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddUrlModalOpen(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F1F2F5] hover:bg-[#E4E7EC] text-[11px] font-bold text-[#141518] cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" /> Pull Store
+                </button>
+              </div>
             )}
           </div>
 
@@ -1417,6 +1500,18 @@ export function GwoSpinProduct() {
                 </>
               )}
             </button>
+
+            {isStoreUrlMode && (
+              <a
+                href={activeProduct.canonicalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-xs"
+              >
+                Purchase on {activeProduct.brand} (${activeProduct.price}){" "}
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
 
             <button
               type="button"

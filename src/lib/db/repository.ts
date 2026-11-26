@@ -38,7 +38,27 @@ export function readLocalDb(): LocalDatabaseSchema {
   try {
     if (fs.existsSync(LOCAL_DB_PATH)) {
       const raw = fs.readFileSync(LOCAL_DB_PATH, "utf-8");
-      return JSON.parse(raw) as LocalDatabaseSchema;
+      const parsed = JSON.parse(raw) as LocalDatabaseSchema;
+      // Sync localized WebP asset paths & new seed products onto persisted local DB
+      const seedById = new Map(INITIAL_SEED_DB.products.map((p) => [p.id, p]));
+      const existingIds = new Set(parsed.products.map((p) => p.id));
+      parsed.products = parsed.products.map((p) => {
+        const seedMatch = seedById.get(p.id);
+        if (!seedMatch) return p;
+        return {
+          ...p,
+          imageUrl: seedMatch.imageUrl,
+          studioLookIndex: seedMatch.studioLookIndex ?? p.studioLookIndex,
+          fitMetadata: seedMatch.fitMetadata ?? p.fitMetadata,
+          sizeChartInches: seedMatch.sizeChartInches ?? p.sizeChartInches,
+        };
+      });
+      for (const sp of INITIAL_SEED_DB.products) {
+        if (!existingIds.has(sp.id)) {
+          parsed.products.push(sp);
+        }
+      }
+      return parsed;
     }
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });

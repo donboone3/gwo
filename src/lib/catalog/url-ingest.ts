@@ -777,7 +777,11 @@ export async function ingestProductUrlToSharedCatalog(
   const canonicalUrl = normalizeCanonicalProductUrl(rawUrl);
   const existing = await getProductByCanonicalUrl(canonicalUrl);
 
-  if (existing && existing.imageUrl && !isProductStale(existing.staleAfter, now)) {
+  if (
+    existing &&
+    (existing.imageUrl || existing.sourceType === "affiliate_feed") &&
+    !isProductStale(existing.staleAfter, now)
+  ) {
     return {
       product: existing,
       status: "shared_cache_hit",
