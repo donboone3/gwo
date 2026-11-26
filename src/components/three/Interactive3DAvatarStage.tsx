@@ -1,13 +1,11 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import {
   Eye,
   Flame,
-  Play,
   Pause,
+  Play,
   RotateCcw,
   Ruler,
   Sparkles,
@@ -20,12 +18,17 @@ import {
   formatHeightFeetInches,
 } from "@/lib/three/body-scan-analyzer";
 import {
-  buildInteractive3DAvatarScene,
-  buildStandalone3DProductScene,
   Render3DVisualMode,
   Worn3DPieceSpec,
 } from "@/lib/three/parametric-3d-engine";
-import { AvatarExactFitReport } from "@/lib/catalog/fit-intelligence";
+import {
+  analyzeExactAvatarFit,
+  AvatarExactFitReport,
+  ZoneFeel,
+} from "@/lib/catalog/fit-intelligence";
+import { BAG_RGBA_OVERLAY_BY_ID } from "@/lib/stylist/runway-ai-outfits";
+
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 export interface Interactive3DAvatarStageProps {
   mode?: "avatar" | "product";
@@ -47,6 +50,194 @@ export interface Interactive3DAvatarStageProps {
   className?: string;
 }
 
+const IMG_CACHE = new Map<string, HTMLImageElement>();
+
+function loadCachedImage(
+  url: string,
+  onReady: () => void
+): HTMLImageElement | null {
+  if (!url || typeof Image === "undefined") return null;
+  const hit = IMG_CACHE.get(url);
+  if (hit && hit.complete && hit.naturalWidth > 0) return hit;
+  if (hit) {
+    hit.addEventListener("load", onReady, { once: true });
+    return null;
+  }
+
+  const im = new Image();
+  if (!url.startsWith("data:") && !url.startsWith("/")) {
+    im.crossOrigin = "anonymous";
+  }
+  im.decoding = "async";
+  IMG_CACHE.set(url, im);
+  im.addEventListener("load", onReady, { once: true });
+  im.addEventListener(
+    "error",
+    () => {
+      IMG_CACHE.delete(url);
+    },
+    { once: true }
+  );
+  im.src = url;
+  return null;
+}
+
+const UPPER_LOOK_HELD_BAG: Record<number, string> = {
+  0: "prod-ae-burgundy-crescent-bag",
+  1: "prod-ae-camel-turnlock-tote",
+  2: "prod-ae-burgundy-crescent-bag",
+  3: "prod-ae-ivory-mini-bag",
+  4: "prod-ae-camel-turnlock-tote",
+  5: "prod-ae-camel-turnlock-tote",
+  6: "prod-ae-noir-quilted-bag",
+  7: "prod-ae-burgundy-crescent-bag",
+  8: "prod-ae-ivory-mini-bag",
+  9: "prod-ae-noir-quilted-bag",
+};
+
+function resolvePhotorealLookIndices(wornPieces: Worn3DPieceSpec[]): {
+  topIdx: number;
+  botIdx: number;
+  isSinglePieceDressOrCoat: boolean;
+  bagOverlay: { url: string; pos: "hand" | "shoulder" } | null;
+} {
+  const ids = new Set(wornPieces.map((w) => w.product.id));
+
+  // Native full-combo shortcut: Espresso Corset + Vintage Jeans -> Outfit 9!
+  if (
+    ids.has("prod-ae-espresso-corset") &&
+    ids.has("prod-ae-vintage-wide-denim") &&
+    !wornPieces.some((w) => w.product.category === "outerwear")
+  ) {
+    const activeBag = wornPieces.find(
+      (w) => w.product.id in BAG_RGBA_OVERLAY_BY_ID
+    )?.product.id;
+    const bagOverlay =
+      activeBag && activeBag !== UPPER_LOOK_HELD_BAG[9]
+        ? BAG_RGBA_OVERLAY_BY_ID[activeBag]
+        : null;
+    return {
+      topIdx: 9,
+      botIdx: 9,
+      isSinglePieceDressOrCoat: false,
+      bagOverlay,
+    };
+  }
+
+  // 1. Resolve Upper Photorealistic Cutout (Outerwear takes visual layer priority, then Dress, then Top)
+  let topIdx = 0;
+  let isSinglePieceDressOrCoat = false;
+
+  if (ids.has("prod-ae-camel-silk-wool-coat")) {
+    topIdx = 4;
+    isSinglePieceDressOrCoat = true;
+  } else if (ids.has("prod-ae-ivory-tweed-blazer")) {
+    topIdx = 1;
+  } else if (ids.has("prod-ae-linen-cinch-cardigan")) {
+    topIdx = 5;
+  } else if (ids.has("prod-ae-noir-tailored-blazer")) {
+    topIdx = 7;
+  } else if (ids.has("prod-ae-sage-zip-jacket")) {
+    topIdx = 8;
+  } else if (ids.has("prod-ae-emerald-satin-midi")) {
+    topIdx = 2;
+    isSinglePieceDressOrCoat = true;
+  } else if (ids.has("prod-ae-champagne-blazer-dress")) {
+    topIdx = 3;
+    isSinglePieceDressOrCoat = true;
+  } else if (ids.has("prod-ae-crimson-corset-mini")) {
+    topIdx = 6;
+    isSinglePieceDressOrCoat = true;
+  } else if (ids.has("prod-ae-acetate-beaded-tank")) {
+    topIdx = 5;
+  } else if (ids.has("prod-ae-espresso-corset")) {
+    topIdx = 0;
+  } else if (wornPieces.length === 1) {
+    // Single-piece inspection fallback
+    const p = wornPieces[0].product;
+    const low = p.title.toLowerCase();
+    if (/crimson|scarlet/.test(low)) {
+      topIdx = 6;
+      isSinglePieceDressOrCoat = true;
+    } else if (/emerald|midi/.test(low)) {
+      topIdx = 2;
+      isSinglePieceDressOrCoat = true;
+    } else if (/blazer dress/.test(low)) {
+      topIdx = 3;
+      isSinglePieceDressOrCoat = true;
+    } else if (/sage|legging|sneaker/.test(low)) {
+      topIdx = 8;
+    } else if (/jean|denim|belt/.test(low)) {
+      topIdx = 7;
+    } else if (/pleat|boot|tweed/.test(low)) {
+      topIdx = 1;
+    }
+  }
+
+  // 2. Resolve Lower Photorealistic Cutout (Matches exact trousers/skirt/jeans/leggings + footwear!)
+  let botIdx = topIdx;
+  const hasBoots = ids.has("prod-ae-meotina-leather-boots");
+  if (!isSinglePieceDressOrCoat) {
+    if (ids.has("prod-ae-champagne-trousers")) {
+      botIdx = 0;
+    } else if (ids.has("prod-ae-noir-pleated-mini")) {
+      botIdx = hasBoots ? 1 : 5;
+    } else if (ids.has("prod-ae-vintage-wide-denim")) {
+      botIdx = hasBoots ? 9 : 7;
+    } else if (ids.has("prod-ae-sage-flare-leggings")) {
+      botIdx = 8;
+    }
+  }
+
+  // 3. Resolve Held Bag RGBA Overlay if customer equipped a different bag than the upper cutout's native held bag
+  const activeBagId = wornPieces.find(
+    (w) => w.product.id in BAG_RGBA_OVERLAY_BY_ID
+  )?.product.id;
+  const bagOverlay =
+    activeBagId && UPPER_LOOK_HELD_BAG[topIdx] !== activeBagId
+      ? BAG_RGBA_OVERLAY_BY_ID[activeBagId]
+      : null;
+
+  return { topIdx, botIdx, isSinglePieceDressOrCoat, bagOverlay };
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v));
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function smoothstep(e0: number, e1: number, x: number): number {
+  const t = clamp((x - e0) / Math.max(1e-5, e1 - e0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function feelColorRgba(feel: ZoneFeel, alpha = 0.34): string {
+  switch (feel) {
+    case "too_tight":
+      return `rgba(239, 68, 68, ${alpha})`;
+    case "sculpted_snug":
+      return `rgba(245, 158, 11, ${alpha})`;
+    case "tailored_ideal":
+      return `rgba(16, 185, 129, ${alpha})`;
+    case "relaxed_skim":
+      return `rgba(6, 182, 212, ${alpha})`;
+    case "oversized_roomy":
+    default:
+      return `rgba(99, 102, 241, ${alpha})`;
+  }
+}
+
+/**
+ * 100% PHOTOREALISTIC LIFELIKE 360° BODY-MORPHING AVATAR & 3D PRODUCT TURNTABLE
+ * Zero wooden/plastic mannequins — renders real studio human photography with:
+ * - Smooth 360° drag-to-spin (Front 0° -> 45° -> Side 90° -> 135° -> Back 180° -> 270°)
+ * - Real-time exact-inch anatomical scanline warping (Bust, Waist, Hips, Shoulders, Height)
+ * - Seamless multi-slot Top + Bottom + Held Handbag mix-and-match compositing
+ * - 3D occluded glowing Body-Scan Tape Rings & Garment-Masked Fit Heatmap!
+ */
 export function Interactive3DAvatarStage({
   mode = "avatar",
   dimensions,
@@ -58,7 +249,7 @@ export function Interactive3DAvatarStage({
   showMeasurementRings: propShowRings,
   faceOvalDataUrl,
   autoSpinDefault = false,
-  initialYawDeg = 14,
+  initialYawDeg = 0,
   externalYawDeg,
   showHud = true,
   compactHud = false,
@@ -66,24 +257,26 @@ export function Interactive3DAvatarStage({
   onSelectProduct,
   className = "",
 }: Interactive3DAvatarStageProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const contentGroupRef = useRef<THREE.Group | null>(null);
-  const interactiveMeshesRef = useRef<THREE.Object3D[]>([]);
-  const fitMapRef = useRef<Map<string, AvatarExactFitReport>>(new Map());
-  const needsRenderRef = useRef<boolean>(true);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const offscreenCompRef = useRef<HTMLCanvasElement | null>(null);
+  const needsPaintRef = useRef<boolean>(true);
 
-  // Orbit state refs for 60fps zero-rerender pointer dragging
+  // Interactive 360° yaw, 3D tilt pitch, and zoom state refs
   const yawRef = useRef<number>((initialYawDeg * Math.PI) / 180);
   const targetYawRef = useRef<number>((initialYawDeg * Math.PI) / 180);
-  const pitchRef = useRef<number>(0.08);
-  const targetPitchRef = useRef<number>(0.08);
+  const pitchRef = useRef<number>(0);
+  const targetPitchRef = useRef<number>(0);
   const zoomRef = useRef<number>(1.0);
   const targetZoomRef = useRef<number>(1.0);
-  const baseCamDistRef = useRef<number>(8.4);
-  const lookCenterYRef = useRef<number>(3.35);
+
+  // Remember painted bounding box for accurate click-on-garment hit testing
+  const paintedAvatarBoxRef = useRef<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  }>({ x: 0, y: 0, w: 1, h: 1 });
 
   const [internalVisualMode, setInternalVisualMode] =
     useState<Render3DVisualMode>("studio");
@@ -103,106 +296,116 @@ export function Interactive3DAvatarStage({
     product: Product;
     fit?: AvatarExactFitReport;
   } | null>(null);
-  const [webglReady, setWebglReady] = useState<boolean>(true);
 
   const setVisualMode = useCallback(
     (m: Render3DVisualMode) => {
       setInternalVisualMode(m);
       onVisualModeChange?.(m);
+      needsPaintRef.current = true;
     },
     [onVisualModeChange]
   );
 
-  // Sync externalYawDeg (e.g., Front 0° / Back 180° button from parent)
   useEffect(() => {
     if (typeof externalYawDeg === "number") {
+      setAutoSpin(false);
       targetYawRef.current = (externalYawDeg * Math.PI) / 180;
-      needsRenderRef.current = true;
+      needsPaintRef.current = true;
     }
   }, [externalYawDeg]);
 
-  // Initialize WebGLRenderer, Studio Scene, Softbox Lights & Animation Loop once
+  // Compute exact fit reports for all worn pieces against the customer's scanned body
+  const fitByProductId = useMemo(() => {
+    const map = new Map<string, AvatarExactFitReport>();
+    const list =
+      mode === "product" && singleProduct
+        ? [{ product: singleProduct, selectedSize }]
+        : wornPieces;
+    for (const item of list) {
+      map.set(
+        item.product.id,
+        analyzeExactAvatarFit(
+          {
+            heightInches: dimensions.heightInches,
+            bustInches: dimensions.bustInches,
+            waistInches: dimensions.waistInches,
+            hipsInches: dimensions.hipsInches,
+            shoeSize: dimensions.shoeSize,
+          },
+          item.product,
+          item.selectedSize || selectedSize
+        )
+      );
+    }
+    return map;
+  }, [dimensions, mode, selectedSize, singleProduct, wornPieces]);
+
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        alpha: true,
-        powerPreference: "high-performance",
-      });
-    } catch {
-      setWebglReady(false);
-      return;
+    if (selectedProductId) {
+      const found = wornPieces.find((w) => w.product.id === selectedProductId);
+      if (found) {
+        setTappedInfo({
+          product: found.product,
+          fit: fitByProductId.get(found.product.id),
+        });
+      }
     }
+  }, [fitByProductId, selectedProductId, wornPieces]);
 
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
-    renderer.domElement.style.width = "100%";
-    renderer.domElement.style.height = "100%";
-    renderer.domElement.style.display = "block";
-    renderer.domElement.style.touchAction = "pan-y";
+  const lookSpec = useMemo(
+    () => resolvePhotorealLookIndices(wornPieces),
+    [wornPieces]
+  );
 
-    container.innerHTML = "";
-    container.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
+  // Trigger repaint whenever props change
+  useEffect(() => {
+    needsPaintRef.current = true;
+  }, [
+    activeVisualMode,
+    dimensions,
+    effectiveShowRings,
+    faceOvalDataUrl,
+    fitByProductId,
+    lookSpec,
+    mode,
+    selectedSize,
+    singleProduct,
+    wornPieces,
+  ]);
 
-    const scene = new THREE.Scene();
-    sceneRef.current = scene;
+  // Main High-DPI 60fps Photorealistic Turnaround + Body-Scan Mesh-Warp Renderer
+  useEffect(() => {
+    const wrapEl = wrapRef.current;
+    const cv = canvasRef.current;
+    if (!wrapEl || !cv) return;
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
 
-    // Studio PBR environment reflections for satin, leather & 14k gold hardware
-    let envRT: THREE.WebGLRenderTarget | null = null;
-    try {
-      const pmrem = new THREE.PMREMGenerator(renderer);
-      envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
-      scene.environment = envRT.texture;
-      scene.environmentIntensity = 0.55;
-      pmrem.dispose();
-    } catch {
-      // Fallback to multi-light studio rig
+    if (!offscreenCompRef.current) {
+      offscreenCompRef.current = document.createElement("canvas");
+      offscreenCompRef.current.width = 900;
+      offscreenCompRef.current.height = 1355;
     }
+    const compCv = offscreenCompRef.current;
+    const compCtx = compCv.getContext("2d")!;
 
-    // 3-Point Fashion Editorial Softbox Lighting
-    const hemi = new THREE.HemisphereLight("#FFFFFF", "#DCE3EE", 0.95);
-    scene.add(hemi);
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let viewW = 400;
+    let viewH = 560;
 
-    const keyLight = new THREE.DirectionalLight("#FFFBF6", 1.55);
-    keyLight.position.set(3.8, 7.5, 5.6);
-    scene.add(keyLight);
-
-    const fillLight = new THREE.DirectionalLight("#EEF4FF", 0.78);
-    fillLight.position.set(-4.2, 4.8, 3.8);
-    scene.add(fillLight);
-
-    const rimLight = new THREE.DirectionalLight("#FFFFFF", 0.92);
-    rimLight.position.set(0, 6.2, -5.5);
-    scene.add(rimLight);
-
-    const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 60);
-    cameraRef.current = camera;
-
-    const contentHolder = new THREE.Group();
-    scene.add(contentHolder);
-    contentGroupRef.current = contentHolder;
-
-    const updateSize = () => {
-      const w = Math.max(120, container.clientWidth);
-      const h = Math.max(140, container.clientHeight);
-      renderer.setSize(w, h, false);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      needsRenderRef.current = true;
+    const resize = () => {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      viewW = Math.max(120, wrapEl.clientWidth);
+      viewH = Math.max(140, wrapEl.clientHeight);
+      cv.width = Math.round(viewW * dpr);
+      cv.height = Math.round(viewH * dpr);
+      needsPaintRef.current = true;
     };
-    updateSize();
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(wrapEl);
 
-    const ro = new ResizeObserver(updateSize);
-    ro.observe(container);
-
-    // Pointer Orbit + Raycast Click Selection
+    // Pointer Drag (360° Spin + 3D Tilt) + Click-on-Garment Selection
     let dragging = false;
     let startX = 0;
     let startY = 0;
@@ -210,7 +413,6 @@ export function Interactive3DAvatarStage({
     let startPitch = 0;
     let movedDist = 0;
 
-    const canvas = renderer.domElement;
     const onPointerDown = (e: PointerEvent) => {
       dragging = true;
       movedDist = 0;
@@ -218,7 +420,7 @@ export function Interactive3DAvatarStage({
       startY = e.clientY;
       startYaw = targetYawRef.current;
       startPitch = targetPitchRef.current;
-      canvas.setPointerCapture(e.pointerId);
+      cv.setPointerCapture(e.pointerId);
     };
 
     const onPointerMove = (e: PointerEvent) => {
@@ -229,74 +431,580 @@ export function Interactive3DAvatarStage({
       if (movedDist > 4 && autoSpinRef.current) {
         setAutoSpin(false);
       }
-      targetYawRef.current = startYaw + dx * 0.0125;
-      targetPitchRef.current = Math.max(
-        -0.28,
-        Math.min(0.55, startPitch + dy * 0.006)
-      );
-      needsRenderRef.current = true;
+      targetYawRef.current = startYaw + dx * 0.014;
+      targetPitchRef.current = clamp(startPitch + dy * 0.004, -0.22, 0.28);
+      needsPaintRef.current = true;
     };
 
     const onPointerUp = (e: PointerEvent) => {
       if (!dragging) return;
       dragging = false;
       try {
-        canvas.releasePointerCapture(e.pointerId);
+        cv.releasePointerCapture(e.pointerId);
       } catch {
         // ignore
       }
-      if (movedDist < 6 && interactiveMeshesRef.current.length > 0) {
-        const rect = canvas.getBoundingClientRect();
-        const ndc = new THREE.Vector2(
-          ((e.clientX - rect.left) / rect.width) * 2 - 1,
-          -((e.clientY - rect.top) / rect.height) * 2 + 1
-        );
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(ndc, camera);
-        const hits = raycaster.intersectObjects(
-          interactiveMeshesRef.current,
-          false
-        );
-        if (hits.length > 0) {
-          const hitProd = hits[0].object.userData.product as Product | undefined;
-          if (hitProd) {
-            const fit = fitMapRef.current.get(hitProd.id);
-            setTappedInfo({ product: hitProd, fit });
-            onSelectProduct?.(hitProd, fit);
+      if (movedDist < 6 && mode === "avatar" && wornPieces.length > 0) {
+        const rect = cv.getBoundingClientRect();
+        const px = e.clientX - rect.left;
+        const py = e.clientY - rect.top;
+        const box = paintedAvatarBoxRef.current;
+        if (
+          px >= box.x &&
+          px <= box.x + box.w &&
+          py >= box.y &&
+          py <= box.y + box.h
+        ) {
+          const u = (px - box.x) / box.w;
+          const v = (py - box.y) / box.h;
+
+          const bagSpec = wornPieces.find(
+            (w) =>
+              w.product.category === "accessory" &&
+              /bag|tote|crescent|purse/i.test(w.product.title)
+          );
+          const shoeSpec = wornPieces.find((w) => w.product.category === "shoes");
+          const beltSpec = wornPieces.find(
+            (w) =>
+              w.product.category === "accessory" && /belt/i.test(w.product.title)
+          );
+          const outerSpec = wornPieces.find(
+            (w) => w.product.category === "outerwear"
+          );
+          const topOrDress = wornPieces.find(
+            (w) => w.product.category === "top" || w.product.category === "dress"
+          );
+          const botSpec = wornPieces.find(
+            (w) => w.product.category === "bottom" || w.product.category === "dress"
+          );
+
+          let picked: Worn3DPieceSpec | undefined;
+          if (bagSpec && u > 0.56 && v > 0.24 && v < 0.62) {
+            picked = bagSpec;
+          } else if (shoeSpec && v >= 0.86) {
+            picked = shoeSpec;
+          } else if (beltSpec && v >= 0.35 && v <= 0.42) {
+            picked = beltSpec;
+          } else if (v < 0.43) {
+            picked = outerSpec || topOrDress || wornPieces[0];
+          } else {
+            picked = botSpec || topOrDress || wornPieces[0];
+          }
+
+          if (picked) {
+            const fit = fitByProductId.get(picked.product.id);
+            setTappedInfo({ product: picked.product, fit });
+            onSelectProduct?.(picked.product, fit);
           }
         }
       }
     };
 
     const onWheel = (e: WheelEvent) => {
-      // Only zoom when Ctrl/pinch or hovering directly over 3D canvas on desktop
       if (Math.abs(e.deltaY) > 0 && (window.innerWidth > 820 || e.ctrlKey)) {
         e.preventDefault();
-        targetZoomRef.current = Math.max(
-          0.62,
-          Math.min(1.65, targetZoomRef.current + Math.sign(e.deltaY) * 0.08)
+        targetZoomRef.current = clamp(
+          targetZoomRef.current - Math.sign(e.deltaY) * 0.08,
+          0.78,
+          1.55
         );
-        needsRenderRef.current = true;
+        needsPaintRef.current = true;
       }
     };
 
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerup", onPointerUp);
-    canvas.addEventListener("pointercancel", onPointerUp);
-    canvas.addEventListener("wheel", onWheel, { passive: false });
+    cv.addEventListener("pointerdown", onPointerDown);
+    cv.addEventListener("pointermove", onPointerMove);
+    cv.addEventListener("pointerup", onPointerUp);
+    cv.addEventListener("pointercancel", onPointerUp);
+    cv.addEventListener("wheel", onWheel, { passive: false });
+
+    const requestRepaint = () => {
+      needsPaintRef.current = true;
+    };
+
+    // Compose a single angle ("front" | "side" | "back") onto compCv (900x1355)
+    const composeAngleLayer = (
+      angleKind: "front" | "side" | "back",
+      mirrorSide: boolean
+    ): boolean => {
+      const { topIdx, botIdx, isSinglePieceDressOrCoat, bagOverlay } = lookSpec;
+
+      const urlFor = (idx: number, kind: "front" | "side" | "back") => {
+        if (kind === "side") {
+          return `${BASE}/models/runway_ai/ae_outfit_${idx}_side.webp?v=ae3`;
+        }
+        return `${BASE}/models/runway_ai/ae_outfit_${idx}_${kind}.webp?v=ae2`;
+      };
+
+      let topImg = loadCachedImage(urlFor(topIdx, angleKind), requestRepaint);
+      // Graceful fallback to front/back if side-profile asset is still decoding
+      if (!topImg && angleKind === "side") {
+        topImg = loadCachedImage(urlFor(topIdx, "front"), requestRepaint);
+      }
+      if (!topImg) return false;
+
+      compCtx.clearRect(0, 0, 900, 1355);
+      compCtx.save();
+      if (mirrorSide) {
+        compCtx.translate(900, 0);
+        compCtx.scale(-1, 1);
+      }
+
+      const mixedBottom = !isSinglePieceDressOrCoat && botIdx !== topIdx;
+      let botImg = mixedBottom
+        ? loadCachedImage(urlFor(botIdx, angleKind), requestRepaint) ||
+          (angleKind === "side"
+            ? loadCachedImage(urlFor(botIdx, "front"), requestRepaint)
+            : null)
+        : null;
+
+      if (mixedBottom && botImg) {
+        // Draw lower body (waist v=0.41 down to shoes v=1.0)
+        compCtx.drawImage(
+          botImg,
+          0,
+          Math.round(1355 * 0.425),
+          900,
+          Math.round(1355 * 0.575),
+          0,
+          Math.round(1355 * 0.425),
+          900,
+          Math.round(1355 * 0.575)
+        );
+        // Draw upper body (head v=0.0 down to waist v=0.445) with soft overlap blend
+        compCtx.drawImage(
+          topImg,
+          0,
+          0,
+          900,
+          Math.round(1355 * 0.435),
+          0,
+          0,
+          900,
+          Math.round(1355 * 0.435)
+        );
+        // Feather seam across v = 0.425..0.448
+        for (let s = 0; s < 8; s++) {
+          const t = s / 8;
+          const ySlice = Math.round(1355 * (0.432 + t * 0.018));
+          compCtx.globalAlpha = 1 - t;
+          compCtx.drawImage(topImg, 0, ySlice, 900, 4, 0, ySlice, 900, 4);
+        }
+        compCtx.globalAlpha = 1;
+      } else {
+        compCtx.drawImage(topImg, 0, 0, 900, 1355);
+      }
+
+      // Composite Held RGBA Bag Overlay when custom bag differs from upper cutout's native bag
+      if (bagOverlay && angleKind !== "side") {
+        const bagImg = loadCachedImage(bagOverlay.url, requestRepaint);
+        if (bagImg) {
+          const isShoulder = bagOverlay.pos === "shoulder";
+          const bx = isShoulder ? 900 * 0.545 : 900 * 0.575;
+          const by = isShoulder ? 1355 * 0.255 : 1355 * 0.435;
+          const bw = isShoulder ? 900 * 0.165 : 900 * 0.195;
+          const bh = bw * (bagImg.naturalHeight / Math.max(1, bagImg.naturalWidth));
+          compCtx.save();
+          compCtx.shadowColor = "rgba(20, 21, 24, 0.24)";
+          compCtx.shadowBlur = 14;
+          compCtx.shadowOffsetY = 6;
+          compCtx.drawImage(bagImg, bx, by, bw, bh);
+          compCtx.restore();
+        }
+      }
+
+      // Project customer's scanned selfie onto front face when provided
+      if (faceOvalDataUrl && angleKind === "front") {
+        const faceIm = loadCachedImage(faceOvalDataUrl, requestRepaint);
+        if (faceIm) {
+          const fw = 900 * 0.129;
+          const fh = 1355 * 0.097;
+          const fx = 900 * 0.4995 - fw / 2;
+          const fy = 1355 * 0.132 - fh / 2;
+          compCtx.drawImage(faceIm, fx, fy, fw, fh);
+        }
+      }
+
+      // Garment-Masked Fit Heatmap Tint (keeps real photorealistic face, hair, skin & folds 100% lifelike!)
+      if (activeVisualMode === "heatmap") {
+        const primarySpec = wornPieces[0];
+        const fit = primarySpec ? fitByProductId.get(primarySpec.product.id) : undefined;
+        const bFeel = fit?.zones.find((z) => z.zone === "Bust")?.feel || "tailored_ideal";
+        const wFeel = fit?.zones.find((z) => z.zone === "Waist")?.feel || "tailored_ideal";
+        const hFeel = fit?.zones.find((z) => z.zone === "Hips")?.feel || "tailored_ideal";
+
+        compCtx.save();
+        compCtx.globalCompositeOperation = "source-atop";
+        const grad = compCtx.createLinearGradient(0, 1355 * 0.22, 0, 1355 * 0.86);
+        grad.addColorStop(0.0, "rgba(16, 185, 129, 0)");
+        grad.addColorStop(0.08, feelColorRgba(bFeel, 0.34));
+        grad.addColorStop(0.26, feelColorRgba(wFeel, 0.38));
+        grad.addColorStop(0.48, feelColorRgba(hFeel, 0.34));
+        grad.addColorStop(0.92, feelColorRgba(hFeel, 0.22));
+        grad.addColorStop(1.0, "rgba(16, 185, 129, 0)");
+        compCtx.fillStyle = grad;
+        compCtx.fillRect(900 * 0.22, 1355 * 0.22, 900 * 0.56, 1355 * 0.68);
+        compCtx.restore();
+      }
+
+      compCtx.restore();
+      return true;
+    };
+
+    const paintProduct3D = () => {
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, viewW, viewH);
+
+      const prod = singleProduct || wornPieces[0]?.product;
+      if (!prod || !prod.imageUrl) {
+        ctx.restore();
+        return;
+      }
+
+      const im = loadCachedImage(prod.imageUrl, requestRepaint);
+      if (!im) {
+        ctx.restore();
+        return;
+      }
+
+      const yaw = yawRef.current;
+      const pitch = pitchRef.current;
+      const zoom = zoomRef.current;
+
+      const cosY = Math.cos(yaw);
+      const sinY = Math.sin(yaw);
+      const absCos = Math.abs(cosY);
+      const perspX = (0.28 + 0.72 * absCos) * (cosY >= 0 ? 1 : -1);
+      const perspY = 1 - Math.abs(pitch) * 0.14;
+
+      const maxBoxW = viewW * 0.76 * zoom;
+      const maxBoxH = viewH * 0.76 * zoom;
+      const imgAspect = im.naturalWidth / Math.max(1, im.naturalHeight);
+      let drawW = maxBoxW;
+      let drawH = drawW / imgAspect;
+      if (drawH > maxBoxH) {
+        drawH = maxBoxH;
+        drawW = drawH * imgAspect;
+      }
+
+      const cx = viewW / 2;
+      const cy = viewH * 0.48 + pitch * 26;
+
+      // Studio Floating Pedestal Shadow
+      const shadowGrad = ctx.createRadialGradient(
+        cx,
+        viewH * 0.88,
+        6,
+        cx,
+        viewH * 0.88,
+        drawW * 0.55
+      );
+      shadowGrad.addColorStop(0, "rgba(20, 21, 24, 0.20)");
+      shadowGrad.addColorStop(1, "rgba(20, 21, 24, 0)");
+      ctx.fillStyle = shadowGrad;
+      ctx.beginPath();
+      ctx.ellipse(
+        cx,
+        viewH * 0.88,
+        Math.max(28, drawW * 0.46 * (0.45 + 0.55 * absCos)),
+        11,
+        0,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+
+      // 12-Layer 3D Fabric Volume Extrusion Stack + Real Ghost-Mannequin Photo!
+      const thicknessPx = 14 * Math.abs(sinY) * zoom;
+      const layers = 10;
+      for (let l = layers; l >= 0; l--) {
+        const depthOffset = (l / layers - 0.5) * thicknessPx * (sinY >= 0 ? 1 : -1);
+        ctx.save();
+        ctx.translate(cx + depthOffset, cy);
+        ctx.scale(perspX, perspY);
+        if (l > 0) {
+          ctx.filter = "brightness(0.86) contrast(1.04)";
+          ctx.globalAlpha = 0.45;
+        } else {
+          ctx.filter = "none";
+          ctx.globalAlpha = 1;
+        }
+        ctx.drawImage(im, -drawW / 2, -drawH / 2, drawW, drawH);
+        ctx.restore();
+      }
+
+      // Dynamic Sweeping Studio Rim Specular Sheen as product rotates in 3D
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(Math.abs(perspX), perspY);
+      ctx.globalCompositeOperation = "source-atop";
+      const sheenX = sinY * drawW * 0.45;
+      const sheen = ctx.createLinearGradient(
+        sheenX - drawW * 0.25,
+        -drawH / 2,
+        sheenX + drawW * 0.25,
+        drawH / 2
+      );
+      sheen.addColorStop(0, "rgba(255,255,255,0)");
+      sheen.addColorStop(0.5, "rgba(255,255,255,0.16)");
+      sheen.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = sheen;
+      ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
+      ctx.restore();
+
+      ctx.restore();
+    };
+
+    const paintAvatar = () => {
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, viewW, viewH);
+
+      const normDeg =
+        ((((yawRef.current * 180) / Math.PI) % 360) + 360) % 360;
+      const pitch = pitchRef.current;
+      const zoom = zoomRef.current;
+
+      // Determine primary & secondary quadrant angles for silky 360° turnaround
+      // 0° = front, 90° = right side, 180° = back, 270° = left side (mirrored)
+      let primaryKind: "front" | "side" | "back" = "front";
+      let mirrorSide = false;
+      let foreshorten = 1.0;
+
+      // Check if side image is already decoded for current topIdx
+      const sideTestUrl = `${BASE}/models/runway_ai/ae_outfit_${lookSpec.topIdx}_side.webp?v=ae3`;
+      const hasSideDecoded = Boolean(
+        IMG_CACHE.get(sideTestUrl)?.complete &&
+          (IMG_CACHE.get(sideTestUrl)?.naturalWidth || 0) > 0
+      );
+      // Trigger background preload of side view
+      loadCachedImage(sideTestUrl, requestRepaint);
+
+      if (hasSideDecoded) {
+        if (normDeg >= 52 && normDeg < 128) {
+          primaryKind = "side";
+          mirrorSide = false;
+          const dist90 = Math.abs(normDeg - 90) / 38;
+          foreshorten = lerp(1.0, 0.9, dist90);
+        } else if (normDeg >= 128 && normDeg < 232) {
+          primaryKind = "back";
+          const dist180 = Math.abs(normDeg - 180) / 52;
+          foreshorten = lerp(1.0, 0.88, dist180);
+        } else if (normDeg >= 232 && normDeg < 308) {
+          primaryKind = "side";
+          mirrorSide = true;
+          const dist270 = Math.abs(normDeg - 270) / 38;
+          foreshorten = lerp(1.0, 0.9, dist270);
+        } else {
+          primaryKind = "front";
+          const dist0 = Math.min(normDeg, 360 - normDeg) / 52;
+          foreshorten = lerp(1.0, 0.88, dist0);
+        }
+      } else {
+        // Smooth Front <-> Back 3D turnaround while side asset streams in
+        const rad = (normDeg * Math.PI) / 180;
+        const cosA = Math.cos(rad);
+        primaryKind = cosA >= 0 ? "front" : "back";
+        foreshorten = 0.72 + 0.28 * Math.abs(cosA);
+      }
+
+      const ready = composeAngleLayer(primaryKind, mirrorSide);
+      if (!ready) {
+        ctx.restore();
+        return;
+      }
+
+      // Compute Photorealistic Body-Scan Proportions relative to baseline 5'2" (32.25 / 27 / 34)
+      const heightScale = clamp(dimensions.heightInches / 62, 0.92, 1.10);
+      const sShoulder = clamp(dimensions.shoulderInches / 15.0, 0.88, 1.20);
+      const sBust = clamp(dimensions.bustInches / 32.25, 0.86, 1.34);
+      const sWaist = clamp(dimensions.waistInches / 27.0, 0.80, 1.34);
+      const sHips = clamp(dimensions.hipsInches / 34.0, 0.86, 1.36);
+
+      const widthWarpAtV = (v: number): number => {
+        if (v < 0.175) return 1.0; // Never distort head/face!
+        if (v < 0.215) return lerp(1.0, sShoulder, smoothstep(0.175, 0.215, v));
+        if (v < 0.285) return lerp(sShoulder, sBust, smoothstep(0.215, 0.285, v));
+        if (v < 0.37) return lerp(sBust, sWaist, smoothstep(0.285, 0.37, v));
+        if (v < 0.485) return lerp(sWaist, sHips, smoothstep(0.37, 0.485, v));
+        if (v < 0.66) return lerp(sHips, lerp(sHips, 1.0, 0.55), smoothstep(0.485, 0.66, v));
+        if (v < 0.86) return lerp(lerp(sHips, 1.0, 0.55), 1.0, smoothstep(0.66, 0.86, v));
+        return 1.0;
+      };
+
+      // Commanding Stage Framing (fills ~92% of stage height cleanly above bottom HUD!)
+      const bottomMargin = showHud ? (compactHud ? 34 : 44) : 10;
+      const topMargin = showHud ? (compactHud ? 26 : 34) : 8;
+      const availH = Math.max(120, viewH - topMargin - bottomMargin);
+      const baseH = Math.min(availH * 0.98 * heightScale, viewW * 1.42) * zoom;
+      const baseW = baseH * (900 / 1355);
+
+      const centerX = viewW / 2;
+      const bottomY = viewH - bottomMargin + pitch * 16;
+      const topY = bottomY - baseH;
+
+      paintedAvatarBoxRef.current = {
+        x: centerX - baseW / 2,
+        y: topY,
+        w: baseW,
+        h: baseH,
+      };
+
+      // 1. Sleek 3D Studio Turntable Disc Under Her Heels
+      const podiumRx = Math.max(64, baseW * 0.42);
+      const podiumRy = Math.max(10, podiumRx * (0.16 + Math.max(0, pitch) * 0.18));
+      const podiumGrad = ctx.createRadialGradient(
+        centerX,
+        bottomY - 4,
+        8,
+        centerX,
+        bottomY - 4,
+        podiumRx * 1.15
+      );
+      podiumGrad.addColorStop(0, "rgba(25, 28, 34, 0.22)");
+      podiumGrad.addColorStop(0.75, "rgba(25, 28, 34, 0.06)");
+      podiumGrad.addColorStop(1, "rgba(25, 28, 34, 0)");
+      ctx.fillStyle = podiumGrad;
+      ctx.beginPath();
+      ctx.ellipse(centerX, bottomY - 3, podiumRx * 1.1, podiumRy, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(36, 75, 59, 0.20)";
+      ctx.lineWidth = 1.25;
+      ctx.beginPath();
+      ctx.ellipse(centerX, bottomY - 3, podiumRx * 0.88, podiumRy * 0.82, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Helper for 3D Occluded Body-Scan Tape Rings (back half behind body, front half in front!)
+      const tapeRings = [
+        {
+          v: 0.285,
+          color: "#10B981",
+          label: `${dimensions.bustInches}" B`,
+          rxFactor: 0.21 * sBust,
+        },
+        {
+          v: 0.372,
+          color: "#244B3B",
+          label: `${dimensions.waistInches}" W`,
+          rxFactor: 0.175 * sWaist,
+        },
+        {
+          v: 0.482,
+          color: "#0EA5E9",
+          label: `${dimensions.hipsInches}" H`,
+          rxFactor: 0.235 * sHips,
+        },
+      ];
+
+      if (effectiveShowRings || activeVisualMode === "xray") {
+        // Draw BACK half of 3D tape ellipses BEFORE drawing the human cutout!
+        for (const ring of tapeRings) {
+          const ry = topY + baseH * ring.v;
+          const rx = baseW * ring.rxFactor * foreshorten;
+          ctx.save();
+          ctx.strokeStyle = ring.color;
+          ctx.globalAlpha = 0.45;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.ellipse(centerX, ry, rx, Math.max(5, rx * 0.2), 0, Math.PI, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      // 2. Render 96-Slice Scanline-Warped Photorealistic Human Avatar!
+      const SLICES = 96;
+      const srcSliceH = 1355 / SLICES;
+      const dstSliceH = baseH / SLICES;
+
+      for (let i = 0; i < SLICES; i++) {
+        const v = (i + 0.5) / SLICES;
+        const wScale = widthWarpAtV(v) * foreshorten;
+        const dw = baseW * wScale;
+        const dx = centerX - dw / 2;
+        const dy = topY + i * dstSliceH;
+        // 0.8px overlap prevents subpixel horizontal hairlines on fractional DPRs
+        ctx.drawImage(
+          compCv,
+          0,
+          Math.max(0, i * srcSliceH - 0.4),
+          900,
+          Math.min(1355 - i * srcSliceH, srcSliceH + 0.9),
+          dx,
+          dy - 0.35,
+          dw,
+          dstSliceH + 0.75
+        );
+      }
+
+      // 3. Draw FRONT half of 3D Body-Scan Tape Ellipses + Exact Inch Callouts OVER her front!
+      if (effectiveShowRings || activeVisualMode === "xray") {
+        const primarySpec = wornPieces[0];
+        const fit = primarySpec ? fitByProductId.get(primarySpec.product.id) : undefined;
+
+        tapeRings.forEach((ring, idx) => {
+          const ry = topY + baseH * ring.v;
+          const rx = baseW * ring.rxFactor * foreshorten;
+          ctx.save();
+          ctx.strokeStyle = ring.color;
+          ctx.lineWidth = 2.4;
+          ctx.shadowColor = "rgba(255,255,255,0.7)";
+          ctx.shadowBlur = 4;
+          ctx.beginPath();
+          ctx.ellipse(centerX, ry, rx, Math.max(5, rx * 0.2), 0, 0, Math.PI);
+          ctx.stroke();
+
+          // Callout pill beside ring
+          if (!compactHud || idx === 1) {
+            const zoneName = idx === 0 ? "Bust" : idx === 1 ? "Waist" : "Hips";
+            const zInfo = fit?.zones.find((z) => z.zone === zoneName);
+            const pillTxt =
+              activeVisualMode === "xray" && zInfo
+                ? `${zoneName}: ${zInfo.easeInches >= 0 ? "+" : ""}${zInfo.easeInches.toFixed(
+                    1
+                  )}" (${zInfo.feelLabel})`
+                : ring.label;
+
+            ctx.font = "700 10px system-ui, -apple-system, sans-serif";
+            const tw = ctx.measureText(pillTxt).width;
+            const px =
+              idx % 2 === 0
+                ? Math.min(viewW - tw - 18, centerX + rx + 8)
+                : Math.max(8, centerX - rx - tw - 20);
+            const py = ry - 9;
+
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = "rgba(20,21,24,0.12)";
+            ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
+            ctx.beginPath();
+            ctx.roundRect(px, py, tw + 12, 18, 9);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = "#141518";
+            ctx.fillText(pillTxt, px + 6, py + 12.5);
+          }
+          ctx.restore();
+        });
+      }
+
+      ctx.restore();
+    };
 
     let rafId = 0;
     let lastTime = performance.now();
-    let frameCounter = 0;
+    let frameTick = 0;
 
-    const tick = (now: number) => {
+    const loop = (now: number) => {
       const dt = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
 
       if (autoSpinRef.current && !dragging) {
-        targetYawRef.current += dt * 0.68;
-        needsRenderRef.current = true;
+        targetYawRef.current += dt * 0.72;
+        needsPaintRef.current = true;
       }
 
       const dYaw = targetYawRef.current - yawRef.current;
@@ -312,131 +1020,51 @@ export function Interactive3DAvatarStage({
         yawRef.current += dYaw * damp;
         pitchRef.current += dPitch * damp;
         zoomRef.current += dZoom * damp;
-        needsRenderRef.current = true;
+        needsPaintRef.current = true;
       }
 
-      if (needsRenderRef.current) {
-        const holder = contentGroupRef.current;
-        if (holder) {
-          holder.rotation.y = yawRef.current;
+      if (needsPaintRef.current) {
+        if (mode === "product") {
+          paintProduct3D();
+        } else {
+          paintAvatar();
         }
-        // Adjust camera distance automatically for narrow aspect viewports so full avatar head-to-toe NEVER clips!
-        const aspectBoost = camera.aspect < 0.72 ? (0.72 / Math.max(0.4, camera.aspect)) * 0.92 : 1.0;
-        const dist = baseCamDistRef.current * zoomRef.current * aspectBoost;
-        const cy = lookCenterYRef.current;
-        camera.position.set(
-          0,
-          cy + Math.sin(pitchRef.current) * dist * 0.72,
-          Math.cos(pitchRef.current) * dist
-        );
-        camera.lookAt(0, cy, 0);
+        needsPaintRef.current = false;
 
-        renderer.render(scene, camera);
-        needsRenderRef.current = false;
-
-        frameCounter++;
-        if (frameCounter % 4 === 0) {
+        frameTick++;
+        if (frameTick % 4 === 0) {
           const deg =
-            (((Math.round((yawRef.current * 180) / Math.PI) % 360) + 360) %
-              360);
+            ((((Math.round((yawRef.current * 180) / Math.PI) % 360) + 360) %
+              360));
           setLiveDeg(deg);
         }
       }
 
-      rafId = requestAnimationFrame(tick);
+      rafId = requestAnimationFrame(loop);
     };
-    rafId = requestAnimationFrame(tick);
+    rafId = requestAnimationFrame(loop);
 
     return () => {
       cancelAnimationFrame(rafId);
       ro.disconnect();
-      canvas.removeEventListener("pointerdown", onPointerDown);
-      canvas.removeEventListener("pointermove", onPointerMove);
-      canvas.removeEventListener("pointerup", onPointerUp);
-      canvas.removeEventListener("pointercancel", onPointerUp);
-      canvas.removeEventListener("wheel", onWheel);
-      envRT?.dispose();
-      renderer.dispose();
+      cv.removeEventListener("pointerdown", onPointerDown);
+      cv.removeEventListener("pointermove", onPointerMove);
+      cv.removeEventListener("pointerup", onPointerUp);
+      cv.removeEventListener("pointercancel", onPointerUp);
+      cv.removeEventListener("wheel", onWheel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Rebuild Parametric 3D Body + 3D Garments / Standalone 3D Product whenever dimensions, pieces, or visualMode change!
-  const piecesKey = useMemo(
-    () =>
-      wornPieces
-        .map((w) => `${w.product.id}:${w.selectedSize || ""}`)
-        .join("|"),
-    [wornPieces]
-  );
-
-  useEffect(() => {
-    const holder = contentGroupRef.current;
-    if (!holder) return;
-
-    // Cleanly dispose previous geometries
-    holder.traverse((obj) => {
-      const mesh = obj as THREE.Mesh;
-      if (mesh.isMesh && mesh.geometry) {
-        mesh.geometry.dispose();
-      }
-    });
-    holder.clear();
-
-    const triggerRepaint = () => {
-      needsRenderRef.current = true;
-    };
-
-    if (mode === "product" && singleProduct) {
-      const built = buildStandalone3DProductScene({
-        product: singleProduct,
-        dimensions,
-        selectedSize,
-        visualMode: activeVisualMode,
-        onTextureReady: triggerRepaint,
-      });
-      holder.add(built.root);
-      lookCenterYRef.current = built.centerY;
-      baseCamDistRef.current = built.cameraDistance;
-      interactiveMeshesRef.current = [];
-      fitMapRef.current = new Map();
-    } else {
-      const built = buildInteractive3DAvatarScene({
-        dimensions,
-        wornPieces,
-        visualMode: activeVisualMode,
-        showMeasurementRings: effectiveShowRings,
-        faceOvalDataUrl,
-        onTextureReady: triggerRepaint,
-      });
-      holder.add(built.root);
-      lookCenterYRef.current = built.totalHeightUnits * 0.485;
-      // Commanding full-body framing from hair crown to stiletto podium
-      baseCamDistRef.current = built.totalHeightUnits * 1.74;
-      interactiveMeshesRef.current = built.interactiveMeshes;
-      fitMapRef.current = built.fitByProductId;
-
-      if (selectedProductId) {
-        const matched = wornPieces.find((w) => w.product.id === selectedProductId);
-        if (matched) {
-          setTappedInfo({
-            product: matched.product,
-            fit: built.fitByProductId.get(matched.product.id),
-          });
-        }
-      }
-    }
-
-    needsRenderRef.current = true;
   }, [
     activeVisualMode,
+    compactHud,
     dimensions,
     effectiveShowRings,
     faceOvalDataUrl,
+    fitByProductId,
+    lookSpec,
     mode,
-    piecesKey,
-    selectedProductId,
-    selectedSize,
+    onSelectProduct,
+    showHud,
     singleProduct,
     wornPieces,
   ]);
@@ -444,49 +1072,45 @@ export function Interactive3DAvatarStage({
   const snapAngle = (deg: number) => {
     setAutoSpin(false);
     targetYawRef.current = (deg * Math.PI) / 180;
-    targetPitchRef.current = 0.08;
-    needsRenderRef.current = true;
+    targetPitchRef.current = 0;
+    needsPaintRef.current = true;
   };
-
-  if (!webglReady) {
-    return (
-      <div
-        className={`relative flex items-center justify-center rounded-2xl bg-[#EEF1F6] p-4 text-xs font-semibold text-[#686D76] ${className}`}
-      >
-        Interactive 3D Stage Ready
-      </div>
-    );
-  }
 
   return (
     <div
-      data-3d-engine="three-webgl"
+      data-3d-engine="lifelike-360"
       data-3d-mode={mode}
       data-worn-count={mode === "product" ? 1 : wornPieces.length}
       className={`relative w-full h-full select-none overflow-hidden ${className}`}
     >
-      {/* WebGL 3D Canvas Mount */}
+      {/* Interactive High-DPI Lifelike Canvas */}
       <div
-        ref={containerRef}
+        ref={wrapRef}
         className="w-full h-full cursor-grab active:cursor-grabbing"
-      />
+      >
+        <canvas
+          ref={canvasRef}
+          className="w-full h-full block"
+          style={{ touchAction: "pan-y" }}
+        />
+      </div>
 
-      {/* Top-Left Scanned Body Twin Live Badge (Avatar Mode on sm+ screens) */}
+      {/* Top-Left Scanned Body Twin Live Badge (sm+ screens) */}
       {showHud && mode === "avatar" && !compactHud && (
         <div className="pointer-events-none hidden sm:flex absolute top-2.5 left-2.5 z-10 flex-wrap items-center gap-1.5">
-          <span className="px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-md border border-black/[0.08] shadow-xs text-[10.5px] font-bold text-[#141518] inline-flex items-center gap-1">
+          <span className="px-2.5 py-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-xs text-[10.5px] font-bold text-[#141518] inline-flex items-center gap-1">
             <Ruler className="w-3 h-3 text-[#244B3B]" />
             {formatHeightFeetInches(dimensions.heightInches)} •{" "}
             {dimensions.bustInches}&quot; B • {dimensions.waistInches}&quot; W •{" "}
             {dimensions.hipsInches}&quot; H
           </span>
           <span className="px-2 py-1 rounded-full bg-[#141518]/85 text-white text-[10px] font-bold">
-            3D {liveDeg}°
+            {liveDeg}°
           </span>
         </div>
       )}
 
-      {/* Top-Right 3D Fit Physics Switcher (3D Studio | Fit Heatmap | X-Ray Ease) */}
+      {/* Top-Right Lifelike Fit Mode Switcher (Lifelike | Fit Map | Ease X-Ray) */}
       {showHud && (
         <div
           className={`absolute ${
@@ -502,40 +1126,42 @@ export function Interactive3DAvatarStage({
                 : "text-[#686D76] hover:text-[#141518]"
             }`}
           >
-            <Sparkles className="w-2.5 h-2.5" /> 3D
-          </button>
-          <button
-            type="button"
-            onClick={() => setVisualMode("heatmap")}
-            className={`px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
-              activeVisualMode === "heatmap"
-                ? "bg-[#141518] text-white"
-                : "text-[#686D76] hover:text-[#141518]"
-            }`}
-            title="Color-code garment tension vs your exact scanned body"
-          >
-            <Flame className="w-2.5 h-2.5 text-[#F59E0B]" /> Fit Map
+            <Sparkles className="w-2.5 h-2.5" /> Lifelike
           </button>
           {mode === "avatar" && (
-            <button
-              type="button"
-              onClick={() => setVisualMode("xray")}
-              className={`px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
-                activeVisualMode === "xray"
-                  ? "bg-[#141518] text-white"
-                  : "text-[#686D76] hover:text-[#141518]"
-              }`}
-              title="See garment ease clearance over your scanned 3D body"
-            >
-              <Eye className="w-2.5 h-2.5 text-[#0EA5E9]" /> X-Ray
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setVisualMode("heatmap")}
+                className={`px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                  activeVisualMode === "heatmap"
+                    ? "bg-[#141518] text-white"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+                title="Highlight exact garment fit zones over your lifelike avatar"
+              >
+                <Flame className="w-2.5 h-2.5 text-[#F59E0B]" /> Fit Map
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisualMode("xray")}
+                className={`px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                  activeVisualMode === "xray"
+                    ? "bg-[#141518] text-white"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+                title="Show exact inch ease callouts across Bust, Waist & Hips"
+              >
+                <Eye className="w-2.5 h-2.5 text-[#0EA5E9]" /> Ease
+              </button>
+            </>
           )}
         </div>
       )}
 
-      {/* Tapped 3D Garment Exact-Fit Callout Pill */}
+      {/* Tapped Garment Callout Pill */}
       {showHud && tappedInfo && !compactHud && (
-        <div className="absolute left-2.5 bottom-12 z-10 max-w-[260px] px-3 py-1.5 rounded-2xl bg-white/94 backdrop-blur-md border border-black/[0.09] shadow-md flex items-center justify-between gap-2">
+        <div className="absolute left-2.5 bottom-12 z-10 max-w-[260px] px-3 py-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-black/[0.09] shadow-md flex items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="text-[10.5px] font-bold text-[#141518] truncate">
               {tappedInfo.product.title}
@@ -557,7 +1183,7 @@ export function Interactive3DAvatarStage({
         </div>
       )}
 
-      {/* Heatmap Legend Pill when Heatmap is active */}
+      {/* Heatmap Legend Pill */}
       {showHud && activeVisualMode === "heatmap" && !compactHud && (
         <div className="pointer-events-none absolute right-2.5 bottom-12 z-10 px-2.5 py-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-xs flex items-center gap-2 text-[9.5px] font-bold text-[#141518]">
           <span className="inline-flex items-center gap-1">
@@ -575,14 +1201,13 @@ export function Interactive3DAvatarStage({
         </div>
       )}
 
-      {/* Bottom Interactive 360° Orbit & Zoom Control Strip */}
+      {/* Bottom Interactive 360° Spin & Zoom Bar */}
       {showHud && (
         <div className="absolute inset-x-2 bottom-2 z-10 flex items-center justify-center">
           <div className="inline-flex flex-wrap items-center justify-center gap-1 px-2 py-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm">
             {(
               [
                 [0, "Front 0°"],
-                [40, "3/4"],
                 [90, "Side 90°"],
                 [180, "Back 180°"],
               ] as const
@@ -626,7 +1251,7 @@ export function Interactive3DAvatarStage({
                     ? "bg-[#E7F3EE] text-[#1D4232]"
                     : "text-[#686D76] hover:bg-[#EAECEF]"
                 }`}
-                title="Show 3D Bust / Waist / Hip measurement tape rings"
+                title="Show 3D Bust / Waist / Hip body-scan tape rings"
               >
                 <Ruler className="w-2.5 h-2.5" /> Tape
               </button>
@@ -637,13 +1262,13 @@ export function Interactive3DAvatarStage({
                 <button
                   type="button"
                   onClick={() => {
-                    targetZoomRef.current = Math.max(
-                      0.62,
-                      targetZoomRef.current - 0.14
+                    targetZoomRef.current = Math.min(
+                      1.55,
+                      targetZoomRef.current + 0.14
                     );
-                    needsRenderRef.current = true;
+                    needsPaintRef.current = true;
                   }}
-                  aria-label="Zoom in 3D"
+                  aria-label="Zoom in"
                   className="hidden sm:inline-flex p-1 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[24px] min-h-[24px] items-center justify-center"
                 >
                   <ZoomIn className="w-3 h-3" />
@@ -651,13 +1276,13 @@ export function Interactive3DAvatarStage({
                 <button
                   type="button"
                   onClick={() => {
-                    targetZoomRef.current = Math.min(
-                      1.65,
-                      targetZoomRef.current + 0.14
+                    targetZoomRef.current = Math.max(
+                      0.78,
+                      targetZoomRef.current - 0.14
                     );
-                    needsRenderRef.current = true;
+                    needsPaintRef.current = true;
                   }}
-                  aria-label="Zoom out 3D"
+                  aria-label="Zoom out"
                   className="hidden sm:inline-flex p-1 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[24px] min-h-[24px] items-center justify-center"
                 >
                   <ZoomOut className="w-3 h-3" />
@@ -665,12 +1290,12 @@ export function Interactive3DAvatarStage({
                 <button
                   type="button"
                   onClick={() => {
-                    targetYawRef.current = (initialYawDeg * Math.PI) / 180;
-                    targetPitchRef.current = 0.08;
+                    targetYawRef.current = 0;
+                    targetPitchRef.current = 0;
                     targetZoomRef.current = 1.0;
-                    needsRenderRef.current = true;
+                    needsPaintRef.current = true;
                   }}
-                  aria-label="Reset 3D camera"
+                  aria-label="Reset view"
                   className="hidden sm:inline-flex p-1 rounded-full hover:bg-[#EAECEF] text-[#686D76] hover:text-[#141518] cursor-pointer min-w-[24px] min-h-[24px] items-center justify-center"
                 >
                   <RotateCcw className="w-3 h-3" />

@@ -437,7 +437,7 @@ export function VellGwoStudio() {
       {
         slots: {
           topId: "prod-ae-espresso-corset", // OWNED
-          bottomId: "prod-ae-vintage-indigo-jeans", // NEW STORE JEANS ($58)
+          bottomId: "prod-ae-vintage-wide-denim", // NEW STORE JEANS ($58)
           dressId: null,
           outerwearId: null,
           shoesId: "prod-ae-noir-slingbacks", // OWNED

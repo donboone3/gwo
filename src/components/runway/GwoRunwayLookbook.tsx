@@ -656,7 +656,7 @@ export function GwoRunwayLookbook() {
         botAvatarIdx = 0;
       else if (selectedCustomIds.includes("prod-ae-noir-pleated-mini"))
         botAvatarIdx = 1;
-      else if (selectedCustomIds.includes("prod-ae-vintage-indigo-jeans"))
+      else if (selectedCustomIds.includes("prod-ae-vintage-wide-denim"))
         botAvatarIdx = 7;
       else if (selectedCustomIds.includes("prod-ae-sage-flare-leggings"))
         botAvatarIdx = 8;
@@ -731,7 +731,7 @@ export function GwoRunwayLookbook() {
                         : "text-[#686D76] hover:text-[#141518]"
                     }`}
                   >
-                    <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> 3D Avatar
+                    <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> 360° Lifelike
                   </button>
                   <button
                     type="button"
@@ -743,7 +743,7 @@ export function GwoRunwayLookbook() {
                         : "text-[#686D76] hover:text-[#141518]"
                     }`}
                   >
-                    <Images className="w-3 h-3" /> Lookbook
+                    <Images className="w-3 h-3" /> Runway Lineup
                   </button>
                 </div>
 

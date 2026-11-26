@@ -142,9 +142,16 @@ export function CustomerAvatarModal() {
     return () => cancelAnimationFrame(id);
   }, [avatarModalOpen, crop, label, sourceDataUrl]);
 
-  // Sample outfit pieces to preview how store clothing fits the scanned 3D body live!
+  // Sample outfit pieces to preview how store clothing fits the scanned body live!
   const sampleWornPieces = useMemo(() => {
-    if (!previewSampleFit || products.length === 0) return [];
+    if (products.length === 0) return [];
+    if (!previewSampleFit) {
+      const dress = products.find((p) => p.id === "prod-ae-crimson-corset-mini") || products[0];
+      const bag = products.find((p) => p.id === "prod-ae-noir-quilted-bag");
+      return [dress, bag]
+        .filter((Boolean as unknown) as <T>(x: T | undefined) => x is T)
+        .map((product) => ({ product }));
+    }
     const top = products.find((p) => p.id === "prod-ae-espresso-corset") || products[0];
     const bot = products.find((p) => p.id === "prod-ae-champagne-trousers");
     const heels = products.find((p) => p.id === "prod-ae-gold-strappy-heels");
@@ -430,7 +437,7 @@ export function CustomerAvatarModal() {
                 onClick={() => setPreviewSampleFit((v) => !v)}
                 className="px-2.5 py-1.5 rounded-full bg-white border border-black/10 text-[11px] font-bold text-[#141518] hover:bg-[#EAECEF] cursor-pointer shrink-0"
               >
-                {previewSampleFit ? "Show Base Body" : "Test Store Outfit"}
+                {previewSampleFit ? "Test Dress Fit" : "Test Corset Set"}
               </button>
             </div>
           </div>

@@ -71,7 +71,9 @@ export function resolveLifelikeAvatarPhotos(params: {
     const back =
       explicitBackUrl ||
       `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_back.webp?v=ae2`;
-    const side = explicitSideUrl || front;
+    const side =
+      explicitSideUrl ||
+      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_side.webp?v=ae3`;
     return {
       frontUrl: front,
       backUrl: back,
@@ -111,11 +113,12 @@ export function resolveLifelikeAvatarPhotos(params: {
 
   const front = `${BASE}/models/runway_ai/ae_outfit_${fallbackIdx}_front.webp?v=ae2`;
   const back = `${BASE}/models/runway_ai/ae_outfit_${fallbackIdx}_back.webp?v=ae2`;
+  const side = `${BASE}/models/runway_ai/ae_outfit_${fallbackIdx}_side.webp?v=ae3`;
   return {
     frontUrl: front,
     backUrl: back,
-    sideUrl: front,
-    spinFrames: [front, front, back, front],
+    sideUrl: side,
+    spinFrames: [front, front, side, back, back, back, side, front],
     outfitLabel: product?.title || "GWO Boutique Look",
   };
 }
