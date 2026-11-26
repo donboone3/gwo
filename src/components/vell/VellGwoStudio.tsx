@@ -439,7 +439,7 @@ export function VellGwoStudio() {
   ]);
 
   return (
-    <div className="relative h-[calc(100svh-64px)] w-full overflow-hidden select-none bg-[#E7EAEF]">
+    <div className="relative min-h-[calc(100svh-64px)] lg:h-[calc(100svh-64px)] w-full overflow-x-hidden lg:overflow-hidden select-none bg-[#E7EAEF]">
       <style>{`
         .gwo-fig-layer {
           position: absolute;
@@ -492,9 +492,9 @@ export function VellGwoStudio() {
       <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-black/18 pointer-events-none" />
 
       {/* ==================== RESPONSIVE 3-ZONE STUDIO GRID ==================== */}
-      <div className="relative z-10 h-full max-w-[1520px] mx-auto px-4 sm:px-6 py-4 flex flex-col lg:flex-row items-stretch justify-between gap-4">
+      <div className="relative z-10 min-h-[calc(100svh-64px)] lg:h-full max-w-[1520px] mx-auto px-3 sm:px-5 py-3 sm:py-4 flex flex-col lg:flex-row items-stretch justify-between gap-3 sm:gap-4">
         {/* ==================== LEFT PANEL: MY PHOTO AVATAR, CLOSETS & FIT PROFILE ==================== */}
-        <aside className="hidden lg:flex lg:w-[314px] shrink-0 flex-col justify-between rounded-3xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-5 overflow-y-auto">
+        <aside className="hidden lg:flex lg:w-[304px] xl:w-[314px] lg:h-full shrink-0 flex-col justify-between rounded-3xl bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 xl:p-5 overflow-y-auto">
           <div className="space-y-4">
             {/* Customer Photo Avatar Card */}
             <div className="p-3.5 rounded-2xl bg-[#F4F8F5] border border-[#CBE2D4] space-y-2">
@@ -620,7 +620,7 @@ export function VellGwoStudio() {
                 <button
                   type="button"
                   onClick={() => setEditingFit((v) => !v)}
-                  className="text-[11px] font-semibold text-[#244B3B] hover:underline cursor-pointer"
+                  className="px-2.5 py-1 rounded-full bg-white border border-black/[0.08] text-[11px] font-bold text-[#244B3B] hover:bg-[#EBF3EE] cursor-pointer"
                 >
                   {editingFit ? "Done" : "Edit"}
                 </button>
@@ -751,178 +751,137 @@ export function VellGwoStudio() {
           </button>
         </aside>
 
-        {/* ==================== CENTER STAGE: PHOTOREAL AVATAR ==================== */}
-        <div className="relative flex-1 flex flex-col items-center justify-between min-h-[340px]">
-          {/* Subtle Top Look Pill */}
-          <div className="px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-md border border-black/[0.07] shadow-xs flex items-center gap-2 text-xs">
-            {customAvatar && (
-              <img
-                src={customAvatar.badgeDataUrl}
-                alt="You"
-                className="w-4 h-4 rounded-full object-cover"
-              />
-            )}
-            <span className="font-bold text-[#141518]">{currentLook.name}</span>
-            {currentLook.friendOwner && (
-              <span className="text-[#244B3B] font-semibold">
-                • {customAvatar ? "On You" : `From @${currentLook.friendOwner}'s Closet`} ({currentLook.friendTwinPct}% Twin)
-              </span>
-            )}
-          </div>
-
-          {/* Interactive Avatar Frame (Exact 1360:2048 Aspect Box so Customer Face Locks Pixel-for-Pixel!) */}
-          <div
-            ref={modelBoxRef}
-            onPointerDown={(e) => {
-              swipeStartXRef.current = e.clientX;
-            }}
-            onPointerUp={(e) => {
-              if (swipeStartXRef.current === null) return;
-              const dx = e.clientX - swipeStartXRef.current;
-              swipeStartXRef.current = null;
-              if (Math.abs(dx) > 40 && !dragItem) {
-                void swapToLook(lookIdx + (dx < 0 ? 1 : -1));
-              }
-            }}
-            className={`relative flex-1 min-h-0 my-2 flex items-end justify-center cursor-grab active:cursor-grabbing transition-transform duration-500 will-change-transform ${
-              zoomed ? "scale-[1.42] translate-y-28" : "scale-100"
-            }`}
-          >
-            <div className="relative h-full aspect-[1360/2048]">
-              {/* Drop Halo when dragging an item onto avatar */}
-              {overAvatar && (
-                <div className="absolute inset-x-2 inset-y-2 rounded-3xl border-2 border-dashed border-white bg-white/20 z-30 flex items-start justify-center pt-4 pointer-events-none">
-                  <span className="px-3 py-1 rounded-full bg-[#141518] text-white text-[11px] font-bold shadow-lg">
-                    Drop to Try On Avatar
-                  </span>
-                </div>
-              )}
-
-              {/* Floor Shadow */}
-              <div
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-56 h-7 rounded-full pointer-events-none"
-                style={{
-                  background:
-                    "radial-gradient(closest-side, rgba(25,26,30,0.42), transparent)",
-                }}
-              />
-
-              {/* Stacked Outfit Cutout Layers */}
-              <div ref={figsRef} className="absolute inset-0 pointer-events-none" />
-
-              {/* Live Imported URL Garment Draped on Avatar Torso/Legs when Flat-Lay Mode Active */}
-              {activeImportedProduct?.imageUrl && drapeFlatLay && (
-                <img
-                  src={activeImportedProduct.imageUrl}
-                  alt={activeImportedProduct.title}
-                  style={{
-                    left: "50%",
-                    top:
-                      activeImportedProduct.category === "bottom"
-                        ? "58%"
-                        : activeImportedProduct.category === "dress"
-                        ? "46%"
-                        : activeImportedProduct.category === "shoes"
-                        ? "88%"
-                        : "34%",
-                    width:
-                      activeImportedProduct.category === "shoes"
-                        ? "32%"
-                        : activeImportedProduct.category === "dress"
-                        ? "48%"
-                        : "44%",
-                  }}
-                  className="absolute -translate-x-1/2 -translate-y-1/2 object-contain mix-blend-multiply pointer-events-none z-14"
-                />
-              )}
-
-              {/* Customer Uploaded Photo Avatar Face Overlay (Exact 1360x2048 Head Coordinates) */}
+        {/* ==================== CENTER STAGE: UNOBSTRUCTED PHOTOREAL AVATAR ==================== */}
+        <div className="relative flex-1 min-w-0 flex flex-col items-center justify-between h-[56svh] min-h-[400px] lg:h-full lg:min-h-0">
+          {/* Clean Top Bar (Never Overlaps Avatar Head!) */}
+          <div className="shrink-0 z-20 flex flex-wrap items-center justify-center gap-1.5">
+            <div className="px-3.5 py-1.5 rounded-full bg-white/94 backdrop-blur-md border border-black/[0.07] shadow-xs flex items-center gap-2 text-xs">
               {customAvatar && (
                 <img
-                  src={customAvatar.faceOvalDataUrl}
-                  alt="Your uploaded avatar face"
-                  decoding="async"
-                  style={{
-                    left: "49.95%",
-                    top: "13.2%",
-                    width: "12.9%",
-                    height: "9.7%",
-                  }}
-                  className="absolute -translate-x-1/2 -translate-y-1/2 object-fill pointer-events-none z-15"
+                  src={customAvatar.badgeDataUrl}
+                  alt="You"
+                  className="w-4 h-4 rounded-full object-cover"
                 />
               )}
-
-              <div ref={scanRef} className="gwo-scan-beam" />
+              <span className="font-bold text-[#141518]">{currentLook.name}</span>
+              {currentLook.friendOwner && (
+                <span className="text-[#244B3B] font-semibold">
+                  • {customAvatar ? "On You" : `@${currentLook.friendOwner}`}{" "}
+                  <span className="hidden sm:inline">
+                    ({currentLook.friendTwinPct}% Twin)
+                  </span>
+                </span>
+              )}
             </div>
 
-            {/* Floating Imported Store Clothing Card Right Beside Avatar Stage */}
-            {activeImportedProduct && (
-              <div
-                id="gwo-stage-imported-card"
-                onPointerDown={(e) => e.stopPropagation()}
-                className="absolute right-2 sm:right-4 top-10 z-25 w-40 sm:w-44 rounded-2xl bg-white/95 backdrop-blur-md border border-black/[0.09] shadow-xl p-2.5 space-y-2"
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#244B3B] truncate">
-                    {activeImportedProduct.brand}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveImportedProduct(null)}
-                    className="p-1 rounded-full hover:bg-[#F1F2F5] text-[#686D76] cursor-pointer"
-                    title="Clear imported store piece"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-
-                <div className="w-full h-36 rounded-xl overflow-hidden bg-[#F6F7F9] border border-black/[0.05]">
-                  <GarmentArtwork
-                    product={activeImportedProduct}
-                    className="w-full h-full"
-                  />
-                </div>
-
-                <div>
-                  <p className="text-[11px] font-bold text-[#141518] line-clamp-2 leading-tight">
-                    {activeImportedProduct.title}
-                  </p>
-                  <p className="text-[11px] font-semibold text-[#244B3B] mt-0.5">
-                    ${activeImportedProduct.price} • Fit:{" "}
-                    {activeImportedFit?.recommendedSize || recSize} (
-                    {activeImportedFit?.confidencePct || 94}%)
-                  </p>
-                </div>
-
-                <Link
-                  href={`/product?id=${encodeURIComponent(
-                    activeImportedProduct.id
-                  )}&view=3d`}
-                  className="w-full py-1.5 rounded-full text-[10px] font-bold bg-[#141518] hover:bg-[#27292E] text-white flex items-center justify-center gap-1 transition"
-                >
-                  <Box className="w-3 h-3 text-[#A7D7C5]" /> 3D Exact-Fit Mock
-                </Link>
-
-                {activeImportedProduct.imageUrl && (
-                  <button
-                    type="button"
-                    onClick={() => setDrapeFlatLay((v) => !v)}
-                    className="w-full py-1.5 rounded-full text-[10px] font-bold bg-[#F1F2F5] hover:bg-[#E4E7EC] text-[#141518] cursor-pointer transition"
-                  >
-                    {drapeFlatLay ? "Hide On-Body Overlay" : "Overlay on Avatar"}
-                  </button>
-                )}
-              </div>
-            )}
+            {/* Compact Mobile Fit Summary Pill (since Left Panel is lg+ only) */}
+            <button
+              type="button"
+              onClick={() => setAvatarModalOpen(true)}
+              className="lg:hidden px-3 py-1.5 rounded-full bg-[#EBF3EE] border border-[#C5DFD0] text-[11px] font-bold text-[#1D4232] inline-flex items-center gap-1 cursor-pointer"
+            >
+              <Ruler className="w-3 h-3" />
+              {Math.floor(activeHeight / 12)}&apos;{Math.round(activeHeight % 12)}&quot; • Size{" "}
+              {recSize}
+            </button>
           </div>
 
-          {/* Clean Minimal Bottom Stage Controls */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-lg z-20">
+          {/* Contained Interactive Avatar Viewport (overflow-hidden ensures Zoom NEVER overlaps top/bottom controls!) */}
+          <div className="relative flex-1 w-full min-h-0 my-1.5 flex items-end justify-center overflow-hidden">
+            <div
+              ref={modelBoxRef}
+              onPointerDown={(e) => {
+                swipeStartXRef.current = e.clientX;
+              }}
+              onPointerUp={(e) => {
+                if (swipeStartXRef.current === null) return;
+                const dx = e.clientX - swipeStartXRef.current;
+                swipeStartXRef.current = null;
+                if (Math.abs(dx) > 40 && !dragItem) {
+                  void swapToLook(lookIdx + (dx < 0 ? 1 : -1));
+                }
+              }}
+              className={`relative h-full flex items-end justify-center cursor-grab active:cursor-grabbing transition-transform duration-500 will-change-transform ${
+                zoomed ? "scale-[1.35] translate-y-20" : "scale-100"
+              }`}
+            >
+              <div className="relative h-full aspect-[1360/2048]">
+                {/* Drop Halo when dragging an item onto avatar */}
+                {overAvatar && (
+                  <div className="absolute inset-x-2 inset-y-2 rounded-3xl border-2 border-dashed border-white bg-white/20 z-30 flex items-start justify-center pt-4 pointer-events-none">
+                    <span className="px-3 py-1 rounded-full bg-[#141518] text-white text-[11px] font-bold shadow-lg">
+                      Drop to Try On Avatar
+                    </span>
+                  </div>
+                )}
+
+                {/* Floor Shadow */}
+                <div
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2 w-56 h-7 rounded-full pointer-events-none"
+                  style={{
+                    background:
+                      "radial-gradient(closest-side, rgba(25,26,30,0.42), transparent)",
+                  }}
+                />
+
+                {/* Stacked Outfit Cutout Layers */}
+                <div ref={figsRef} className="absolute inset-0 pointer-events-none" />
+
+                {/* Live Imported URL Garment Draped on Avatar Torso/Legs when Flat-Lay Mode Active */}
+                {activeImportedProduct?.imageUrl && drapeFlatLay && (
+                  <img
+                    src={activeImportedProduct.imageUrl}
+                    alt={activeImportedProduct.title}
+                    style={{
+                      left: "50%",
+                      top:
+                        activeImportedProduct.category === "bottom"
+                          ? "58%"
+                          : activeImportedProduct.category === "dress"
+                          ? "46%"
+                          : activeImportedProduct.category === "shoes"
+                          ? "88%"
+                          : "34%",
+                      width:
+                        activeImportedProduct.category === "shoes"
+                          ? "32%"
+                          : activeImportedProduct.category === "dress"
+                          ? "48%"
+                          : "44%",
+                    }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 object-contain mix-blend-multiply pointer-events-none z-14"
+                  />
+                )}
+
+                {/* Customer Uploaded Photo Avatar Face Overlay (Exact 1360x2048 Head Coordinates) */}
+                {customAvatar && (
+                  <img
+                    src={customAvatar.faceOvalDataUrl}
+                    alt="Your uploaded avatar face"
+                    decoding="async"
+                    style={{
+                      left: "49.95%",
+                      top: "13.2%",
+                      width: "12.9%",
+                      height: "9.7%",
+                    }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 object-fill pointer-events-none z-15"
+                  />
+                )}
+
+                <div ref={scanRef} className="gwo-scan-beam" />
+              </div>
+            </div>
+          </div>
+
+          {/* Clean Minimal Bottom Stage Controls (Dedicated Dock Below Avatar!) */}
+          <div className="shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:py-2 rounded-full bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-lg z-20">
             <button
               type="button"
               onClick={() => void swapToLook(lookIdx - 1)}
               className="p-2 rounded-full hover:bg-[#F1F2F5] text-[#141518] cursor-pointer"
               title="Previous Outfit"
+              aria-label="Previous Outfit"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -930,7 +889,7 @@ export function VellGwoStudio() {
             <button
               type="button"
               onClick={() => setZoomed((z) => !z)}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-[#F1F2F5] text-[#141518] inline-flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-[#F1F2F5] text-[#141518] inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <ZoomIn className="w-3.5 h-3.5" />
               {zoomed ? "Full Body" : "Zoom Fit"}
@@ -939,10 +898,10 @@ export function VellGwoStudio() {
             <button
               type="button"
               onClick={handleAddFullLook}
-              className="px-4 py-1.5 rounded-full text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] inline-flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <ShoppingBag className="w-3.5 h-3.5" />
-              Bag Full Look (${totalLookPrice})
+              Bag Look (${totalLookPrice})
             </button>
 
             <button
@@ -950,15 +909,77 @@ export function VellGwoStudio() {
               onClick={() => void swapToLook(lookIdx + 1)}
               className="p-2 rounded-full hover:bg-[#F1F2F5] text-[#141518] cursor-pointer"
               title="Next Outfit"
+              aria-label="Next Outfit"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* ==================== RIGHT PANEL: WARDROBE, ACCESSORIES & WORN PIECES ==================== */}
-        <aside className="w-full lg:w-[390px] shrink-0 rounded-3xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-5 flex flex-col justify-between gap-4 overflow-y-auto max-h-[42vh] lg:max-h-none">
-          <div className="space-y-4">
+        {/* ==================== RIGHT PANEL: DOCKED IMPORTED PIECE, WARDROBE & WORN PIECES ==================== */}
+        <aside className="w-full lg:w-[376px] xl:w-[392px] lg:h-full shrink-0 rounded-3xl bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 xl:p-5 flex flex-col justify-between gap-3 lg:overflow-hidden">
+          <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 space-y-3.5">
+            {/* Docked Active Imported Store Piece Banner (Zero Avatar Overlap!) */}
+            {activeImportedProduct && (
+              <div
+                id="gwo-stage-imported-card"
+                className="rounded-2xl bg-[#F4F8F5] border border-[#CBE2D4] p-2.5 space-y-2"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-12 h-14 rounded-xl overflow-hidden bg-white border border-black/[0.06] shrink-0">
+                    <GarmentArtwork
+                      product={activeImportedProduct}
+                      className="w-full h-full"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#244B3B] truncate">
+                        {activeImportedProduct.brand} • Active Fit
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setActiveImportedProduct(null)}
+                        className="p-1.5 rounded-full hover:bg-black/[0.06] text-[#686D76] cursor-pointer"
+                        title="Clear active store piece"
+                        aria-label="Clear active store piece"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <p className="text-xs font-bold text-[#141518] truncate">
+                      {activeImportedProduct.title}
+                    </p>
+                    <p className="text-[11px] font-semibold text-[#1D4232]">
+                      ${activeImportedProduct.price} • Size{" "}
+                      {activeImportedFit?.recommendedSize || recSize} (
+                      {activeImportedFit?.confidencePct || 94}% Match)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Link
+                    href={`/product?id=${encodeURIComponent(
+                      activeImportedProduct.id
+                    )}&view=3d`}
+                    className="flex-1 py-1.5 px-2.5 rounded-full text-[11px] font-bold bg-[#141518] hover:bg-[#27292E] text-white flex items-center justify-center gap-1 transition"
+                  >
+                    <Box className="w-3 h-3 text-[#A7D7C5]" /> 3D Exact-Fit Mock
+                  </Link>
+                  {activeImportedProduct.studioLookIndex === undefined &&
+                    activeImportedProduct.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setDrapeFlatLay((v) => !v)}
+                        className="py-1.5 px-2.5 rounded-full text-[11px] font-bold bg-white hover:bg-[#EAECEF] border border-black/10 text-[#141518] cursor-pointer transition"
+                      >
+                        {drapeFlatLay ? "Hide Drape" : "Drape"}
+                      </button>
+                    )}
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold text-[#141518]">
@@ -1186,7 +1207,7 @@ export function VellGwoStudio() {
           </div>
 
           {/* ==================== CURRENTLY WORN PIECES ==================== */}
-          <div className="pt-3 border-t border-black/[0.08] space-y-2">
+          <div className="shrink-0 pt-2.5 border-t border-black/[0.08] space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-[#686D76]">
                 In This Outfit ({currentPieces.length})
@@ -1196,7 +1217,7 @@ export function VellGwoStudio() {
               </span>
             </div>
 
-            <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
               {currentPieces.map((piece) => {
                 const alreadyInBag = bagItems.some(
                   (b) => b.title === piece.name

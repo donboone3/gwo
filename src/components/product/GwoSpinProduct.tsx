@@ -284,7 +284,6 @@ export function GwoSpinProduct() {
   }, [activeProduct]);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const artRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const cvRef = useRef<HTMLCanvasElement | null>(null);
   const userFaceRef = useRef<HTMLImageElement | null>(null);
@@ -292,7 +291,6 @@ export function GwoSpinProduct() {
   const degNumRef = useRef<HTMLSpanElement | null>(null);
   const addBagBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  const kScaleRef = useRef(1);
   const spinToFnRef = useRef<((targetAng: number) => void) | null>(null);
 
   const [openSection, setOpenSection] = useState<string>("Fit & Description");
@@ -302,25 +300,6 @@ export function GwoSpinProduct() {
   const [facingFront, setFacingFront] = useState(true);
   const [activeAngleTab, setActiveAngleTab] = useState<"front" | "side" | "back">("front");
   const [isDraggingUi, setIsDraggingUi] = useState(false);
-
-  // Auto-scale 1500x920 board inside calc(100svh - 64px)
-  useEffect(() => {
-    const applyBoardScale = () => {
-      const art = artRef.current;
-      const root = rootRef.current;
-      if (!art || !root) return;
-      const rw = root.clientWidth || window.innerWidth;
-      const rh = root.clientHeight || window.innerHeight - 64;
-      const K = Math.min(rw / 1500, rh / 920);
-      kScaleRef.current = K;
-      art.style.left = `${rw / 2}px`;
-      art.style.top = `${rh / 2}px`;
-      art.style.transform = `scale(${K}) translate(-750px, -460px)`;
-    };
-    applyBoardScale();
-    window.addEventListener("resize", applyBoardScale);
-    return () => window.removeEventListener("resize", applyBoardScale);
-  }, []);
 
   // Instant 8-Angle Signature Avatar Turnaround Engine (only decodes/runs when 360° turntable is visible!)
   useEffect(() => {
@@ -482,7 +461,7 @@ export function GwoSpinProduct() {
       lastX = e.clientX;
       lastMoveTime = now;
 
-      const dAng = -dx / kScaleRef.current / 760;
+      const dAng = -dx / 560;
       ang = wrap1(ang + dAng);
       estV = ((dAng / dtMs) * 1000) * 0.6 + estV * 0.4;
       showFrame(ang);
@@ -680,593 +659,187 @@ export function GwoSpinProduct() {
 
   return (
     <div className="sp-root" ref={rootRef}>
-      <div id="sp-art" ref={artRef}>
-        {/* Subtle White Connector Lines when in 360 Turntable Mode */}
-        {!showRichFitStage && (
-          <svg id="sp-connectors" viewBox="0 0 1500 920">
-            <path
-              d="M450 350H562L592 318H618"
-              stroke="#ffffff"
-              strokeWidth="2"
-              fill="none"
-              pathLength={1}
-              style={{
-                strokeDasharray: 1,
-                strokeDashoffset: facingFront ? 0 : 1,
-                transition: facingFront
-                  ? "stroke-dashoffset 0.7s ease"
-                  : "stroke-dashoffset 0.35s ease",
-              }}
-            />
-            <path
-              d="M1054 520H962L937 428H900"
-              stroke="#ffffff"
-              strokeWidth="2"
-              fill="none"
-              pathLength={1}
-              style={{
-                strokeDasharray: 1,
-                strokeDashoffset: facingFront ? 0 : 1,
-                transition: facingFront
-                  ? "stroke-dashoffset 0.7s ease"
-                  : "stroke-dashoffset 0.35s ease",
-              }}
-            />
-          </svg>
-        )}
-
-        {/* ==================== CENTER STAGE A: 360° TURNTABLE ==================== */}
-        <div
-          id="sp-stage"
-          ref={stageRef}
-          style={{ display: showRichFitStage ? "none" : "block" }}
-          className={isDraggingUi ? "dragging" : ""}
-        >
-          <canvas id="sp-cv" ref={cvRef} width={STAGE_W} height={STAGE_H} />
-
-          {customAvatar && (
-            <img
-              ref={userFaceRef}
-              src={customAvatar.faceOvalDataUrl}
-              alt="Your photo avatar"
-              decoding="async"
-              style={{
-                position: "absolute",
-                left: "50.0%",
-                top: "12.4%",
-                width: "13.0%",
-                height: "9.8%",
-                transform: "translate3d(-50%, -50%, 0)",
-                willChange: "transform, opacity",
-                pointerEvents: "none",
-                zIndex: 18,
-              }}
-            />
-          )}
-
-          {HOTSPOTS.map((hs, idx) => (
-            <button
-              key={hs.title}
-              type="button"
-              className={`sp-hs ${facingFront ? "show" : ""}`}
-              style={{
-                left: `${hs.x * 100}%`,
-                top: `${hs.y * 100}%`,
-                transitionDelay: facingFront ? `${idx * 0.08}s` : "0s",
-              }}
-              aria-label={hs.title}
-            >
-              <span>+</span>
-              <span className={`sp-tip ${hs.x > 0.5 ? "right" : "left"}`}>
-                <span className="sp-tip-title">{hs.title}</span>
-                {hs.text}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {!showRichFitStage && (
-          <div id="sp-deg">
-            <span>DRAG MODEL TO SPIN 360°</span>
-            <span className="sp-deg-bar">
-              <span ref={degDotRef} className="sp-deg-dot" style={{ left: "0%" }} />
-            </span>
-            <span ref={degNumRef} className="sp-deg-num">
-              000°
-            </span>
-          </div>
-        )}
-
-        {/* ==================== CENTER STAGE B: 3D PARAMETRIC MOCK, MULTI-ANGLE & AVATAR PROPORTION VIEW ==================== */}
-        {showRichFitStage && (
-          <div
-            style={{
-              position: "absolute",
-              left: 468,
-              top: 38,
-              width: 564,
-              height: 844,
-              zIndex: 16,
-            }}
-            className="flex flex-col items-center justify-between gap-3"
-          >
-            {/* Stage Mode Switcher Pill */}
-            <div className="flex flex-wrap items-center justify-center gap-1 p-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm">
-              <button
-                type="button"
-                id="gwo-stage-tab-3d"
-                onClick={() => setStageViewMode("3d")}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
-                  stageViewMode === "3d"
-                    ? "bg-[#141518] text-white"
-                    : "text-[#686D76] hover:text-[#141518]"
-                }`}
+      <div className="max-w-[1520px] mx-auto min-h-[calc(100svh-64px)] lg:h-full px-3 sm:px-5 py-3 sm:py-4 grid grid-cols-1 lg:grid-cols-[356px_minmax(0,1fr)_356px] xl:grid-cols-[406px_minmax(0,1fr)_406px] gap-3.5 sm:gap-4 items-stretch">
+        {/* ==================== LEFT CARD: EXTRACTED STORE DESCRIPTION, MODEL & FABRIC ==================== */}
+        <section className="order-3 lg:order-1 lg:h-full lg:min-h-0 rounded-3xl bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 sm:p-5 flex flex-col justify-between gap-3 lg:overflow-hidden">
+          <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 space-y-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F4F5F7] hover:bg-[#E7E9EE] text-xs font-semibold text-[#141518]"
               >
-                <Box className="w-3.5 h-3.5 text-[#A7D7C5]" /> 3D Fit Mock
-              </button>
-              {activeProduct.studioLookIndex !== undefined && (
+                <ArrowLeft className="w-3.5 h-3.5" /> Closet
+              </Link>
+
+              {matchedCatalogProduct ? (
                 <button
                   type="button"
-                  id="gwo-stage-tab-avatar"
-                  onClick={() => setStageViewMode("avatar")}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
-                    stageViewMode === "avatar"
-                      ? "bg-[#141518] text-white"
-                      : "text-[#686D76] hover:text-[#141518]"
-                  }`}
+                  onClick={() => setForceTurntableMode((v) => !v)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F1F2F5] hover:bg-[#E4E7EC] text-xs font-bold text-[#141518] cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" /> Your Avatar
+                  <Rotate3d className="w-3.5 h-3.5" />
+                  {isStoreUrlMode
+                    ? "360° Studio Demo"
+                    : `Back to ${matchedCatalogProduct.brand}`}
                 </button>
-              )}
-              {isStoreUrlMode ? (
-                <>
-                  <button
-                    type="button"
-                    id="gwo-stage-tab-compare"
-                    onClick={() => setStageViewMode("compare")}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
-                      stageViewMode === "compare"
-                        ? "bg-[#141518] text-white"
-                        : "text-[#686D76] hover:text-[#141518]"
-                    }`}
-                  >
-                    <Columns2 className="w-3.5 h-3.5" /> Model vs You ({avatarHeightDisp})
-                  </button>
-                  <button
-                    type="button"
-                    id="gwo-stage-tab-store"
-                    onClick={() => setStageViewMode("store")}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
-                      stageViewMode === "store"
-                        ? "bg-[#141518] text-white"
-                        : "text-[#686D76] hover:text-[#141518]"
-                    }`}
-                  >
-                    <Images className="w-3.5 h-3.5" /> Store Photos
-                  </button>
-                </>
+              ) : activeImportedProduct ? (
+                <Link
+                  href={`/product?id=${encodeURIComponent(activeImportedProduct.id)}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#E7F3EE] hover:bg-[#D8ECE3] text-xs font-bold text-[#1D4232]"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> {activeImportedProduct.brand} Fit
+                </Link>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setTurntable3dMode(false)}
-                  className="px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 text-[#686D76] hover:text-[#141518] cursor-pointer transition"
-                >
-                  <Rotate3d className="w-3.5 h-3.5" /> 360° Studio Spin
-                </button>
-              )}
-            </div>
-
-            {/* Main Visual Frame */}
-            {stageViewMode === "3d" ? (
-              <Parametric3DFitMock
-                product={activeProduct}
-                selectedSize={selectedSize}
-                fitReport={liveFitReport}
-                avatar={{
-                  heightInches: activeHeight,
-                  bustInches: activeBust,
-                  waistInches: activeWaist,
-                  hipsInches: activeHips,
-                  skinTone: customAvatar?.skinToneHex || user?.skinTone || "#D9A482",
-                }}
-                faceBadgeUrl={customAvatar?.badgeDataUrl}
-              />
-            ) : stageViewMode === "avatar" && activeProduct.studioLookIndex !== undefined ? (
-              <div className="relative w-full flex-1 rounded-3xl bg-gradient-to-b from-[#F5F6F9] to-[#E8EBF0] border border-black/[0.08] shadow-[0_18px_42px_rgba(20,21,24,0.09)] overflow-hidden flex items-end justify-center pt-4">
-                <div className="relative h-full aspect-[1360/2048] flex items-end justify-center">
-                  <div
-                    className="absolute bottom-2 left-1/2 -translate-x-1/2 w-56 h-7 rounded-full pointer-events-none"
-                    style={{
-                      background:
-                        "radial-gradient(closest-side, rgba(25,26,30,0.34), transparent)",
-                    }}
-                  />
-                  <img
-                    src={H(avatarRenderLook.file, 900)}
-                    alt={`${activeProduct.title} on Your Avatar`}
-                    className="w-full h-full object-contain"
-                  />
-                  {customAvatar && (
-                    <img
-                      src={customAvatar.faceOvalDataUrl}
-                      alt="Your face"
-                      style={{
-                        left: "49.95%",
-                        top: "13.2%",
-                        width: "12.9%",
-                        height: "9.7%",
-                      }}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 object-fill pointer-events-none"
-                    />
-                  )}
-                </div>
-
-                {/* Live On-Avatar Zone Fit Callouts */}
-                <div className="absolute right-3.5 top-3.5 flex flex-col items-end gap-1.5 pointer-events-none">
-                  {liveFitReport.zones.map((z) => (
-                    <div
-                      key={z.zone}
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold border shadow-sm backdrop-blur-md ${getZoneBadgeStyle(
-                        z.feel
-                      )}`}
-                    >
-                      {z.zone} ({z.avatarInches}&quot;): {z.feelLabel}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="absolute left-3.5 bottom-3.5 px-3 py-1 rounded-full bg-[#141518] text-white text-[11px] font-semibold">
-                  Lifelike Fit on Your Avatar ({activeBust}&quot; • {activeWaist}&quot; •{" "}
-                  {activeHips}&quot;) • Size {selectedSize}
-                </div>
-              </div>
-            ) : stageViewMode === "store" ? (
-              <div className="relative w-full flex-1 rounded-3xl bg-white/95 border border-black/[0.08] shadow-[0_18px_42px_rgba(20,21,24,0.09)] overflow-hidden flex items-center justify-center">
-                <GarmentArtwork
-                  product={{
-                    ...activeProduct,
-                    imageUrl:
-                      galleryAngles[storeAngleIdx]?.url || activeProduct.imageUrl,
-                  }}
-                  className="w-full h-full"
-                />
-
-                {/* Live On-Photo Zone Fit Callouts for Selected Size */}
-                <div className="absolute right-3.5 top-3.5 flex flex-col items-end gap-1.5 pointer-events-none">
-                  {liveFitReport.zones.map((z) => (
-                    <div
-                      key={z.zone}
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold border shadow-sm backdrop-blur-md ${getZoneBadgeStyle(
-                        z.feel
-                      )}`}
-                    >
-                      {z.zone} ({z.avatarInches}&quot;): {z.feelLabel}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Angle Caption */}
-                <div className="absolute left-3.5 bottom-3.5 px-3 py-1 rounded-full bg-black/75 text-white text-[11px] font-semibold">
-                  {galleryAngles[storeAngleIdx]?.label || "Store Photo"} • Previewing Size{" "}
-                  {selectedSize}
-                </div>
-              </div>
-            ) : (
-              /* Side-by-Side Proportional Height & Zone Comparison */
-              <div className="relative w-full flex-1 rounded-3xl bg-white/95 border border-black/[0.08] shadow-[0_18px_42px_rgba(20,21,24,0.09)] p-5 flex flex-col justify-between overflow-hidden">
-                {/* Horizontal Body Reference Guide Lines */}
-                <div
-                  style={{ top: "30%" }}
-                  className="absolute inset-x-5 border-t border-dashed border-[#244B3B]/35 pointer-events-none z-10 flex justify-end"
-                >
-                  <span className="px-2 py-0.5 -mt-2.5 rounded bg-[#E7F3EE] text-[9px] font-bold text-[#244B3B]">
-                    Bust {activeBust}&quot;
-                  </span>
-                </div>
-                <div
-                  style={{ top: "43%" }}
-                  className="absolute inset-x-5 border-t border-dashed border-[#244B3B]/35 pointer-events-none z-10 flex justify-end"
-                >
-                  <span className="px-2 py-0.5 -mt-2.5 rounded bg-[#E7F3EE] text-[9px] font-bold text-[#244B3B]">
-                    Natural Waist {activeWaist}&quot;
-                  </span>
-                </div>
-                <div
-                  style={{ top: "55%" }}
-                  className="absolute inset-x-5 border-t border-dashed border-[#244B3B]/35 pointer-events-none z-10 flex justify-end"
-                >
-                  <span className="px-2 py-0.5 -mt-2.5 rounded bg-[#E7F3EE] text-[9px] font-bold text-[#244B3B]">
-                    Hips {activeHips}&quot;
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 flex-1 items-end min-h-0 pt-3">
-                  {/* Column 1: Store Model Scaled to Height */}
-                  <div className="h-full flex flex-col items-center justify-end gap-2 min-h-0">
-                    <div
-                      style={{ height: `${Math.round(modelScaleRatio * 92)}%` }}
-                      className="w-full rounded-2xl overflow-hidden bg-[#F4F5F7] border border-black/[0.07] shadow-xs"
-                    >
-                      <GarmentArtwork
-                        product={{
-                          ...activeProduct,
-                          imageUrl:
-                            galleryAngles[0]?.url || activeProduct.imageUrl,
-                        }}
-                        className="w-full h-full"
-                      />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-bold text-[#141518]">
-                        Store Model ({modelHeightDisp})
-                      </p>
-                      <p className="text-[11px] text-[#686D76]">
-                        Wears Size{" "}
-                        {activeProduct.fitMetadata?.modelStats?.wornSize || "S"}
-                        {activeProduct.fitMetadata?.modelStats?.waistInches
-                          ? ` (${activeProduct.fitMetadata.modelStats.waistInches}"W)`
-                          : ""}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Column 2: Customer Signature Avatar Scaled to True Height */}
-                  <div className="h-full flex flex-col items-center justify-end gap-2 min-h-0">
-                    <div
-                      style={{ height: `${Math.round(avatarScaleRatio * 92)}%` }}
-                      className="relative aspect-[1360/2048] flex items-end justify-center"
-                    >
-                      <img
-                        src={H(avatarRenderLook.file, 900)}
-                        alt="Your Signature Avatar"
-                        className="w-full h-full object-contain"
-                      />
-                      {customAvatar && (
-                        <img
-                          src={customAvatar.faceOvalDataUrl}
-                          alt="Your face"
-                          style={{
-                            left: "49.95%",
-                            top: "13.2%",
-                            width: "12.9%",
-                            height: "9.7%",
-                          }}
-                          className="absolute -translate-x-1/2 -translate-y-1/2 object-fill"
-                        />
-                      )}
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-bold text-[#244B3B]">
-                        Your Avatar ({avatarHeightDisp})
-                      </p>
-                      <p className="text-[11px] text-[#686D76]">
-                        {activeBust}&quot; • {activeWaist}&quot; • {activeHips}&quot; (Rec:{" "}
-                        {liveFitReport.recommendedSize})
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-3 p-2.5 rounded-xl bg-[#F6F8F7] border border-[#CBE2D4] text-[11px] text-[#1D4232] font-medium text-center">
-                  {liveFitReport.lengthComparison.proportionNote}
-                </div>
-              </div>
-            )}
-
-            {/* Multi-Angle Store Gallery Selector */}
-            {galleryAngles.length > 1 && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm">
-                {galleryAngles.map((ang, idx) => (
+                <div className="flex items-center gap-1.5">
                   <button
-                    key={ang.url}
                     type="button"
                     onClick={() => {
-                      setStoreAngleIdx(idx);
-                      setStageViewMode("store");
+                      setTurntable3dMode((v) => !v);
+                      setStageViewMode("3d");
                     }}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold cursor-pointer transition ${
-                      storeAngleIdx === idx && stageViewMode === "store"
-                        ? "bg-[#141518] text-white border-[#141518]"
-                        : "bg-white text-[#686D76] border-black/10 hover:text-[#141518]"
-                    }`}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#E7F3EE] hover:bg-[#D5EAE0] text-xs font-bold text-[#1D4232] cursor-pointer"
                   >
-                    <img
-                      src={ang.url}
-                      alt={ang.label}
-                      className="w-6 h-7 rounded object-cover object-top"
-                    />
-                    <span>{ang.label}</span>
+                    <Box className="w-3.5 h-3.5" />
+                    {turntable3dMode ? "360° Spin" : "3D Fit Mock"}
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ==================== LEFT CARD: EXTRACTED STORE DESCRIPTION, MODEL & FABRIC ==================== */}
-        <section
-          style={{
-            position: "absolute",
-            left: 28,
-            top: 48,
-            width: 420,
-            maxHeight: 828,
-            zIndex: 20,
-          }}
-          className="rounded-3xl bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-6 space-y-4 overflow-y-auto"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#686D76] hover:text-[#141518]"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Back to Closet
-            </Link>
-
-            {matchedCatalogProduct ? (
-              <button
-                type="button"
-                onClick={() => setForceTurntableMode((v) => !v)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F1F2F5] hover:bg-[#E4E7EC] text-[11px] font-bold text-[#141518] cursor-pointer"
-              >
-                <Rotate3d className="w-3.5 h-3.5" />
-                {isStoreUrlMode ? "360° Studio Demo" : `Back to ${matchedCatalogProduct.brand}`}
-              </button>
-            ) : activeImportedProduct ? (
-              <Link
-                href={`/product?id=${encodeURIComponent(activeImportedProduct.id)}`}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#E7F3EE] hover:bg-[#D8ECE3] text-[11px] font-bold text-[#1D4232]"
-              >
-                <Sparkles className="w-3 h-3" /> Inspect {activeImportedProduct.brand} URL
-              </Link>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTurntable3dMode((v) => !v);
-                    setStageViewMode("3d");
-                  }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#E7F3EE] hover:bg-[#D5EAE0] text-[11px] font-bold text-[#1D4232] cursor-pointer"
-                >
-                  <Box className="w-3 h-3" />
-                  {turntable3dMode ? "360° Spin" : "3D Fit Mock"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAddUrlModalOpen(true)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F1F2F5] hover:bg-[#E4E7EC] text-[11px] font-bold text-[#141518] cursor-pointer"
-                >
-                  <Plus className="w-3 h-3" /> Pull Store
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#E7F3EE] text-[#244B3B]">
-                <Sparkles className="w-3 h-3" /> {activeProduct.brand} •{" "}
-                {liveFitReport.confidencePct}% Fit Confidence
-              </span>
-              {isStoreUrlMode && (
-                <a
-                  href={activeProduct.canonicalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F4F5F7] hover:bg-[#E8EAEE] text-[#141518]"
-                >
-                  Store Page <ExternalLink className="w-2.5 h-2.5" />
-                </a>
+                  <button
+                    type="button"
+                    onClick={() => setAddUrlModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#F1F2F5] hover:bg-[#E4E7EC] text-xs font-bold text-[#141518] cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Pull Store
+                  </button>
+                </div>
               )}
             </div>
 
-            <h1 className="text-xl font-bold text-[#141518] mt-2 leading-snug">
-              {activeProduct.title}
-            </h1>
-            <p className="text-lg font-bold text-[#141518] mt-1">
-              ${activeProduct.price}
-            </p>
-          </div>
-
-          {/* Store Model & Proportion Intelligence Box */}
-          <div className="p-3.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#141518] flex items-center gap-1.5">
-                <Ruler className="w-3.5 h-3.5 text-[#244B3B]" /> Store Model vs Your Avatar
-              </span>
-              <button
-                type="button"
-                onClick={() => setAvatarModalOpen(true)}
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-[#244B3B] hover:underline cursor-pointer"
-              >
-                <img
-                  src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
-                  alt=""
-                  className="w-3.5 h-3.5 rounded-full object-cover"
-                />
-                {avatarHeightDisp} Avatar
-              </button>
-            </div>
-            <p className="text-xs font-semibold text-[#141518]">
-              {liveFitReport.lengthComparison.modelSummary}
-            </p>
-            <p className="text-xs text-[#686D76] leading-relaxed">
-              {liveFitReport.lengthComparison.proportionNote}
-            </p>
-          </div>
-
-          {/* Extracted Store Description, Fabric & Body-Twin Accordion */}
-          <div className="divide-y divide-black/[0.07] border-t border-b border-black/[0.07]">
-            {[
-              {
-                id: "Fit & Description",
-                body: (
-                  <div className="space-y-2">
-                    {activeProduct.fitMetadata?.descriptionSummary && (
-                      <p className="text-xs text-[#5C6068] leading-relaxed">
-                        {activeProduct.fitMetadata.descriptionSummary}
-                      </p>
-                    )}
-                    {(activeProduct.fitMetadata?.fitNotes?.length || 0) > 0 && (
-                      <ul className="space-y-1">
-                        {activeProduct.fitMetadata!.fitNotes.map((note) => (
-                          <li
-                            key={note}
-                            className="text-[11px] text-[#141518] flex items-start gap-1.5"
-                          >
-                            <span className="text-[#244B3B] font-bold">•</span>
-                            <span>{note}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ),
-              },
-              {
-                id: "Fabric & Stretch Physics",
-                body: (
-                  <p className="text-xs text-[#5C6068] leading-relaxed">
-                    {liveFitReport.fabricSummary}
-                  </p>
-                ),
-              },
-              {
-                id: "98% Body-Twin Friend Check",
-                body: (
-                  <p className="text-xs text-[#5C6068] leading-relaxed">
-                    <HeartHandshake className="w-3.5 h-3.5 text-[#244B3B] inline mr-1" />
-                    <strong>@maya</strong> (32.5&quot; B • 27&quot; W • 34.5&quot; H) matches{" "}
-                    <strong>Size {liveFitReport.recommendedSize}</strong> for clean waist comfort without pulling.
-                  </p>
-                ),
-              },
-            ].map((row) => {
-              const open = openSection === row.id;
-              return (
-                <div key={row.id}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenSection(open ? "" : row.id)}
-                    className="w-full py-3 flex items-center justify-between text-xs font-bold text-[#141518] cursor-pointer"
+            <div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#E7F3EE] text-[#244B3B]">
+                  <Sparkles className="w-3 h-3" /> {activeProduct.brand} •{" "}
+                  {liveFitReport.confidencePct}% Fit Confidence
+                </span>
+                {isStoreUrlMode && (
+                  <a
+                    href={activeProduct.canonicalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#F4F5F7] hover:bg-[#E8EAEE] text-[#141518]"
                   >
-                    <span>{row.id}</span>
-                    <ChevronDown
-                      className={`w-4 h-4 text-[#686D76] transition-transform ${
-                        open ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-                  {open && <div className="pb-3.5">{row.body}</div>}
-                </div>
-              );
-            })}
+                    Store Page <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+
+              <h1 className="text-lg sm:text-xl font-bold text-[#141518] mt-2 leading-snug">
+                {activeProduct.title}
+              </h1>
+              <p className="text-base sm:text-lg font-bold text-[#141518] mt-0.5">
+                ${activeProduct.price}
+              </p>
+            </div>
+
+            {/* Store Model & Proportion Intelligence Box */}
+            <div className="p-3.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#141518] flex items-center gap-1.5">
+                  <Ruler className="w-3.5 h-3.5 text-[#244B3B]" /> Store Model vs You
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAvatarModalOpen(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-black/[0.08] text-[11px] font-bold text-[#244B3B] hover:bg-[#EBF3EE] cursor-pointer"
+                >
+                  <img
+                    src={
+                      customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL
+                    }
+                    alt=""
+                    className="w-3.5 h-3.5 rounded-full object-cover"
+                  />
+                  {avatarHeightDisp} Avatar
+                </button>
+              </div>
+              <p className="text-xs font-semibold text-[#141518]">
+                {liveFitReport.lengthComparison.modelSummary}
+              </p>
+              <p className="text-xs text-[#686D76] leading-relaxed">
+                {liveFitReport.lengthComparison.proportionNote}
+              </p>
+            </div>
+
+            {/* Extracted Store Description, Fabric & Body-Twin Accordion */}
+            <div className="divide-y divide-black/[0.07] border-t border-b border-black/[0.07]">
+              {[
+                {
+                  id: "Fit & Description",
+                  body: (
+                    <div className="space-y-2">
+                      {activeProduct.fitMetadata?.descriptionSummary && (
+                        <p className="text-xs text-[#5C6068] leading-relaxed">
+                          {activeProduct.fitMetadata.descriptionSummary}
+                        </p>
+                      )}
+                      {(activeProduct.fitMetadata?.fitNotes?.length || 0) > 0 && (
+                        <ul className="space-y-1">
+                          {activeProduct.fitMetadata!.fitNotes.map((note) => (
+                            <li
+                              key={note}
+                              className="text-[11px] text-[#141518] flex items-start gap-1.5"
+                            >
+                              <span className="text-[#244B3B] font-bold">•</span>
+                              <span>{note}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  id: "Fabric & Stretch Physics",
+                  body: (
+                    <p className="text-xs text-[#5C6068] leading-relaxed">
+                      {liveFitReport.fabricSummary}
+                    </p>
+                  ),
+                },
+                {
+                  id: "98% Body-Twin Friend Check",
+                  body: (
+                    <p className="text-xs text-[#5C6068] leading-relaxed">
+                      <HeartHandshake className="w-3.5 h-3.5 text-[#244B3B] inline mr-1" />
+                      <strong>@maya</strong> (32.5&quot; B • 27&quot; W • 34.5&quot; H) matches{" "}
+                      <strong>Size {liveFitReport.recommendedSize}</strong> for clean waist comfort without pulling.
+                    </p>
+                  ),
+                },
+              ].map((row) => {
+                const open = openSection === row.id;
+                return (
+                  <div key={row.id}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenSection(open ? "" : row.id)}
+                      className="w-full py-2.5 flex items-center justify-between text-xs font-bold text-[#141518] cursor-pointer"
+                    >
+                      <span>{row.id}</span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-[#686D76] transition-transform ${
+                          open ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                    {open && <div className="pb-3">{row.body}</div>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Quick 360° Angle Buttons when in Turntable Mode */}
-          {!isStoreUrlMode && (
-            <div className="flex items-center gap-2 pt-1">
+          {/* Pinned Quick 360° Angle Buttons when in Turntable Mode */}
+          {!showRichFitStage && (
+            <div className="shrink-0 flex items-center gap-2 pt-2 border-t border-black/[0.06]">
               <button
                 type="button"
                 onClick={() => {
@@ -1282,9 +855,9 @@ export function GwoSpinProduct() {
                 <img
                   src={`${BASE_PATH}/models/signature/spin_0.webp`}
                   alt="Front"
-                  className="w-6 h-6 rounded-md object-cover object-top"
+                  className="w-5 h-5 rounded-md object-cover object-top"
                 />
-                Front (0°)
+                Front
               </button>
 
               <button
@@ -1302,9 +875,9 @@ export function GwoSpinProduct() {
                 <img
                   src={`${BASE_PATH}/models/signature/spin_2.webp`}
                   alt="Side"
-                  className="w-6 h-6 rounded-md object-cover object-top"
+                  className="w-5 h-5 rounded-md object-cover object-top"
                 />
-                Side (90°)
+                Side
               </button>
 
               <button
@@ -1322,171 +895,510 @@ export function GwoSpinProduct() {
                 <img
                   src={`${BASE_PATH}/models/signature/spin_4.webp`}
                   alt="Back"
-                  className="w-6 h-6 rounded-md object-cover object-top"
+                  className="w-5 h-5 rounded-md object-cover object-top"
                 />
-                Back (180°)
+                Back
               </button>
             </div>
           )}
         </section>
 
-        {/* ==================== RIGHT CARD: INTERACTIVE EXACT-FIT ZONE SIMULATOR ==================== */}
-        <section
-          style={{
-            position: "absolute",
-            left: 1052,
-            top: 48,
-            width: 420,
-            maxHeight: 828,
-            zIndex: 20,
-          }}
-          className="rounded-3xl bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-6 space-y-4 overflow-y-auto"
-        >
-          {/* Avatar Measurements Header */}
-          <div className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#141518] inline-flex items-center gap-1.5">
-                <Ruler className="w-3.5 h-3.5 text-[#244B3B]" /> Avatar Measurements
-              </span>
-              <span className="text-[11px] font-bold text-[#244B3B]">
-                Best Match: Size {liveFitReport.recommendedSize}
-              </span>
+        {/* ==================== CENTER COLUMN: UNOBSTRUCTED 360° / 3D FIT / AVATAR STAGE ==================== */}
+        <div className="order-1 lg:order-2 min-w-0 h-auto lg:h-full lg:min-h-0 flex flex-col items-center justify-between gap-2.5">
+          {/* CENTER STAGE A: 360° TURNTABLE */}
+          <div
+            style={{ display: showRichFitStage ? "none" : "flex" }}
+            className="w-full h-[480px] lg:h-full flex-col items-center justify-between gap-2"
+          >
+            <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
+              <div
+                id="sp-stage"
+                ref={stageRef}
+                className={isDraggingUi ? "dragging" : ""}
+              >
+                <canvas id="sp-cv" ref={cvRef} width={STAGE_W} height={STAGE_H} />
+
+                {customAvatar && (
+                  <img
+                    ref={userFaceRef}
+                    src={customAvatar.faceOvalDataUrl}
+                    alt="Your photo avatar"
+                    decoding="async"
+                    style={{
+                      position: "absolute",
+                      left: "50.0%",
+                      top: "12.4%",
+                      width: "13.0%",
+                      height: "9.8%",
+                      transform: "translate3d(-50%, -50%, 0)",
+                      willChange: "transform, opacity",
+                      pointerEvents: "none",
+                      zIndex: 18,
+                    }}
+                  />
+                )}
+
+                {HOTSPOTS.map((hs, idx) => (
+                  <button
+                    key={hs.title}
+                    type="button"
+                    className={`sp-hs ${facingFront ? "show" : ""}`}
+                    style={{
+                      left: `${hs.x * 100}%`,
+                      top: `${hs.y * 100}%`,
+                      transitionDelay: facingFront ? `${idx * 0.08}s` : "0s",
+                    }}
+                    aria-label={hs.title}
+                  >
+                    <span>+</span>
+                    <span className={`sp-tip ${hs.x > 0.5 ? "right" : "left"}`}>
+                      <span className="sp-tip-title">{hs.title}</span>
+                      {hs.text}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-4 gap-1.5 text-center">
-              <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
-                  Height
-                </p>
-                <p className="text-xs font-bold text-[#141518]">{avatarHeightDisp}</p>
-              </div>
-              <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
-                  Bust
-                </p>
-                <p className="text-xs font-bold text-[#141518]">{activeBust}&quot;</p>
-              </div>
-              <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
-                  Waist
-                </p>
-                <p className="text-xs font-bold text-[#141518]">{activeWaist}&quot;</p>
-              </div>
-              <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
-                  Hips
-                </p>
-                <p className="text-xs font-bold text-[#141518]">{activeHips}&quot;</p>
-              </div>
+
+            {/* Dedicated Bottom Degree Readout (Never Overlaps Boots!) */}
+            <div id="sp-deg" className="shrink-0">
+              <span>DRAG MODEL TO SPIN 360°</span>
+              <span className="sp-deg-bar">
+                <span ref={degDotRef} className="sp-deg-dot" style={{ left: "0%" }} />
+              </span>
+              <span ref={degNumRef} className="sp-deg-num">
+                000°
+              </span>
             </div>
           </div>
 
-          {/* Interactive Size Selector (Click any size to simulate exact fit!) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-[#141518]">
-                Simulate Size on You
-              </span>
-              <span className="text-[11px] font-semibold text-[#686D76]">
-                Tap size to preview tension
-              </span>
-            </div>
-
-            <div className="grid grid-cols-4 gap-2">
-              {SIZES.map((sz) => {
-                const active = selectedSize === sz;
-                const isBest = liveFitReport.recommendedSize === sz;
-                return (
+          {/* CENTER STAGE B: 3D PARAMETRIC MOCK, MULTI-ANGLE & AVATAR PROPORTION VIEW */}
+          {showRichFitStage && (
+            <div className="w-full h-full flex flex-col items-center justify-between gap-2.5 min-h-0">
+              {/* Stage Mode Switcher Pill (Dedicated Top Strip Outside Visual Frame) */}
+              <div className="shrink-0 flex flex-wrap items-center justify-center gap-1 p-1 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs">
+                <button
+                  type="button"
+                  id="gwo-stage-tab-3d"
+                  onClick={() => setStageViewMode("3d")}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                    stageViewMode === "3d"
+                      ? "bg-[#141518] text-white"
+                      : "text-[#686D76] hover:text-[#141518]"
+                  }`}
+                >
+                  <Box className="w-3.5 h-3.5 text-[#A7D7C5]" /> 3D Fit Mock
+                </button>
+                {activeProduct.studioLookIndex !== undefined && (
                   <button
-                    key={sz}
                     type="button"
-                    onClick={() => setSelectedSize(sz)}
-                    className={`relative py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                      active
-                        ? "bg-[#141518] text-white border-[#141518]"
-                        : "bg-[#F4F5F7] hover:bg-[#EAECEF] text-[#141518] border-black/[0.06]"
+                    id="gwo-stage-tab-avatar"
+                    onClick={() => setStageViewMode("avatar")}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                      stageViewMode === "avatar"
+                        ? "bg-[#141518] text-white"
+                        : "text-[#686D76] hover:text-[#141518]"
                     }`}
                   >
-                    {sz}
-                    {isBest && (
-                      <span
-                        className={`block text-[9px] font-bold leading-none mt-0.5 ${
-                          active ? "text-[#A7D7C5]" : "text-[#244B3B]"
-                        }`}
-                      >
-                        Best Fit
-                      </span>
-                    )}
+                    <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" /> Your Avatar
                   </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Live Zone-by-Zone Ease & Tension Meters */}
-          {liveFitReport.zones.length > 0 && (
-            <div className="space-y-2.5">
-              {liveFitReport.zones.map((z) => (
-                <div
-                  key={z.zone}
-                  className="p-2.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.05] space-y-1.5"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-[#141518]">
-                      {z.zone}{" "}
-                      <span className="text-[11px] font-normal text-[#686D76]">
-                        ({z.avatarInches}&quot; vs {z.garmentRange})
-                      </span>
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getZoneBadgeStyle(
-                        z.feel
-                      )}`}
+                )}
+                {isStoreUrlMode ? (
+                  <>
+                    <button
+                      type="button"
+                      id="gwo-stage-tab-compare"
+                      onClick={() => setStageViewMode("compare")}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                        stageViewMode === "compare"
+                          ? "bg-[#141518] text-white"
+                          : "text-[#686D76] hover:text-[#141518]"
+                      }`}
                     >
-                      {z.feelLabel}
-                    </span>
+                      <Columns2 className="w-3.5 h-3.5" /> Model vs You ({avatarHeightDisp})
+                    </button>
+                    <button
+                      type="button"
+                      id="gwo-stage-tab-store"
+                      onClick={() => setStageViewMode("store")}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                        stageViewMode === "store"
+                          ? "bg-[#141518] text-white"
+                          : "text-[#686D76] hover:text-[#141518]"
+                      }`}
+                    >
+                      <Images className="w-3.5 h-3.5" /> Store Photos
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setTurntable3dMode(false)}
+                    className="px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 text-[#686D76] hover:text-[#141518] cursor-pointer transition"
+                  >
+                    <Rotate3d className="w-3.5 h-3.5" /> 360° Studio Spin
+                  </button>
+                )}
+              </div>
+
+              {/* Main Visual Frame */}
+              {stageViewMode === "3d" ? (
+                <Parametric3DFitMock
+                  product={activeProduct}
+                  selectedSize={selectedSize}
+                  fitReport={liveFitReport}
+                  avatar={{
+                    heightInches: activeHeight,
+                    bustInches: activeBust,
+                    waistInches: activeWaist,
+                    hipsInches: activeHips,
+                    skinTone:
+                      customAvatar?.skinToneHex || user?.skinTone || "#D9A482",
+                  }}
+                  faceBadgeUrl={customAvatar?.badgeDataUrl}
+                />
+              ) : stageViewMode === "avatar" &&
+                activeProduct.studioLookIndex !== undefined ? (
+                <div className="w-full h-[460px] lg:h-auto lg:flex-1 min-h-0 rounded-3xl bg-white border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.08)] overflow-hidden flex flex-col justify-between">
+                  {/* Unobstructed Full-Body Avatar Viewport */}
+                  <div className="relative flex-1 min-h-0 bg-gradient-to-b from-[#F5F6F9] to-[#E8EBF0] flex items-end justify-center pt-3 overflow-hidden">
+                    <div className="relative h-full aspect-[1360/2048] flex items-end justify-center">
+                      <div
+                        className="absolute bottom-2 left-1/2 -translate-x-1/2 w-56 h-7 rounded-full pointer-events-none"
+                        style={{
+                          background:
+                            "radial-gradient(closest-side, rgba(25,26,30,0.34), transparent)",
+                        }}
+                      />
+                      <img
+                        src={H(avatarRenderLook.file, 900)}
+                        alt={`${activeProduct.title} on Your Avatar`}
+                        className="w-full h-full object-contain"
+                      />
+                      {customAvatar && (
+                        <img
+                          src={customAvatar.faceOvalDataUrl}
+                          alt="Your face"
+                          style={{
+                            left: "49.95%",
+                            top: "13.2%",
+                            width: "12.9%",
+                            height: "9.7%",
+                          }}
+                          className="absolute -translate-x-1/2 -translate-y-1/2 object-fill pointer-events-none"
+                        />
+                      )}
+                    </div>
                   </div>
 
-                  {/* Tension-to-Drape Meter */}
-                  <div className="relative h-2 rounded-full bg-[#E5E8EE] overflow-hidden">
-                    <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-black/20" />
-                    <div
-                      style={{
-                        width: `${z.meterPct}%`,
-                        backgroundColor: getZoneBarColor(z.feel),
-                      }}
-                      className="h-full rounded-full transition-all duration-300"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-wider text-[#8A9099]">
-                    <span>Snug / Tight</span>
-                    <span>Tailored Match</span>
-                    <span>Roomy Drape</span>
+                  {/* Dedicated Footer Strip Below Avatar (Zero Image Overlap!) */}
+                  <div className="shrink-0 px-3.5 py-2.5 bg-white border-t border-black/[0.06] flex flex-wrap items-center justify-between gap-1.5">
+                    <span className="text-[11px] font-bold text-[#141518]">
+                      Your {avatarHeightDisp} Avatar • Size {selectedSize}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {liveFitReport.zones.map((z) => (
+                        <span
+                          key={z.zone}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getZoneBadgeStyle(
+                            z.feel
+                          )}`}
+                        >
+                          {z.zone}: {z.feelLabel}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              ))}
+              ) : stageViewMode === "store" ? (
+                <div className="w-full h-[460px] lg:h-auto lg:flex-1 min-h-0 rounded-3xl bg-white border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.08)] overflow-hidden flex flex-col justify-between">
+                  {/* Unobstructed Store Model Photo Viewport */}
+                  <div className="relative flex-1 min-h-0 bg-[#F6F7F9] flex items-center justify-center overflow-hidden">
+                    <GarmentArtwork
+                      product={{
+                        ...activeProduct,
+                        imageUrl:
+                          galleryAngles[storeAngleIdx]?.url ||
+                          activeProduct.imageUrl,
+                      }}
+                      className="w-full h-full"
+                    />
+                  </div>
+
+                  {/* Dedicated Footer Strip Below Photo (Zero Image Overlap!) */}
+                  <div className="shrink-0 px-3.5 py-2.5 bg-white border-t border-black/[0.06] flex flex-wrap items-center justify-between gap-1.5">
+                    <span className="text-[11px] font-bold text-[#141518]">
+                      {galleryAngles[storeAngleIdx]?.label || "Store Photo"} • Size{" "}
+                      {selectedSize}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {liveFitReport.zones.map((z) => (
+                        <span
+                          key={z.zone}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getZoneBadgeStyle(
+                            z.feel
+                          )}`}
+                        >
+                          {z.zone}: {z.feelLabel}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Side-by-Side Proportional Height & Zone Comparison */
+                <div className="relative w-full h-[440px] lg:h-auto lg:flex-1 min-h-0 rounded-3xl bg-white/95 border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.08)] p-4 flex flex-col justify-between overflow-hidden">
+                  <div className="grid grid-cols-2 gap-3 flex-1 items-end min-h-0 pt-1">
+                    <div className="h-full flex flex-col items-center justify-end gap-1.5 min-h-0">
+                      <div
+                        style={{ height: `${Math.round(modelScaleRatio * 90)}%` }}
+                        className="w-full rounded-2xl overflow-hidden bg-[#F4F5F7] border border-black/[0.07] shadow-xs"
+                      >
+                        <GarmentArtwork
+                          product={{
+                            ...activeProduct,
+                            imageUrl:
+                              galleryAngles[0]?.url || activeProduct.imageUrl,
+                          }}
+                          className="w-full h-full"
+                        />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-[#141518]">
+                          Store Model ({modelHeightDisp})
+                        </p>
+                        <p className="text-[11px] text-[#686D76]">
+                          Wears Size{" "}
+                          {activeProduct.fitMetadata?.modelStats?.wornSize || "S"}
+                          {activeProduct.fitMetadata?.modelStats?.waistInches
+                            ? ` (${activeProduct.fitMetadata.modelStats.waistInches}"W)`
+                            : ""}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="h-full flex flex-col items-center justify-end gap-1.5 min-h-0">
+                      <div
+                        style={{ height: `${Math.round(avatarScaleRatio * 90)}%` }}
+                        className="relative aspect-[1360/2048] flex items-end justify-center"
+                      >
+                        <img
+                          src={H(avatarRenderLook.file, 900)}
+                          alt="Your Signature Avatar"
+                          className="w-full h-full object-contain"
+                        />
+                        {customAvatar && (
+                          <img
+                            src={customAvatar.faceOvalDataUrl}
+                            alt="Your face"
+                            style={{
+                              left: "49.95%",
+                              top: "13.2%",
+                              width: "12.9%",
+                              height: "9.7%",
+                            }}
+                            className="absolute -translate-x-1/2 -translate-y-1/2 object-fill"
+                          />
+                        )}
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-[#244B3B]">
+                          Your Avatar ({avatarHeightDisp})
+                        </p>
+                        <p className="text-[11px] text-[#686D76]">
+                          {activeBust}&quot; • {activeWaist}&quot; • {activeHips}&quot; (Rec:{" "}
+                          {liveFitReport.recommendedSize})
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 mt-2.5 p-2 rounded-xl bg-[#F6F8F7] border border-[#CBE2D4] text-[11px] text-[#1D4232] font-medium text-center line-clamp-2">
+                    {liveFitReport.lengthComparison.proportionNote}
+                  </div>
+                </div>
+              )}
+
+              {/* Multi-Angle Store Gallery Selector */}
+              {isStoreUrlMode && galleryAngles.length > 1 && (
+                <div className="shrink-0 flex flex-wrap items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs">
+                  {galleryAngles.map((ang, idx) => (
+                    <button
+                      key={ang.url}
+                      type="button"
+                      onClick={() => {
+                        setStoreAngleIdx(idx);
+                        setStageViewMode("store");
+                      }}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-[11px] font-semibold cursor-pointer transition ${
+                        storeAngleIdx === idx && stageViewMode === "store"
+                          ? "bg-[#141518] text-white border-[#141518]"
+                          : "bg-white text-[#686D76] border-black/10 hover:text-[#141518]"
+                      }`}
+                    >
+                      <img
+                        src={ang.url}
+                        alt={ang.label}
+                        className="w-5 h-6 rounded object-cover object-top"
+                      />
+                      <span>{ang.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+        </div>
 
-          {/* Dynamic Tailor Verdict Callout */}
-          <div className="p-3 rounded-2xl bg-[#F4F8F5] border border-[#CBE2D4] space-y-1">
-            <p className="text-xs font-semibold text-[#1D4232] leading-snug">
-              {liveFitReport.headlineVerdict}
-            </p>
-            {liveFitReport.alternateOption &&
-              selectedSize === liveFitReport.recommendedSize && (
-                <p className="text-[11px] text-[#4E5A54]">
-                  Tip: {liveFitReport.alternateOption.note}.
-                </p>
-              )}
+        {/* ==================== RIGHT CARD: INTERACTIVE EXACT-FIT ZONE SIMULATOR & Pinned Checkout ==================== */}
+        <section className="order-2 lg:order-3 lg:h-full lg:min-h-0 rounded-3xl bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 sm:p-5 flex flex-col justify-between gap-3 lg:overflow-hidden">
+          <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 space-y-3">
+            {/* Avatar Measurements Header */}
+            <div className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#141518] inline-flex items-center gap-1.5">
+                  <Ruler className="w-3.5 h-3.5 text-[#244B3B]" /> Avatar Measurements
+                </span>
+                <span className="text-[11px] font-bold text-[#244B3B]">
+                  Best Match: Size {liveFitReport.recommendedSize}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 text-center">
+                <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
+                    Height
+                  </p>
+                  <p className="text-xs font-bold text-[#141518]">{avatarHeightDisp}</p>
+                </div>
+                <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
+                    Bust
+                  </p>
+                  <p className="text-xs font-bold text-[#141518]">{activeBust}&quot;</p>
+                </div>
+                <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
+                    Waist
+                  </p>
+                  <p className="text-xs font-bold text-[#141518]">{activeWaist}&quot;</p>
+                </div>
+                <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
+                    Hips
+                  </p>
+                  <p className="text-xs font-bold text-[#141518]">{activeHips}&quot;</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Size Selector */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#141518]">
+                  Simulate Size on You
+                </span>
+                <span className="text-[11px] font-semibold text-[#686D76]">
+                  Tap size to preview tension
+                </span>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2">
+                {SIZES.map((sz) => {
+                  const active = selectedSize === sz;
+                  const isBest = liveFitReport.recommendedSize === sz;
+                  return (
+                    <button
+                      key={sz}
+                      type="button"
+                      onClick={() => setSelectedSize(sz)}
+                      className={`relative py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                        active
+                          ? "bg-[#141518] text-white border-[#141518]"
+                          : "bg-[#F4F5F7] hover:bg-[#EAECEF] text-[#141518] border-black/[0.06]"
+                      }`}
+                    >
+                      {sz}
+                      {isBest && (
+                        <span
+                          className={`block text-[9px] font-bold leading-none mt-0.5 ${
+                            active ? "text-[#A7D7C5]" : "text-[#244B3B]"
+                          }`}
+                        >
+                          Best Fit
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Live Zone-by-Zone Ease & Tension Meters */}
+            {liveFitReport.zones.length > 0 && (
+              <div className="space-y-2">
+                {liveFitReport.zones.map((z) => (
+                  <div
+                    key={z.zone}
+                    className="p-2.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.05] space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-[#141518]">
+                        {z.zone}{" "}
+                        <span className="text-[11px] font-normal text-[#686D76]">
+                          ({z.avatarInches}&quot; vs {z.garmentRange})
+                        </span>
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getZoneBadgeStyle(
+                          z.feel
+                        )}`}
+                      >
+                        {z.feelLabel}
+                      </span>
+                    </div>
+
+                    <div className="relative h-2 rounded-full bg-[#E5E8EE] overflow-hidden">
+                      <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-black/20" />
+                      <div
+                        style={{
+                          width: `${z.meterPct}%`,
+                          backgroundColor: getZoneBarColor(z.feel),
+                        }}
+                        className="h-full rounded-full transition-all duration-300"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-wider text-[#8A9099]">
+                      <span>Snug / Tight</span>
+                      <span>Tailored Match</span>
+                      <span>Roomy Drape</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Dynamic Tailor Verdict Callout */}
+            <div className="p-2.5 rounded-2xl bg-[#F4F8F5] border border-[#CBE2D4] space-y-1">
+              <p className="text-xs font-semibold text-[#1D4232] leading-snug">
+                {liveFitReport.headlineVerdict}
+              </p>
+              {liveFitReport.alternateOption &&
+                selectedSize === liveFitReport.recommendedSize && (
+                  <p className="text-[11px] text-[#4E5A54]">
+                    Tip: {liveFitReport.alternateOption.note}.
+                  </p>
+                )}
+            </div>
           </div>
 
-          <div className="space-y-2 pt-0.5">
+          {/* Pinned Checkout & Closet Actions (Always Visible Without Scrolling!) */}
+          <div className="shrink-0 space-y-2 pt-2.5 border-t border-black/[0.07]">
             <button
               type="button"
               id="sp-buy"
               ref={addBagBtnRef}
               onClick={handleAddToBag}
-              className="w-full py-3.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer shadow-md"
+              className="w-full py-3 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer shadow-md"
             >
               {justAdded ? (
                 <>

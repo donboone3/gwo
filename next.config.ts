@@ -4,6 +4,7 @@ const isStaticExport = process.env.STATIC_EXPORT === "1";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   ...(isStaticExport ? { output: "export", trailingSlash: true } : {}),
   ...(process.env.DOCKER_STANDALONE === "1" ? { output: "standalone" } : {}),
   ...(basePath ? { basePath, assetPrefix: basePath } : {}),

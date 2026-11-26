@@ -174,9 +174,9 @@ const OCCASION_PILLS = [
   { label: "Weekend", lookIdx: 5 },
 ];
 
-const KX = [1.2, 0.744, 0.496, 0.346, 0.235, 0.15, 0.085];
-const KF = [1.14, 0.89, 0.777, 0.704, 0.651, 0.616, 0.59];
-const KH = [1.18, 0.832, 0.574, 0.436, 0.334, 0.258, 0.19];
+const KX = [1.22, 0.72, 0.48, 0.33, 0.22, 0.14, 0.08];
+const KF = [1.08, 0.96, 0.85, 0.77, 0.71, 0.66, 0.62];
+const KH = [1.1, 0.91, 0.68, 0.52, 0.4, 0.31, 0.23];
 const KB = [0, 0, 1.5, 4, 8, 12, 17];
 const KO = [1, 1, 1, 1, 0.86, 0.5, 0];
 
@@ -359,13 +359,13 @@ export function GwoRunwayLookbook() {
       const e = document.createElement("article");
       e.className = "mv-card" + (i % 2 ? " alt" : "");
       e.dataset.idx = String(i);
-      e.innerHTML = `<button class="mv-fav" type="button" aria-pressed="false" aria-label="Save ${
+      e.innerHTML = `<div class="mv-card-top"><button class="mv-fav" type="button" aria-pressed="false" aria-label="Save ${
         item.name
       }"><svg viewBox="0 0 24 24"><path d="M12 20S3.5 15 3.5 9A4.6 4.6 0 0 1 12 6.6 4.6 4.6 0 0 1 20.5 9C20.5 15 12 20 12 20Z"/></svg></button>${
         item.productId
-          ? `<span class="mv-store-badge">Size ${sizeTag} • Exact Fit</span>`
+          ? `<span class="mv-store-inline-badge">Size ${sizeTag} • Exact Fit</span>`
           : ""
-      }<a class="mv-shot" href="${pdpHref}" title="Open 3D Exact-Fit Mock"></a><div class="mv-meta"><div><h3><a href="${pdpHref}">${
+      }</div><a class="mv-shot" href="${pdpHref}" title="Open 3D Exact-Fit Mock"></a><div class="mv-meta"><div class="min-w-0"><h3><a class="mv-title-link" href="${pdpHref}">${
         item.name
       }</a></h3><span>${item.brand} • ${
         item.priceDisplay
@@ -438,7 +438,7 @@ export function GwoRunwayLookbook() {
         m.e.style.width = `${base * m.r}px`;
         m.e.style.height = `${base}px`;
       });
-      cardS = side ? 170 : rail.clientHeight / 3;
+      cardS = side ? 224 : rail.clientHeight / 3;
       cards.forEach((c) => {
         c.style.height = side ? "100%" : `${cardS}px`;
       });
@@ -498,7 +498,7 @@ export function GwoRunwayLookbook() {
       });
 
       const firstRollChild = roll.firstElementChild as HTMLElement | null;
-      const lineH = firstRollChild ? firstRollChild.offsetHeight : 36;
+      const lineH = firstRollChild ? firstRollChild.offsetHeight : 32;
       roll.style.transform = `translate3d(0,${(-wrap(p, N) * lineH).toFixed(
         1
       )}px,0)`;
@@ -646,53 +646,45 @@ export function GwoRunwayLookbook() {
   return (
     <div className="mv-page">
       <main className="mv-main">
-        <section
-          className="mv-stage"
-          ref={stageRef}
-          aria-label="Recommended outfits. Drag, scroll or use arrow keys."
-          tabIndex={0}
-        >
-          <div className="mv-line" ref={lineRef} />
-
-          {/* Clean Top-Left Occasion & Personal Avatar Card */}
-          <div className="mv-intro space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/92 border border-black/[0.06] text-[11px] font-bold text-[#244B3B]">
-                <Ruler className="w-3 h-3" /> {activeHeightStr} • {activeBust}&quot; B •{" "}
-                {activeWaist}&quot; W • {activeHips}&quot; H (Size {recSize})
+        <div className="mv-left-col">
+          {/* Dedicated Top Control Bar (Never Overlaps Runway Models!) */}
+          <div className="mv-top-bar space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-[#141518] mr-1">
+                  For You Runway
+                </h1>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-black/[0.07] text-[11px] font-bold text-[#244B3B]">
+                  <Ruler className="w-3 h-3" /> {activeHeightStr} • {activeBust}&quot; B •{" "}
+                  {activeWaist}&quot; W • {activeHips}&quot; H (Size {recSize})
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setAvatarModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 hover:bg-white border border-black/[0.08] text-[11px] font-bold text-[#141518]"
-              >
-                <img
-                  src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
-                  alt="Avatar"
-                  className="w-4 h-4 rounded-full object-cover"
-                />
-                {customAvatar ? "Runway Featuring You ✓" : "Your Avatar"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setAddUrlModalOpen(true)}
-                className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[11px] font-bold shadow-xs"
-              >
-                <Plus className="w-3 h-3" /> Pull Store Clothing
-              </button>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAvatarModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#F7F8FA] border border-black/[0.08] text-[11px] font-bold text-[#141518] cursor-pointer"
+                >
+                  <img
+                    src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
+                    alt="Avatar"
+                    className="w-4 h-4 rounded-full object-cover"
+                  />
+                  {customAvatar ? "Featuring You ✓" : "Your Avatar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddUrlModalOpen(true)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[11px] font-bold shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" /> Pull Store Clothing
+                </button>
+              </div>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#141518]">
-              For You Runway
-            </h1>
-            <p className="hidden sm:block text-xs sm:text-sm text-[#686D76] leading-relaxed">
-              {currentHero.productId
-                ? `Featuring ${currentHero.brand} ${currentHero.name} (${currentHero.priceDisplay}) — Exact Size ${currentHero.recSizeOverride || recSize} match for your ${activeHeightStr} frame.`
-                : "Drag, scroll, or tap an occasion below to walk recommended outfits forward."}
-            </p>
-
             {/* 1-Tap Occasion Filter Pills */}
-            <div className="flex flex-wrap gap-1.5 pt-1">
+            <div className="flex flex-wrap items-center gap-1.5">
               {OCCASION_PILLS.map((pill) => {
                 const active = activeLookIdx === pill.lookIdx;
                 return (
@@ -700,10 +692,10 @@ export function GwoRunwayLookbook() {
                     key={pill.label}
                     type="button"
                     onClick={() => jumpLookRef.current?.(pill.lookIdx)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
                       active
                         ? "bg-[#141518] text-white shadow-xs"
-                        : "bg-white/90 hover:bg-white text-[#686D76] hover:text-[#141518] border border-black/[0.06]"
+                        : "bg-white hover:bg-[#F4F5F7] text-[#686D76] hover:text-[#141518] border border-black/[0.07]"
                     }`}
                   >
                     {pill.label}
@@ -713,9 +705,20 @@ export function GwoRunwayLookbook() {
             </div>
           </div>
 
-          {/* Clean Bottom-Left Outfit Counter + Purchase / 3D Fit / Try-On Actions */}
-          <div className="mv-tag space-y-3">
-            <div className="flex items-center gap-3">
+          {/* Pure Unobstructed Center Runway Stage */}
+          <section
+            className="mv-stage"
+            ref={stageRef}
+            aria-label="Recommended outfits. Drag, scroll or use arrow keys."
+            tabIndex={0}
+          >
+            <div className="mv-line" ref={lineRef} />
+            <div className="mv-ring" ref={ringRef} />
+          </section>
+
+          {/* Dedicated Bottom Checkout & Fit Action Dock (Never Overlaps Model Feet!) */}
+          <div className="mv-bottom-bar">
+            <div className="flex flex-wrap items-center gap-2.5">
               <div className="mv-look" aria-live="polite">
                 <span>Outfit</span>
                 <span className="mv-win">
@@ -736,7 +739,7 @@ export function GwoRunwayLookbook() {
                   target="_blank"
                   rel="noopener noreferrer"
                   id="gwo-runway-buy-hero-btn"
-                  className="px-4 py-2.5 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-md transition"
+                  className="px-3.5 sm:px-4 py-2 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition"
                 >
                   Buy {currentHero.name.split(" - ")[0]} ({currentHero.priceDisplay}){" "}
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -746,7 +749,7 @@ export function GwoRunwayLookbook() {
               <button
                 type="button"
                 onClick={handleBagCurrentOutfit}
-                className="px-4 py-2.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-md"
+                className="px-3.5 sm:px-4 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <ShoppingBag className="w-3.5 h-3.5" /> + Bag Outfit ($
                 {currentOutfitPrice})
@@ -755,7 +758,7 @@ export function GwoRunwayLookbook() {
               <Link
                 href={current3dHref}
                 id="gwo-runway-3d-fit-btn"
-                className="px-3.5 py-2.5 rounded-full bg-white/95 hover:bg-white border border-black/[0.08] text-[#141518] text-xs font-bold inline-flex items-center gap-1.5 shadow-xs"
+                className="px-3.5 py-2 rounded-full bg-white hover:bg-[#F4F5F7] border border-black/[0.08] text-[#141518] text-xs font-bold inline-flex items-center gap-1.5 shadow-xs"
               >
                 <Box className="w-3.5 h-3.5 text-[#244B3B]" /> 3D Fit Mock →
               </Link>
@@ -763,15 +766,13 @@ export function GwoRunwayLookbook() {
               <Link
                 href={currentTryHref}
                 id="gwo-runway-try-closet-btn"
-                className="px-3.5 py-2.5 rounded-full bg-white/95 hover:bg-white border border-black/[0.08] text-[#244B3B] text-xs font-bold inline-flex items-center gap-1 shadow-xs"
+                className="px-3.5 py-2 rounded-full bg-white hover:bg-[#F4F5F7] border border-black/[0.08] text-[#244B3B] text-xs font-bold inline-flex items-center gap-1 shadow-xs"
               >
                 <Rotate3d className="w-3.5 h-3.5" /> Try in Closet →
               </Link>
             </div>
           </div>
-
-          <div className="mv-ring" ref={ringRef} />
-        </section>
+        </div>
 
         <aside
           className="mv-rail"

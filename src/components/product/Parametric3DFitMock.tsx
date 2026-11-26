@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Eye, Flame, Play, Pause, RotateCcw, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
+import { Eye, Flame, Pause, Play, RotateCcw, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
 import {
   buildParametric3DFitScene,
   MeshZoneStatus,
@@ -40,10 +40,10 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 function statusToHeatmapHex(status: MeshZoneStatus): string {
-  if (status === "too_tight") return "#DC2626"; // Crimson pinch alert
-  if (status === "sculpted_snug") return "#D97706"; // Amber stretch hug
-  if (status === "tailored_ideal") return "#15803D"; // Emerald exact fit
-  return "#2563EB"; // Cobalt fluid drape ease
+  if (status === "too_tight") return "#DC2626";
+  if (status === "sculpted_snug") return "#D97706";
+  if (status === "tailored_ideal") return "#15803D";
+  return "#2563EB";
 }
 
 function statusLabelShort(status: MeshZoneStatus, ease: number): string {
@@ -67,7 +67,6 @@ export function Parametric3DFitMock({
   const [yawDegDisplay, setYawDegDisplay] = useState(18);
   const [zoomLevel, setZoomLevel] = useState(1.0);
 
-  // Mutable camera state for zero-React-rerender 120fps drag rotation
   const camRef = useRef({
     yaw: (18 * Math.PI) / 180,
     pitch: 0.07,
@@ -116,7 +115,10 @@ export function Parametric3DFitMock({
   }, []);
 
   const adjustZoom = useCallback((delta: number) => {
-    const next = Math.max(0.78, Math.min(1.65, Number((camRef.current.zoom + delta).toFixed(2))));
+    const next = Math.max(
+      0.78,
+      Math.min(1.5, Number((camRef.current.zoom + delta).toFixed(2)))
+    );
     camRef.current.zoom = next;
     setZoomLevel(next);
     paintRef.current?.();
@@ -128,19 +130,22 @@ export function Parametric3DFitMock({
     const ctx = cv.getContext("2d");
     if (!ctx) return;
 
-    const W = 540;
-    const H_PX = 680;
-    const dpr = Math.min(2, typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
+    const W = 560;
+    const H_PX = 580;
+    const dpr = Math.min(
+      2,
+      typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1
+    );
     if (cv.width !== W * dpr || cv.height !== H_PX * dpr) {
       cv.width = W * dpr;
       cv.height = H_PX * dpr;
     }
 
     const bodyCenterY = scene.totalHeightInches * 0.515;
-    const cameraDist = 112;
-    const baseFocal = 940;
+    const cameraDist = 114;
+    const baseFocal = 880;
+    const centerX = W * 0.46; // Leaves clean right gutter for Bust/Waist/Hips caliper pills!
 
-    // Normalized studio lights in camera space
     const kLen = Math.hypot(0.42, 0.55, 0.72);
     const Lx = 0.42 / kLen;
     const Ly = 0.55 / kLen;
@@ -164,8 +169,8 @@ export function Parametric3DFitMock({
         x1,
         y2,
         z2,
-        sx: W * 0.48 + x1 * s,
-        sy: H_PX * 0.515 - y2 * s,
+        sx: centerX + x1 * s,
+        sy: H_PX * 0.52 - y2 * s,
       };
     };
 
@@ -179,7 +184,7 @@ export function Parametric3DFitMock({
       const sinP = Math.sin(pitch);
       const focal = baseFocal * zoom;
 
-      const normDeg = (((Math.round((yaw * 180) / Math.PI) % 360) + 360) % 360);
+      const normDeg = ((Math.round((yaw * 180) / Math.PI) % 360) + 360) % 360;
       if (Math.abs(normDeg - lastYawBadge) >= 2) {
         lastYawBadge = normDeg;
         setYawDegDisplay(normDeg);
@@ -188,7 +193,7 @@ export function Parametric3DFitMock({
       ctx.save();
       ctx.scale(dpr, dpr);
 
-      // 1. Clean Studio Cyclorama Backdrop + 3D Floor Turntable Grid
+      // 1. Clean Studio Cyclorama Backdrop + 3D Floor Pedestal
       const bgGrad = ctx.createLinearGradient(0, 0, 0, H_PX);
       bgGrad.addColorStop(0, "#F8F9FB");
       bgGrad.addColorStop(0.68, "#EEF1F6");
@@ -196,8 +201,7 @@ export function Parametric3DFitMock({
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, W, H_PX);
 
-      // Subtle 3D floor pedestal rings at y = 2.8" (ankle/floor base)
-      for (const rIn of [7.5, 11.5]) {
+      for (const rIn of [7.2, 11.0]) {
         ctx.beginPath();
         for (let j = 0; j <= 40; j++) {
           const u = (j / 40) * Math.PI * 2;
@@ -212,12 +216,12 @@ export function Parametric3DFitMock({
           if (j === 0) ctx.moveTo(pt.sx, pt.sy);
           else ctx.lineTo(pt.sx, pt.sy);
         }
-        ctx.strokeStyle = rIn < 9 ? "rgba(20,21,24,0.14)" : "rgba(20,21,24,0.07)";
+        ctx.strokeStyle =
+          rIn < 9 ? "rgba(20,21,24,0.14)" : "rgba(20,21,24,0.07)";
         ctx.lineWidth = 1;
         ctx.stroke();
       }
 
-      // Soft ambient ground shadow
       const floorOrigin = projectPoint(
         { x: 0, y: 2.6, z: 0 },
         cosY,
@@ -232,7 +236,7 @@ export function Parametric3DFitMock({
         6,
         floorOrigin.sx,
         floorOrigin.sy,
-        82 * zoom
+        76 * zoom
       );
       shGrad.addColorStop(0, "rgba(20,24,32,0.22)");
       shGrad.addColorStop(1, "rgba(20,24,32,0)");
@@ -241,8 +245,8 @@ export function Parametric3DFitMock({
       ctx.ellipse(
         floorOrigin.sx,
         floorOrigin.sy,
-        82 * zoom,
-        20 * zoom,
+        76 * zoom,
+        18 * zoom,
         0,
         0,
         Math.PI * 2
@@ -263,6 +267,8 @@ export function Parametric3DFitMock({
       }
 
       const drawList: ProjectedQuad[] = [];
+      let bodyMaxRightSx = centerX + 44;
+      let bodyMinLeftSx = centerX - 44;
 
       for (let i = 0; i < scene.quads.length; i++) {
         const q = scene.quads[i];
@@ -271,7 +277,11 @@ export function Parametric3DFitMock({
         const q2 = projectPoint(q.p2, cosY, sinY, cosP, sinP, focal);
         const q3 = projectPoint(q.p3, cosY, sinY, cosP, sinP, focal);
 
-        // Compute camera-space normal (v x u points outward)
+        const maxQx = Math.max(q0.sx, q1.sx, q2.sx, q3.sx);
+        const minQx = Math.min(q0.sx, q1.sx, q2.sx, q3.sx);
+        if (maxQx > bodyMaxRightSx) bodyMaxRightSx = maxQx;
+        if (minQx < bodyMinLeftSx) bodyMinLeftSx = minQx;
+
         const ux = q1.x1 - q0.x1;
         const uy = q1.y2 - q0.y2;
         const uz = q1.z2 - q0.z2;
@@ -287,10 +297,8 @@ export function Parametric3DFitMock({
         ny /= nLen;
         nz /= nLen;
 
-        // Backface cull closed body shell for crisp silhouette & 2x raster speed
         if (q.layer === "body" && nz < -0.15) continue;
 
-        // Two-sided shading for open garment shells (square neckline, corset back window)
         if (q.layer !== "body" && nz < 0) {
           nx = -nx;
           ny = -ny;
@@ -300,8 +308,8 @@ export function Parametric3DFitMock({
         const ndotl = Math.max(0, nx * Lx + ny * Ly + nz * Lz);
         const rim = Math.pow(1 - Math.max(0, nz), 2.4) * 0.18;
         const specPower = isGlossyFabric && q.layer !== "body" ? 22 : 12;
-        const specStrength = isGlossyFabric && q.layer !== "body" ? 0.26 : 0.09;
-        // Half-vector between L and View (0,0,1)
+        const specStrength =
+          isGlossyFabric && q.layer !== "body" ? 0.26 : 0.09;
         const hx = Lx;
         const hy = Ly;
         const hz = Lz + 1;
@@ -322,7 +330,6 @@ export function Parametric3DFitMock({
         const bb = Math.min(255, Math.round(b0 * shade + spec * 255));
 
         const zAvg = (q0.z2 + q1.z2 + q2.z2 + q3.z2) * 0.25;
-        // Slight layer bias so tight garment quads always win tie-breakers over skin underneath
         const layerBias =
           q.layer === "detail" ? 0.35 : q.layer === "garment" ? 0.18 : 0;
 
@@ -345,7 +352,6 @@ export function Parametric3DFitMock({
         });
       }
 
-      // In X-Ray mode, draw opaque inner body completely first, then depth-sorted translucent garment shell!
       if (renderMode === "xray") {
         drawList.sort((a, b) => {
           const aGroup = a.layer === "body" ? 0 : 1;
@@ -357,7 +363,6 @@ export function Parametric3DFitMock({
         drawList.sort((a, b) => a.depthZ - b.depthZ);
       }
 
-      // 3. Draw Back Half of Caliper Rings (z2 < 0)
       const drawCaliperHalf = (frontHalf: boolean) => {
         for (const ring of scene.caliperRings) {
           const ringColor =
@@ -374,7 +379,14 @@ export function Parametric3DFitMock({
 
           for (let j = 0; j < ring.points.length - 1; j++) {
             const a = projectPoint(ring.points[j], cosY, sinY, cosP, sinP, focal);
-            const b = projectPoint(ring.points[j + 1], cosY, sinY, cosP, sinP, focal);
+            const b = projectPoint(
+              ring.points[j + 1],
+              cosY,
+              sinY,
+              cosP,
+              sinP,
+              focal
+            );
             const isFront = (a.z2 + b.z2) * 0.5 >= 0;
             if (isFront !== frontHalf) continue;
             ctx.beginPath();
@@ -388,7 +400,6 @@ export function Parametric3DFitMock({
 
       drawCaliperHalf(false);
 
-      // 4. Rasterize 3D Body + Garment Mesh
       for (let i = 0; i < drawList.length; i++) {
         const d = drawList[i];
         ctx.globalAlpha = d.alpha;
@@ -408,12 +419,11 @@ export function Parametric3DFitMock({
       }
       ctx.globalAlpha = 1;
 
-      // 5. Draw Front Half of Caliper Rings + Live Measurement Callout Pills
       drawCaliperHalf(true);
 
-      ctx.font = "700 10.5px 'Plus Jakarta Sans', system-ui, sans-serif";
+      // Right-Gutter Caliper Callout Pills (strictly >= bodyMaxRightSx + 10 so NEVER overlaps 3D garment!)
+      ctx.font = "700 10px 'Plus Jakarta Sans', system-ui, sans-serif";
       for (const ring of scene.caliperRings) {
-        // Find rightmost projected point on this ring to anchor a clean horizontal leader line
         let bestPt = projectPoint(ring.points[0], cosY, sinY, cosP, sinP, focal);
         for (let j = 1; j < ring.points.length; j++) {
           const cand = projectPoint(ring.points[j], cosY, sinY, cosP, sinP, focal);
@@ -438,14 +448,15 @@ export function Parametric3DFitMock({
           ring.easeInches
         )})`;
         const tw = ctx.measureText(labelText).width;
-        const px = Math.min(W - tw - 18, bestPt.sx + 16);
-        const py = bestPt.sy;
+        const safeLeft = Math.max(bestPt.sx + 14, bodyMaxRightSx + 10);
+        const px = Math.min(W - tw - 12, safeLeft);
+        const py = Math.max(20, Math.min(H_PX - 20, bestPt.sy));
 
         ctx.strokeStyle = pillFg;
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.moveTo(bestPt.sx + 2, bestPt.sy);
-        ctx.lineTo(px - 4, py);
+        ctx.lineTo(px - 6, py);
         ctx.stroke();
 
         ctx.fillStyle = pillBg;
@@ -460,10 +471,10 @@ export function Parametric3DFitMock({
         ctx.fillText(labelText, px, py + 3.5);
       }
 
-      // 6. Draw Store Model Relative Hem Line vs Customer 5'2" Hem Line (Left Side)
+      // Left-Gutter Hem Landing Guides (strictly <= bodyMinLeftSx - 8 so NEVER overlaps 3D legs!)
       if (scene.storeModelRelativeHemYInches !== undefined) {
         const modelHemPt = projectPoint(
-          { x: -6.2, y: scene.storeModelRelativeHemYInches, z: 0 },
+          { x: -5.8, y: scene.storeModelRelativeHemYInches, z: 0 },
           cosY,
           sinY,
           cosP,
@@ -471,7 +482,7 @@ export function Parametric3DFitMock({
           focal
         );
         const custHemPt = projectPoint(
-          { x: -6.2, y: scene.customerHemYInches, z: 0 },
+          { x: -5.8, y: scene.customerHemYInches, z: 0 },
           cosY,
           sinY,
           cosP,
@@ -479,43 +490,45 @@ export function Parametric3DFitMock({
           focal
         );
 
+        const lineEnd = Math.max(126, Math.min(bodyMinLeftSx - 4, modelHemPt.sx));
+
         ctx.save();
         ctx.setLineDash([3, 3]);
         ctx.strokeStyle = "#686D76";
         ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.moveTo(18, modelHemPt.sy);
-        ctx.lineTo(Math.max(96, modelHemPt.sx + 24), modelHemPt.sy);
+        ctx.moveTo(12, modelHemPt.sy);
+        ctx.lineTo(lineEnd, modelHemPt.sy);
         ctx.stroke();
 
-        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.fillStyle = "rgba(255,255,255,0.94)";
         ctx.beginPath();
-        ctx.roundRect(14, modelHemPt.sy - 18, 122, 17, 8);
+        ctx.roundRect(10, modelHemPt.sy - 19, 118, 17, 8);
         ctx.fill();
         ctx.fillStyle = "#5C6068";
         ctx.font = "600 9.5px 'Plus Jakarta Sans', system-ui, sans-serif";
         ctx.fillText(
-          `Store Model Hem (${product.fitMetadata?.modelStats?.wornSize || "XS"})`,
-          20,
-          modelHemPt.sy - 6
+          `Model Hem (${product.fitMetadata?.modelStats?.wornSize || "XS"})`,
+          16,
+          modelHemPt.sy - 7
         );
 
         ctx.setLineDash([]);
         ctx.strokeStyle = "#244B3B";
         ctx.beginPath();
-        ctx.moveTo(18, custHemPt.sy);
-        ctx.lineTo(Math.max(96, custHemPt.sx + 24), custHemPt.sy);
+        ctx.moveTo(12, custHemPt.sy);
+        ctx.lineTo(lineEnd, custHemPt.sy);
         ctx.stroke();
 
         const ft = Math.floor(avatar.heightInches / 12);
         const inch = Math.round(avatar.heightInches % 12);
         ctx.fillStyle = "#141518";
         ctx.beginPath();
-        ctx.roundRect(14, custHemPt.sy + 2, 118, 18, 8);
+        ctx.roundRect(10, custHemPt.sy + 2, 114, 18, 8);
         ctx.fill();
         ctx.fillStyle = "#FFFFFF";
         ctx.font = "700 9.5px 'Plus Jakarta Sans', system-ui, sans-serif";
-        ctx.fillText(`Your ${ft}'${inch}" Hem Landing`, 20, custHemPt.sy + 14);
+        ctx.fillText(`Your ${ft}'${inch}" Hem`, 16, custHemPt.sy + 14);
         ctx.restore();
       }
 
@@ -525,7 +538,6 @@ export function Parametric3DFitMock({
     paintRef.current = drawScene;
     drawScene();
 
-    // Demand-driven animation loop: ONLY ticks when autoSpin or smooth angle tween is active (0% idle CPU!)
     let rafId = 0;
     let lastNow = performance.now();
 
@@ -536,7 +548,6 @@ export function Parametric3DFitMock({
 
       if (camRef.current.targetYaw !== null) {
         const diff = camRef.current.targetYaw - camRef.current.yaw;
-        // Shortest angular path
         const wrappedDiff = Math.atan2(Math.sin(diff), Math.cos(diff));
         if (Math.abs(wrappedDiff) < 0.008) {
           camRef.current.yaw = camRef.current.targetYaw;
@@ -561,7 +572,6 @@ export function Parametric3DFitMock({
       rafId = requestAnimationFrame(step);
     }
 
-    // Also hook jumpToAngle triggers cleanly
     const origPaint = paintRef.current;
     paintRef.current = () => {
       origPaint?.();
@@ -578,15 +588,15 @@ export function Parametric3DFitMock({
   }, [autoSpin, avatar.heightInches, isGlossyFabric, product, renderMode, scene]);
 
   return (
-    <div className="relative w-full flex-1 rounded-3xl bg-[#F4F6FA] border border-black/[0.08] shadow-[0_18px_42px_rgba(20,21,24,0.09)] overflow-hidden flex flex-col justify-between select-none">
-      {/* Top Floating Render Sub-Mode Bar */}
-      <div className="absolute top-3 inset-x-3 z-10 flex items-center justify-between gap-2 pointer-events-none">
-        <div className="inline-flex items-center gap-1 p-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-xs pointer-events-auto">
+    <div className="w-full h-[460px] lg:h-auto lg:flex-1 lg:min-h-0 rounded-3xl bg-white border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.08)] overflow-hidden flex flex-col justify-between select-none">
+      {/* Dedicated Top Bar OUTSIDE Canvas (Zero Model-Head Overlap!) */}
+      <div className="shrink-0 px-3 py-2 bg-white border-b border-black/[0.06] flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex items-center gap-1 p-0.5 rounded-full bg-[#F1F2F5] border border-black/[0.05]">
           <button
             type="button"
             id="gwo-3d-mode-fabric"
             onClick={() => setRenderMode("fabric")}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+            className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
               renderMode === "fabric"
                 ? "bg-[#141518] text-white"
                 : "text-[#686D76] hover:text-[#141518]"
@@ -598,7 +608,7 @@ export function Parametric3DFitMock({
             type="button"
             id="gwo-3d-mode-heatmap"
             onClick={() => setRenderMode("heatmap")}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+            className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
               renderMode === "heatmap"
                 ? "bg-[#141518] text-white"
                 : "text-[#686D76] hover:text-[#141518]"
@@ -610,7 +620,7 @@ export function Parametric3DFitMock({
             type="button"
             id="gwo-3d-mode-xray"
             onClick={() => setRenderMode("xray")}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+            className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
               renderMode === "xray"
                 ? "bg-[#141518] text-white"
                 : "text-[#686D76] hover:text-[#141518]"
@@ -620,147 +630,152 @@ export function Parametric3DFitMock({
           </button>
         </div>
 
-        <div className="px-2.5 py-1 rounded-full bg-[#141518]/88 text-white text-[10.5px] font-bold backdrop-blur-xs">
+        <span className="px-2.5 py-1 rounded-full bg-[#141518] text-white text-[11px] font-bold">
           Size {selectedSize} • {String(yawDegDisplay).padStart(3, "0")}°
+        </span>
+      </div>
+
+      {/* Pure Unobstructed Middle 3D Canvas */}
+      <div className="relative flex-1 min-h-0 w-full bg-[#EEF1F6] flex items-center justify-center overflow-hidden">
+        <canvas
+          ref={canvasRef}
+          id="gwo-parametric-3d-canvas"
+          onPointerDown={(e) => {
+            camRef.current.dragging = true;
+            camRef.current.targetYaw = null;
+            camRef.current.lastX = e.clientX;
+            camRef.current.lastY = e.clientY;
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            if (!camRef.current.dragging) return;
+            const dx = e.clientX - camRef.current.lastX;
+            const dy = e.clientY - camRef.current.lastY;
+            camRef.current.lastX = e.clientX;
+            camRef.current.lastY = e.clientY;
+            camRef.current.yaw += dx * 0.011;
+            camRef.current.pitch = Math.max(
+              -0.28,
+              Math.min(0.42, camRef.current.pitch + dy * 0.006)
+            );
+            paintRef.current?.();
+          }}
+          onPointerUp={() => {
+            camRef.current.dragging = false;
+          }}
+          onPointerCancel={() => {
+            camRef.current.dragging = false;
+          }}
+          onWheel={(e) => {
+            e.preventDefault();
+            adjustZoom(e.deltaY < 0 ? 0.08 : -0.08);
+          }}
+          className="w-full h-full object-contain cursor-grab active:cursor-grabbing touch-none"
+        />
+      </div>
+
+      {/* Dedicated Bottom Dock OUTSIDE Canvas (Zero Model-Feet or Legend Overlap!) */}
+      <div className="shrink-0 px-3 py-2 bg-white border-t border-black/[0.06] space-y-1.5">
+        {renderMode === "heatmap" && (
+          <div className="flex flex-wrap items-center justify-center gap-3 pb-1 border-b border-black/[0.05] text-[10.5px] font-bold">
+            <span className="inline-flex items-center gap-1 text-[#DC2626]">
+              <span className="w-2 h-2 rounded-full bg-[#DC2626]" /> Pinch
+            </span>
+            <span className="inline-flex items-center gap-1 text-[#D97706]">
+              <span className="w-2 h-2 rounded-full bg-[#D97706]" /> Stretch Hug
+            </span>
+            <span className="inline-flex items-center gap-1 text-[#15803D]">
+              <span className="w-2 h-2 rounded-full bg-[#15803D]" /> Exact Fit
+            </span>
+            <span className="inline-flex items-center gap-1 text-[#2563EB]">
+              <span className="w-2 h-2 rounded-full bg-[#2563EB]" /> Drape Ease
+            </span>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="inline-flex items-center gap-1">
+            <button
+              type="button"
+              id="gwo-3d-angle-front"
+              onClick={() => jumpToAngle(15)}
+              className="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518] cursor-pointer"
+            >
+              Front
+            </button>
+            <button
+              type="button"
+              id="gwo-3d-angle-side"
+              onClick={() => jumpToAngle(90)}
+              className="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518] cursor-pointer"
+            >
+              Profile 90°
+            </button>
+            <button
+              type="button"
+              id="gwo-3d-angle-back"
+              onClick={() => jumpToAngle(180)}
+              className="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518] cursor-pointer"
+            >
+              {scene.hasCorsetBack ? "Corset Back 180°" : "Back 180°"}
+            </button>
+          </div>
+
+          <div className="inline-flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setAutoSpin((s) => !s)}
+              title={autoSpin ? "Pause 360° spin" : "Auto-spin 360°"}
+              className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer ${
+                autoSpin
+                  ? "bg-[#244B3B] text-white"
+                  : "bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518]"
+              }`}
+            >
+              {autoSpin ? (
+                <Pause className="w-3 h-3" />
+              ) : (
+                <Play className="w-3 h-3" />
+              )}
+              Spin
+            </button>
+            <button
+              type="button"
+              onClick={() => adjustZoom(0.12)}
+              title={`Zoom in (${Math.round(zoomLevel * 100)}%)`}
+              aria-label="Zoom in"
+              className="p-1.5 rounded-full bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518] cursor-pointer"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => adjustZoom(-0.12)}
+              title="Zoom out"
+              aria-label="Zoom out"
+              className="p-1.5 rounded-full bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518] cursor-pointer"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                camRef.current.pitch = 0.07;
+                camRef.current.zoom = 1.0;
+                setZoomLevel(1.0);
+                jumpToAngle(18);
+              }}
+              title="Reset 3D camera"
+              aria-label="Reset 3D camera"
+              className="p-1.5 rounded-full bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#686D76] hover:text-[#141518] cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Interactive 3D Parametric Canvas */}
-      <canvas
-        ref={canvasRef}
-        id="gwo-parametric-3d-canvas"
-        onPointerDown={(e) => {
-          camRef.current.dragging = true;
-          camRef.current.targetYaw = null;
-          camRef.current.lastX = e.clientX;
-          camRef.current.lastY = e.clientY;
-          e.currentTarget.setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          if (!camRef.current.dragging) return;
-          const dx = e.clientX - camRef.current.lastX;
-          const dy = e.clientY - camRef.current.lastY;
-          camRef.current.lastX = e.clientX;
-          camRef.current.lastY = e.clientY;
-          camRef.current.yaw += dx * 0.011;
-          camRef.current.pitch = Math.max(
-            -0.28,
-            Math.min(0.42, camRef.current.pitch + dy * 0.006)
-          );
-          paintRef.current?.();
-        }}
-        onPointerUp={() => {
-          camRef.current.dragging = false;
-        }}
-        onPointerCancel={() => {
-          camRef.current.dragging = false;
-        }}
-        onWheel={(e) => {
-          e.preventDefault();
-          adjustZoom(e.deltaY < 0 ? 0.08 : -0.08);
-        }}
-        className="w-full h-full object-contain cursor-grab active:cursor-grabbing touch-none"
-      />
-
-      {/* Heatmap Legend Strip when Heatmap Active */}
-      {renderMode === "heatmap" && (
-        <div className="absolute left-3 bottom-14 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/94 border border-black/[0.08] text-[10px] font-bold shadow-xs pointer-events-none">
-          <span className="inline-flex items-center gap-1 text-[#DC2626]">
-            <span className="w-2 h-2 rounded-full bg-[#DC2626]" /> Pinch
-          </span>
-          <span className="inline-flex items-center gap-1 text-[#D97706]">
-            <span className="w-2 h-2 rounded-full bg-[#D97706]" /> Stretch Hug
-          </span>
-          <span className="inline-flex items-center gap-1 text-[#15803D]">
-            <span className="w-2 h-2 rounded-full bg-[#15803D]" /> Exact Fit
-          </span>
-          <span className="inline-flex items-center gap-1 text-[#2563EB]">
-            <span className="w-2 h-2 rounded-full bg-[#2563EB]" /> Drape Ease
-          </span>
-        </div>
-      )}
-
-      {/* Bottom Camera Angle Presets + Turntable & Zoom Controls */}
-      <div className="absolute bottom-3 inset-x-3 z-10 flex items-center justify-between gap-2">
-        <div className="inline-flex items-center gap-1 p-1 rounded-full bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-xs">
-          <button
-            type="button"
-            id="gwo-3d-angle-front"
-            onClick={() => jumpToAngle(15)}
-            className="px-2.5 py-1 rounded-full text-[10.5px] font-bold text-[#141518] hover:bg-[#F1F2F5] cursor-pointer"
-          >
-            Front
-          </button>
-          <button
-            type="button"
-            id="gwo-3d-angle-side"
-            onClick={() => jumpToAngle(90)}
-            className="px-2.5 py-1 rounded-full text-[10.5px] font-bold text-[#141518] hover:bg-[#F1F2F5] cursor-pointer"
-          >
-            Profile 90°
-          </button>
-          <button
-            type="button"
-            id="gwo-3d-angle-back"
-            onClick={() => jumpToAngle(180)}
-            className="px-2.5 py-1 rounded-full text-[10.5px] font-bold text-[#141518] hover:bg-[#F1F2F5] cursor-pointer"
-          >
-            {scene.hasCorsetBack ? "Corset Back 180°" : "Back 180°"}
-          </button>
-        </div>
-
-        <div className="inline-flex items-center gap-1 p-1 rounded-full bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-xs">
-          <button
-            type="button"
-            onClick={() => setAutoSpin((s) => !s)}
-            title={autoSpin ? "Pause 360° spin" : "Auto-spin 360°"}
-            className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer ${
-              autoSpin
-                ? "bg-[#244B3B] text-white"
-                : "text-[#141518] hover:bg-[#F1F2F5]"
-            }`}
-          >
-            {autoSpin ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-            Spin
-          </button>
-          <button
-            type="button"
-            onClick={() => adjustZoom(0.14)}
-            title={`Zoom in (${Math.round(zoomLevel * 100)}%)`}
-            className="p-1 rounded-full hover:bg-[#F1F2F5] text-[#141518] cursor-pointer"
-          >
-            <ZoomIn className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => adjustZoom(-0.14)}
-            title="Zoom out"
-            className="p-1 rounded-full hover:bg-[#F1F2F5] text-[#141518] cursor-pointer"
-          >
-            <ZoomOut className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              camRef.current.pitch = 0.07;
-              camRef.current.zoom = 1.0;
-              setZoomLevel(1.0);
-              jumpToAngle(18);
-            }}
-            title="Reset 3D camera"
-            className="p-1 rounded-full hover:bg-[#F1F2F5] text-[#686D76] hover:text-[#141518] cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Subtle Fit Confidence Pill when not overlapping legend */}
-      {renderMode !== "heatmap" && (
-        <div className="sr-only">
-          {fitReport.headlineVerdict}
-        </div>
-      )}
+      <span className="sr-only">{fitReport.headlineVerdict}</span>
     </div>
   );
 }

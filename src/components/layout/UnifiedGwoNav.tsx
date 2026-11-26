@@ -33,9 +33,9 @@ import {
 import { Product } from "@/lib/types";
 
 const STEPS = [
-  { href: "/", match: ["/", "/closet"], label: "Closet & Try-On" },
-  { href: "/shop", match: ["/shop", "/recommended"], label: "For You Runway" },
-  { href: "/product", match: ["/product"], label: "3D & 360° Fit" },
+  { href: "/", match: ["/", "/closet"], label: "Closet & Try-On", shortLabel: "Closet" },
+  { href: "/shop", match: ["/shop", "/recommended"], label: "For You Runway", shortLabel: "Runway" },
+  { href: "/product", match: ["/product"], label: "3D & 360° Fit", shortLabel: "3D Fit" },
 ];
 
 const QUICK_SAMPLE_LINKS = [
@@ -193,18 +193,18 @@ export function UnifiedGwoNav() {
   return (
     <>
       {/* ==================== UNIFIED PERSISTENT GWO HEADER ==================== */}
-      <header className="fixed top-0 inset-x-0 z-50 h-16 px-4 sm:px-7 bg-white/92 backdrop-blur-md border-b border-black/[0.07] flex items-center justify-between gap-3">
+      <header className="fixed top-0 inset-x-0 z-50 h-16 px-2.5 sm:px-6 bg-white/95 backdrop-blur-md border-b border-black/[0.07] flex items-center justify-between gap-1.5 sm:gap-3">
         {/* Left: Pure 4-Stroke Cursive GWO Brand Mark */}
-        <div className="flex items-center gap-3 shrink-0">
-          <Link href="/" className="inline-flex items-center">
-            <GwoLogo height={38} replayOnClick={false} className="text-[#141518]" />
+        <div className="flex items-center shrink-0">
+          <Link href="/" className="inline-flex items-center py-1">
+            <GwoLogo height={34} replayOnClick={false} className="text-[#141518]" />
           </Link>
         </div>
 
-        {/* Center: Clean 3-Step Customer Flow */}
+        {/* Center: Clean 3-Step Customer Flow (Zero Horizontal Overflow at 360px+) */}
         <nav
           aria-label="GWO Steps"
-          className="flex items-center p-1 rounded-full bg-[#F1F2F5] border border-black/[0.05]"
+          className="flex items-center p-0.5 sm:p-1 rounded-full bg-[#F1F2F5] border border-black/[0.05]"
         >
           {STEPS.map((step) => {
             const active =
@@ -215,30 +215,32 @@ export function UnifiedGwoNav() {
               <Link
                 key={step.href}
                 href={step.href}
-                className={`px-3 sm:px-5 py-1.5 rounded-full text-xs sm:text-[13px] font-semibold transition-all whitespace-nowrap ${
+                className={`px-2.5 sm:px-4 md:px-5 py-1.5 rounded-full text-[11px] sm:text-[13px] font-semibold transition-all whitespace-nowrap ${
                   active
                     ? "bg-white text-[#141518] shadow-[0_2px_8px_rgba(20,21,24,0.08)]"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                {step.label}
+                <span className="md:hidden">{step.shortLabel}</span>
+                <span className="hidden md:inline">{step.label}</span>
               </Link>
             );
           })}
         </nav>
 
         {/* Right: My Photo Avatar, + Add Store Link, Share Closet, Unified Bag */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           <button
             type="button"
             id="gwo-my-avatar-btn"
             onClick={() => setAvatarModalOpen(true)}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer border bg-[#EBF3EE] border-[#C5DFD0] text-[#1D4232]"
+            aria-label="My Avatar"
+            className="inline-flex items-center justify-center gap-2 p-1 md:px-3 md:py-1.5 rounded-full text-xs font-semibold transition cursor-pointer border bg-[#EBF3EE] border-[#C5DFD0] text-[#1D4232]"
           >
             <img
               src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
               alt="My Avatar"
-              className="w-5 h-5 rounded-full object-cover border border-[#244B3B]/30"
+              className="w-6 h-6 md:w-5 md:h-5 rounded-full object-cover border border-[#244B3B]/30"
             />
             <span className="hidden md:inline">My Avatar ✓</span>
           </button>
@@ -250,11 +252,12 @@ export function UnifiedGwoNav() {
               setPreviewProduct(null);
               setAddUrlModalOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-full text-xs font-semibold bg-[#F1F2F5] hover:bg-[#E6E8ED] text-[#141518] transition cursor-pointer"
+            aria-label="Add Store Link"
+            className="inline-flex items-center justify-center gap-1 p-2 sm:px-3.5 sm:py-2 rounded-full text-xs font-semibold bg-[#F1F2F5] hover:bg-[#E6E8ED] text-[#141518] transition cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Add Store Link</span>
-            <span className="sm:hidden">URL</span>
+            <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
+            <span className="hidden lg:inline">Add Store Link</span>
+            <span className="hidden sm:inline lg:hidden">Store</span>
           </button>
 
           <button
@@ -282,12 +285,14 @@ export function UnifiedGwoNav() {
             type="button"
             id="gwo-unified-bag-btn"
             onClick={() => setBagOpen(true)}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] transition cursor-pointer ${
+            aria-label={`Shopping Bag (${bagItems.length})`}
+            className={`inline-flex items-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] transition cursor-pointer ${
               bagBump ? "scale-110" : "scale-100"
             }`}
           >
-            <ShoppingBag className="w-3.5 h-3.5" />
-            <span>Bag ({bagItems.length})</span>
+            <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Bag ({bagItems.length})</span>
+            <span className="sm:hidden">{bagItems.length}</span>
           </button>
         </div>
       </header>
@@ -556,7 +561,7 @@ export function UnifiedGwoNav() {
                 {pulledRackItems.length > 0 && (
                   <div
                     id="gwo-pulled-rack-grid"
-                    className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[50vh] overflow-y-auto pr-1"
+                    className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[50vh] overflow-y-auto pr-1 pb-2"
                   >
                     {pulledRackItems.map((prod) => {
                       const fit = analyzeExactAvatarFit(activeAvatarStats, prod);
