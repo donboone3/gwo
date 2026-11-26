@@ -1,4 +1,5 @@
 import { LocalDatabaseSchema, SizeMeasurementSpec } from "../types";
+import { buildTopLineAliExpressDropshipCatalog } from "../dropship/aliexpress-dropship";
 
 const ASSET_BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
@@ -638,6 +639,9 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       lastScrapedAt: nowIso,
       staleAfter: inThreeDays,
     },
+
+    // ==================== ALIEXPRESS TOP-LINE DROPSHIP CATALOG ====================
+    ...buildTopLineAliExpressDropshipCatalog(2.85),
   ],
   closetItems: [
     // Mila's Own Starter Closet ("Your Closet")

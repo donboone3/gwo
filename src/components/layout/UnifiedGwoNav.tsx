@@ -13,6 +13,7 @@ import {
   Link2,
   Loader2,
   Plus,
+  Rotate3d,
   Share2,
   ShoppingBag,
   Sparkles,
@@ -22,11 +23,14 @@ import {
 } from "lucide-react";
 import { GwoLogo } from "../brand/GwoLogo";
 import { CustomerAvatarModal } from "../avatar/CustomerAvatarModal";
+import { Avatar360Modal } from "../studio/Avatar360Modal";
+import { SocialStyleDnaModal } from "../social/SocialStyleDnaModal";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
 import { useGwo } from "@/context/GwoAppContext";
 import { VERIFIED_LIVE_STORE_RACKS } from "@/lib/catalog/client-url-scraper";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
+import { buildSynthetic3DProductFromPiece } from "@/lib/catalog/closet-look-3d-mapper";
 import {
   DEFAULT_AVATAR_MEASUREMENTS,
 } from "@/lib/catalog/sizing";
@@ -35,7 +39,8 @@ import { Product } from "@/lib/types";
 const STEPS = [
   { href: "/", match: ["/", "/closet"], label: "Closet & Try-On", shortLabel: "Closet" },
   { href: "/shop", match: ["/shop", "/recommended"], label: "For You Runway", shortLabel: "Runway" },
-  { href: "/product", match: ["/product"], label: "3D & 360° Fit", shortLabel: "3D Fit" },
+  { href: "/feed", match: ["/feed"], label: "AI Endless Looks", shortLabel: "AI Feed" },
+  { href: "/product", match: ["/product"], label: "3D & 360° Fit", shortLabel: "360°" },
 ];
 
 const QUICK_SAMPLE_LINKS = [
@@ -60,6 +65,7 @@ export function UnifiedGwoNav() {
 
   const {
     user,
+    products,
     bagItems,
     bagOpen,
     setBagOpen,
@@ -72,6 +78,7 @@ export function UnifiedGwoNav() {
     updateImportedProductImage,
     customAvatar,
     setAvatarModalOpen,
+    openAvatar360,
     ingestUrlToSharedCatalog,
     pullStoreRackToCatalog,
     shareMyClosetAndClaimBonus,
@@ -193,15 +200,15 @@ export function UnifiedGwoNav() {
   return (
     <>
       {/* ==================== UNIFIED PERSISTENT GWO HEADER ==================== */}
-      <header className="fixed top-0 inset-x-0 z-50 h-16 px-2.5 sm:px-6 bg-white/95 backdrop-blur-md border-b border-black/[0.07] flex items-center justify-between gap-1.5 sm:gap-3">
+      <header className="fixed top-0 inset-x-0 z-50 h-16 px-2 sm:px-6 bg-white/95 backdrop-blur-md border-b border-black/[0.07] flex items-center justify-between gap-1 sm:gap-3">
         {/* Left: Pure 4-Stroke Cursive GWO Brand Mark */}
         <div className="flex items-center shrink-0">
           <Link href="/" className="inline-flex items-center py-1">
-            <GwoLogo height={34} replayOnClick={false} className="text-[#141518]" />
+            <GwoLogo height={28} replayOnClick={false} className="text-[#141518] sm:scale-115 origin-left" />
           </Link>
         </div>
 
-        {/* Center: Clean 3-Step Customer Flow (Zero Horizontal Overflow at 360px+) */}
+        {/* Center: Clean 4-Step Customer Flow (Zero Horizontal Overflow at 360px+) */}
         <nav
           aria-label="GWO Steps"
           className="flex items-center p-0.5 sm:p-1 rounded-full bg-[#F1F2F5] border border-black/[0.05]"
@@ -215,14 +222,14 @@ export function UnifiedGwoNav() {
               <Link
                 key={step.href}
                 href={step.href}
-                className={`px-2.5 sm:px-4 md:px-5 py-1.5 rounded-full text-[11px] sm:text-[13px] font-semibold transition-all whitespace-nowrap ${
+                className={`px-1.5 sm:px-3.5 md:px-4 py-1.5 rounded-full text-[10px] sm:text-xs md:text-[13px] font-semibold transition-all whitespace-nowrap ${
                   active
                     ? "bg-white text-[#141518] shadow-[0_2px_8px_rgba(20,21,24,0.08)]"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <span className="md:hidden">{step.shortLabel}</span>
-                <span className="hidden md:inline">{step.label}</span>
+                <span className="lg:hidden">{step.shortLabel}</span>
+                <span className="hidden lg:inline">{step.label}</span>
               </Link>
             );
           })}
@@ -370,7 +377,39 @@ export function UnifiedGwoNav() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        title="See Front & Back 360° Avatar Look"
+                        onClick={() => {
+                          const matched = item.productId
+                            ? products.find((p) => p.id === item.productId)
+                            : products.find(
+                                (p) =>
+                                  p.title.toLowerCase() ===
+                                  item.title.toLowerCase()
+                              );
+                          const targetProd =
+                            matched ||
+                            buildSynthetic3DProductFromPiece({
+                              id: `bag-360-${item.id}`,
+                              name: item.title,
+                              brand: item.brand,
+                              price: item.price,
+                              imageUrl: item.imageUrl,
+                              storeUrl: item.storeUrl,
+                            });
+                          setBagOpen(false);
+                          openAvatar360({
+                            title: `${item.brand} — ${item.title}`,
+                            primaryProduct: targetProd,
+                            initialAngleMode: "split",
+                          });
+                        }}
+                        className="px-2 py-1 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[10.5px] font-bold text-[#141518] inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <Rotate3d className="w-3 h-3 text-[#244B3B]" /> 360°
+                      </button>
                       <span className="text-sm font-bold text-[#141518]">
                         ${item.price}
                       </span>
@@ -478,6 +517,17 @@ export function UnifiedGwoNav() {
                 }`}
               >
                 <Store className="w-3.5 h-3.5 text-[#244B3B]" /> Pull Live Store Rack
+              </button>
+              <button
+                type="button"
+                id="gwo-modal-tab-aliexpress"
+                onClick={() => {
+                  setAddUrlModalOpen(false);
+                  router.push("/feed?studio=dropship");
+                }}
+                className="px-4 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 text-[#1D4232] hover:bg-white cursor-pointer transition"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#244B3B]" /> AliExpress Dropship →
               </button>
             </div>
 
@@ -597,15 +647,16 @@ export function UnifiedGwoNav() {
                             <button
                               type="button"
                               onClick={() => {
-                                setActiveImportedProduct(prod);
                                 setAddUrlModalOpen(false);
-                                router.push(
-                                  `/product?id=${encodeURIComponent(prod.id)}&view=3d`
-                                );
+                                openAvatar360({
+                                  title: `${prod.brand} — ${prod.title}`,
+                                  primaryProduct: prod,
+                                  initialAngleMode: "split",
+                                });
                               }}
                               className="flex-1 py-1.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[10px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
                             >
-                              <Box className="w-3 h-3 text-[#A7D7C5]" /> 3D Fit Mock
+                              <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> 360° F/B
                             </button>
                             <button
                               type="button"
@@ -866,6 +917,21 @@ export function UnifiedGwoNav() {
 
                       <button
                         type="button"
+                        onClick={() => {
+                          setAddUrlModalOpen(false);
+                          openAvatar360({
+                            title: `${previewProduct.brand} — ${previewProduct.title}`,
+                            primaryProduct: previewProduct,
+                            initialAngleMode: "split",
+                          });
+                        }}
+                        className="px-3.5 py-2 rounded-full bg-[#EBF3EE] hover:bg-[#DCECE3] border border-[#C5DFD0] text-[#1D4232] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Rotate3d className="w-3.5 h-3.5" /> 360° Front &amp; Back
+                      </button>
+
+                      <button
+                        type="button"
                         id="gwo-try-imported-on-avatar-btn"
                         onClick={() => {
                           setActiveImportedProduct(previewProduct);
@@ -890,6 +956,8 @@ export function UnifiedGwoNav() {
       )}
 
       <CustomerAvatarModal />
+      <Avatar360Modal />
+      <SocialStyleDnaModal />
 
       {/* ==================== UNIFIED SUBTLE TOAST ==================== */}
       {toastMessage && (

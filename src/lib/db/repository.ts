@@ -51,6 +51,8 @@ export function readLocalDb(): LocalDatabaseSchema {
           studioLookIndex: seedMatch.studioLookIndex ?? p.studioLookIndex,
           fitMetadata: seedMatch.fitMetadata ?? p.fitMetadata,
           sizeChartInches: seedMatch.sizeChartInches ?? p.sizeChartInches,
+          sourceType: seedMatch.sourceType ?? p.sourceType,
+          dropship: seedMatch.dropship ?? p.dropship,
         };
       });
       for (const sp of INITIAL_SEED_DB.products) {

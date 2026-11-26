@@ -8,6 +8,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Columns2,
   Copy,
   HeartHandshake,
   Plus,
@@ -27,8 +28,13 @@ import {
   STUDIO_LOOKS,
 } from "./vell-data";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
+import { Parametric3DFitMock } from "../product/Parametric3DFitMock";
 import { useGwo } from "@/context/GwoAppContext";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
+import {
+  build3DOutfitForClosetLook,
+  buildSynthetic3DProductFromPiece,
+} from "@/lib/catalog/closet-look-3d-mapper";
 import {
   DEFAULT_AVATAR_MEASUREMENTS,
   deriveStandardApparelSize,
@@ -60,6 +66,7 @@ export function VellGwoStudio() {
     setActiveImportedProduct,
     customAvatar,
     setAvatarModalOpen,
+    openAvatar360,
     showToast,
   } = useGwo();
 
@@ -76,6 +83,9 @@ export function VellGwoStudio() {
   const [closetOwner, setClosetOwner] = useState<string>("all");
   const [category, setCategory] = useState<SimpleCategory>("all");
   const [zoomed, setZoomed] = useState(false);
+  const [closetStageAngle, setClosetStageAngle] = useState<
+    "studio" | "back" | "split" | "spin"
+  >("studio");
   const [equippedAccessories, setEquippedAccessories] = useState<string[]>([
     "Gold hoops",
   ]);
@@ -412,8 +422,47 @@ export function VellGwoStudio() {
   };
 
   const scrapedCommunityItems = useMemo(
-    () => products.filter((p) => p.sourceType === "scraped_url").slice(0, 6),
+    () =>
+      products
+        .filter(
+          (p) =>
+            p.sourceType === "scraped_url" ||
+            p.sourceType === "aliexpress_dropship"
+        )
+        .slice(0, 6),
     [products]
+  );
+
+  const activeCloset3DSet = useMemo(() => {
+    if (activeImportedProduct) {
+      return {
+        primaryProduct: activeImportedProduct,
+        companionProducts: [] as Product[],
+      };
+    }
+    return build3DOutfitForClosetLook(currentLook, products);
+  }, [activeImportedProduct, currentLook, products]);
+
+  const activeCloset3DFit = useMemo(
+    () =>
+      analyzeExactAvatarFit(
+        {
+          bustInches: activeBust,
+          waistInches: activeWaist,
+          hipsInches: activeHips,
+          heightInches: activeHeight,
+          shoeSize: user?.shoeSize || "7.5",
+        },
+        activeCloset3DSet.primaryProduct
+      ),
+    [
+      activeBust,
+      activeCloset3DSet.primaryProduct,
+      activeHeight,
+      activeHips,
+      activeWaist,
+      user?.shoeSize,
+    ]
   );
 
   const scrapedFitById = useMemo(() => {
@@ -784,10 +833,69 @@ export function VellGwoStudio() {
               {Math.floor(activeHeight / 12)}&apos;{Math.round(activeHeight % 12)}&quot; • Size{" "}
               {recSize}
             </button>
+
+            {/* Universal Closet Front / Back / 360° Avatar Switcher */}
+            <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs">
+              {(
+                [
+                  ["studio", "Front"],
+                  ["back", "Back 180°"],
+                  ["split", "Front + Back"],
+                  ["spin", "360° Spin"],
+                ] as const
+              ).map(([modeId, modeLabel]) => {
+                const active = closetStageAngle === modeId;
+                return (
+                  <button
+                    key={modeId}
+                    type="button"
+                    id={`gwo-closet-angle-${modeId}`}
+                    onClick={() => setClosetStageAngle(modeId)}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition whitespace-nowrap ${
+                      active
+                        ? "bg-[#141518] text-white"
+                        : "text-[#686D76] hover:text-[#141518]"
+                    }`}
+                  >
+                    {modeId === "split" && <Columns2 className="w-3 h-3" />}
+                    {modeId === "spin" && <Rotate3d className="w-3 h-3" />}
+                    {modeLabel}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Contained Interactive Avatar Viewport (overflow-hidden ensures Zoom NEVER overlaps top/bottom controls!) */}
           <div className="relative flex-1 w-full min-h-0 my-1.5 flex items-end justify-center overflow-hidden">
+            {closetStageAngle !== "studio" && (
+              <div className="w-full h-full flex items-stretch justify-center px-1">
+                <Parametric3DFitMock
+                  product={activeCloset3DSet.primaryProduct}
+                  companionProducts={activeCloset3DSet.companionProducts}
+                  selectedSize={activeCloset3DFit.recommendedSize}
+                  fitReport={activeCloset3DFit}
+                  avatar={{
+                    heightInches: activeHeight,
+                    bustInches: activeBust,
+                    waistInches: activeWaist,
+                    hipsInches: activeHips,
+                    skinTone:
+                      customAvatar?.skinToneHex || user?.skinTone || "#D9A482",
+                  }}
+                  faceBadgeUrl={customAvatar?.badgeDataUrl}
+                  initialAngleMode={
+                    closetStageAngle === "back"
+                      ? "back"
+                      : closetStageAngle === "split"
+                      ? "split"
+                      : "spin"
+                  }
+                  compactHeightClass="h-full"
+                />
+              </div>
+            )}
+
             <div
               ref={modelBoxRef}
               onPointerDown={(e) => {
@@ -801,7 +909,9 @@ export function VellGwoStudio() {
                   void swapToLook(lookIdx + (dx < 0 ? 1 : -1));
                 }
               }}
-              className={`relative h-full flex items-end justify-center cursor-grab active:cursor-grabbing transition-transform duration-500 will-change-transform ${
+              className={`${
+                closetStageAngle === "studio" ? "flex" : "hidden"
+              } relative h-full items-end justify-center cursor-grab active:cursor-grabbing transition-transform duration-500 will-change-transform ${
                 zoomed ? "scale-[1.35] translate-y-20" : "scale-100"
               }`}
             >
@@ -959,24 +1069,27 @@ export function VellGwoStudio() {
                 </div>
 
                 <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openAvatar360({
+                        title: `${activeImportedProduct.brand} — ${activeImportedProduct.title}`,
+                        primaryProduct: activeImportedProduct,
+                        initialAngleMode: "split",
+                      })
+                    }
+                    className="flex-1 py-1.5 px-2.5 rounded-full text-[11px] font-bold bg-[#141518] hover:bg-[#27292E] text-white inline-flex items-center justify-center gap-1 cursor-pointer transition"
+                  >
+                    <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> Front + Back 360°
+                  </button>
                   <Link
                     href={`/product?id=${encodeURIComponent(
                       activeImportedProduct.id
                     )}&view=3d`}
-                    className="flex-1 py-1.5 px-2.5 rounded-full text-[11px] font-bold bg-[#141518] hover:bg-[#27292E] text-white flex items-center justify-center gap-1 transition"
+                    className="py-1.5 px-2.5 rounded-full text-[11px] font-bold bg-white hover:bg-[#EAECEF] border border-black/10 text-[#141518] inline-flex items-center justify-center gap-1 transition"
                   >
-                    <Box className="w-3 h-3 text-[#A7D7C5]" /> 3D Exact-Fit Mock
+                    <Box className="w-3 h-3 text-[#244B3B]" /> 3D Fit
                   </Link>
-                  {activeImportedProduct.studioLookIndex === undefined &&
-                    activeImportedProduct.imageUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setDrapeFlatLay((v) => !v)}
-                        className="py-1.5 px-2.5 rounded-full text-[11px] font-bold bg-white hover:bg-[#EAECEF] border border-black/10 text-[#141518] cursor-pointer transition"
-                      >
-                        {drapeFlatLay ? "Hide Drape" : "Drape"}
-                      </button>
-                    )}
                 </div>
               </div>
             )}
@@ -1237,21 +1350,34 @@ export function VellGwoStudio() {
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <Link
-                        href={
-                          currentLook.productId
-                            ? `/product?id=${encodeURIComponent(
-                                currentLook.productId
-                              )}&view=3d`
-                            : `/product?name=${encodeURIComponent(
-                                piece.name
-                              )}&price=${encodeURIComponent(`$${piece.price}`)}&view=3d`
-                        }
-                        title="Inspect 3D Exact-Fit Mock & Angles"
-                        className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold bg-white border border-black/[0.09] text-[#141518] hover:bg-[#EFF1F5] inline-flex items-center gap-1"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const matchedCatalog = currentLook.productId
+                            ? products.find((p) => p.id === currentLook.productId)
+                            : null;
+                          const targetProd =
+                            matchedCatalog ||
+                            buildSynthetic3DProductFromPiece({
+                              id: `closet-piece-${lookIdx}-${piece.name}`,
+                              name: piece.name,
+                              colorName: piece.color,
+                              price: piece.price,
+                              brand: currentLook.friendOwner
+                                ? `@${currentLook.friendOwner}'s Closet`
+                                : "GWO Closet",
+                            });
+                          openAvatar360({
+                            title: `${piece.name} (${piece.color})`,
+                            primaryProduct: targetProd,
+                            initialAngleMode: "split",
+                          });
+                        }}
+                        title="See Front & Back 360° Avatar Look"
+                        className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold bg-white border border-black/[0.09] text-[#141518] hover:bg-[#EFF1F5] inline-flex items-center gap-1 cursor-pointer"
                       >
-                        <Rotate3d className="w-3 h-3" /> {currentLook.productId ? "3D Fit" : "3D"}
-                      </Link>
+                        <Rotate3d className="w-3 h-3 text-[#244B3B]" /> 360°
+                      </button>
 
                       <button
                         type="button"

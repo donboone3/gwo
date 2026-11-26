@@ -1,7 +1,17 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Eye, Flame, Pause, Play, RotateCcw, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  Columns2,
+  Eye,
+  Flame,
+  Pause,
+  Play,
+  RotateCcw,
+  Sparkles,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import {
   buildParametric3DFitScene,
   MeshZoneStatus,
@@ -14,6 +24,7 @@ export type MockRenderMode = "fabric" | "heatmap" | "xray";
 
 interface Parametric3DFitMockProps {
   product: Product;
+  companionProducts?: Product[];
   selectedSize: string;
   fitReport: ReturnType<typeof analyzeExactAvatarFit>;
   avatar: {
@@ -24,6 +35,8 @@ interface Parametric3DFitMockProps {
     skinTone?: string;
   };
   faceBadgeUrl?: string;
+  initialAngleMode?: "front" | "back" | "split" | "spin";
+  compactHeightClass?: string;
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -56,26 +69,62 @@ function statusLabelShort(status: MeshZoneStatus, ease: number): string {
 
 export function Parametric3DFitMock({
   product,
+  companionProducts,
   selectedSize,
   fitReport,
   avatar,
+  initialAngleMode = "front",
+  compactHeightClass,
 }: Parametric3DFitMockProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [renderMode, setRenderMode] = useState<MockRenderMode>("fabric");
-  const [autoSpin, setAutoSpin] = useState(false);
-  const [yawDegDisplay, setYawDegDisplay] = useState(18);
+  const [splitFrontBack, setSplitFrontBack] = useState<boolean>(
+    initialAngleMode === "split"
+  );
+  const [autoSpin, setAutoSpin] = useState<boolean>(
+    initialAngleMode === "spin"
+  );
+  const [yawDegDisplay, setYawDegDisplay] = useState<number>(
+    initialAngleMode === "back" ? 180 : initialAngleMode === "split" ? 0 : 14
+  );
   const [zoomLevel, setZoomLevel] = useState(1.0);
 
   const camRef = useRef({
-    yaw: (18 * Math.PI) / 180,
-    pitch: 0.07,
+    yaw:
+      initialAngleMode === "back"
+        ? Math.PI
+        : initialAngleMode === "split"
+        ? 0
+        : (14 * Math.PI) / 180,
+    pitch: 0.06,
     zoom: 1.0,
     targetYaw: null as number | null,
     dragging: false,
     lastX: 0,
     lastY: 0,
   });
+
+  useEffect(() => {
+    if (initialAngleMode === "split") {
+      setSplitFrontBack(true);
+      setAutoSpin(false);
+      camRef.current.yaw = 0;
+      camRef.current.targetYaw = null;
+    } else if (initialAngleMode === "back") {
+      setSplitFrontBack(false);
+      setAutoSpin(false);
+      camRef.current.targetYaw = Math.PI;
+    } else if (initialAngleMode === "spin") {
+      setSplitFrontBack(false);
+      setAutoSpin(true);
+    } else {
+      setSplitFrontBack(false);
+      setAutoSpin(false);
+      camRef.current.targetYaw = (14 * Math.PI) / 180;
+    }
+    paintRef.current?.();
+  }, [initialAngleMode, product.id]);
 
   const scene = useMemo(
     () =>
@@ -89,6 +138,7 @@ export function Parametric3DFitMock({
         },
         product,
         selectedSize,
+        companionProducts,
       }),
     [
       avatar.bustInches,
@@ -96,6 +146,7 @@ export function Parametric3DFitMock({
       avatar.hipsInches,
       avatar.skinTone,
       avatar.waistInches,
+      companionProducts,
       product,
       selectedSize,
     ]
@@ -103,14 +154,23 @@ export function Parametric3DFitMock({
 
   const isGlossyFabric = useMemo(() => {
     const f = `${product.title} ${product.fitMetadata?.fabricComposition || ""}`.toLowerCase();
-    return /silk|satin|metallic|silver|crystal|leather|vinyl/.test(f);
+    return /silk|satin|metallic|silver|crystal|leather|vinyl|patent/.test(f);
   }, [product]);
 
   const paintRef = useRef<(() => void) | null>(null);
 
   const jumpToAngle = useCallback((deg: number) => {
+    setSplitFrontBack(false);
     setAutoSpin(false);
     camRef.current.targetYaw = (deg * Math.PI) / 180;
+    paintRef.current?.();
+  }, []);
+
+  const activateFrontAndBackSplit = useCallback(() => {
+    setAutoSpin(false);
+    setSplitFrontBack(true);
+    camRef.current.yaw = 0;
+    camRef.current.targetYaw = null;
     paintRef.current?.();
   }, []);
 
@@ -144,15 +204,15 @@ export function Parametric3DFitMock({
     const bodyCenterY = scene.totalHeightInches * 0.515;
     const cameraDist = 114;
     const baseFocal = 880;
-    const centerX = W * 0.46; // Leaves clean right gutter for Bust/Waist/Hips caliper pills!
 
     const kLen = Math.hypot(0.42, 0.55, 0.72);
     const Lx = 0.42 / kLen;
     const Ly = 0.55 / kLen;
     const Lz = 0.72 / kLen;
 
-    const projectPoint = (
+    const projectPointAt = (
       p: Point3D,
+      cxScreen: number,
       cosY: number,
       sinY: number,
       cosP: number,
@@ -169,44 +229,35 @@ export function Parametric3DFitMock({
         x1,
         y2,
         z2,
-        sx: centerX + x1 * s,
-        sy: H_PX * 0.52 - y2 * s,
+        sx: cxScreen + x1 * s,
+        sy: H_PX * 0.525 - y2 * s,
       };
     };
 
     let lastYawBadge = -999;
 
-    const drawScene = () => {
-      const { yaw, pitch, zoom } = camRef.current;
-      const cosY = Math.cos(yaw);
-      const sinY = Math.sin(yaw);
+    const renderAvatarPass = (
+      cxScreen: number,
+      yawRad: number,
+      focalScale: number,
+      showSideCallouts: boolean,
+      pedestalBanner?: string
+    ) => {
+      const { pitch, zoom } = camRef.current;
+      const cosY = Math.cos(yawRad);
+      const sinY = Math.sin(yawRad);
       const cosP = Math.cos(pitch);
       const sinP = Math.sin(pitch);
-      const focal = baseFocal * zoom;
+      const focal = baseFocal * zoom * focalScale;
 
-      const normDeg = ((Math.round((yaw * 180) / Math.PI) % 360) + 360) % 360;
-      if (Math.abs(normDeg - lastYawBadge) >= 2) {
-        lastYawBadge = normDeg;
-        setYawDegDisplay(normDeg);
-      }
-
-      ctx.save();
-      ctx.scale(dpr, dpr);
-
-      // 1. Clean Studio Cyclorama Backdrop + 3D Floor Pedestal
-      const bgGrad = ctx.createLinearGradient(0, 0, 0, H_PX);
-      bgGrad.addColorStop(0, "#F8F9FB");
-      bgGrad.addColorStop(0.68, "#EEF1F6");
-      bgGrad.addColorStop(1, "#E3E7EF");
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, W, H_PX);
-
-      for (const rIn of [7.2, 11.0]) {
+      // Pedestal Rings & Soft Shadow
+      for (const rIn of [7.2, 10.8]) {
         ctx.beginPath();
-        for (let j = 0; j <= 40; j++) {
-          const u = (j / 40) * Math.PI * 2;
-          const pt = projectPoint(
+        for (let j = 0; j <= 36; j++) {
+          const u = (j / 36) * Math.PI * 2;
+          const pt = projectPointAt(
             { x: Math.cos(u) * rIn, y: 2.6, z: Math.sin(u) * rIn },
+            cxScreen,
             cosY,
             sinY,
             cosP,
@@ -222,21 +273,23 @@ export function Parametric3DFitMock({
         ctx.stroke();
       }
 
-      const floorOrigin = projectPoint(
+      const floorOrigin = projectPointAt(
         { x: 0, y: 2.6, z: 0 },
+        cxScreen,
         cosY,
         sinY,
         cosP,
         sinP,
         focal
       );
+      const shRad = 74 * zoom * focalScale;
       const shGrad = ctx.createRadialGradient(
         floorOrigin.sx,
         floorOrigin.sy,
-        6,
+        5,
         floorOrigin.sx,
         floorOrigin.sy,
-        76 * zoom
+        shRad
       );
       shGrad.addColorStop(0, "rgba(20,24,32,0.22)");
       shGrad.addColorStop(1, "rgba(20,24,32,0)");
@@ -245,20 +298,19 @@ export function Parametric3DFitMock({
       ctx.ellipse(
         floorOrigin.sx,
         floorOrigin.sy,
-        76 * zoom,
-        18 * zoom,
+        shRad,
+        17 * zoom * focalScale,
         0,
         0,
         Math.PI * 2
       );
       ctx.fill();
 
-      // 2. Project & Shade Quads
       interface ProjectedQuad {
-        q0: ReturnType<typeof projectPoint>;
-        q1: ReturnType<typeof projectPoint>;
-        q2: ReturnType<typeof projectPoint>;
-        q3: ReturnType<typeof projectPoint>;
+        q0: ReturnType<typeof projectPointAt>;
+        q1: ReturnType<typeof projectPointAt>;
+        q2: ReturnType<typeof projectPointAt>;
+        q3: ReturnType<typeof projectPointAt>;
         depthZ: number;
         fillStyle: string;
         strokeStyle: string | null;
@@ -267,15 +319,15 @@ export function Parametric3DFitMock({
       }
 
       const drawList: ProjectedQuad[] = [];
-      let bodyMaxRightSx = centerX + 44;
-      let bodyMinLeftSx = centerX - 44;
+      let bodyMaxRightSx = cxScreen + 44 * focalScale;
+      let bodyMinLeftSx = cxScreen - 44 * focalScale;
 
       for (let i = 0; i < scene.quads.length; i++) {
         const q = scene.quads[i];
-        const q0 = projectPoint(q.p0, cosY, sinY, cosP, sinP, focal);
-        const q1 = projectPoint(q.p1, cosY, sinY, cosP, sinP, focal);
-        const q2 = projectPoint(q.p2, cosY, sinY, cosP, sinP, focal);
-        const q3 = projectPoint(q.p3, cosY, sinY, cosP, sinP, focal);
+        const q0 = projectPointAt(q.p0, cxScreen, cosY, sinY, cosP, sinP, focal);
+        const q1 = projectPointAt(q.p1, cxScreen, cosY, sinY, cosP, sinP, focal);
+        const q2 = projectPointAt(q.p2, cxScreen, cosY, sinY, cosP, sinP, focal);
+        const q3 = projectPointAt(q.p3, cxScreen, cosY, sinY, cosP, sinP, focal);
 
         const maxQx = Math.max(q0.sx, q1.sx, q2.sx, q3.sx);
         const minQx = Math.min(q0.sx, q1.sx, q2.sx, q3.sx);
@@ -298,7 +350,6 @@ export function Parametric3DFitMock({
         nz /= nLen;
 
         if (q.layer === "body" && nz < -0.15) continue;
-
         if (q.layer !== "body" && nz < 0) {
           nx = -nx;
           ny = -ny;
@@ -332,7 +383,6 @@ export function Parametric3DFitMock({
         const zAvg = (q0.z2 + q1.z2 + q2.z2 + q3.z2) * 0.25;
         const layerBias =
           q.layer === "detail" ? 0.35 : q.layer === "garment" ? 0.18 : 0;
-
         const isXrayGarment = renderMode === "xray" && q.layer !== "body";
 
         drawList.push({
@@ -373,14 +423,23 @@ export function Parametric3DFitMock({
               : "#1D4232";
           ctx.save();
           ctx.strokeStyle = ringColor;
-          ctx.lineWidth = frontHalf ? 2.0 : 1.1;
-          ctx.globalAlpha = frontHalf ? 0.92 : 0.25;
+          ctx.lineWidth = frontHalf ? 1.8 : 1.0;
+          ctx.globalAlpha = frontHalf ? 0.9 : 0.24;
           if (!frontHalf) ctx.setLineDash([4, 4]);
 
           for (let j = 0; j < ring.points.length - 1; j++) {
-            const a = projectPoint(ring.points[j], cosY, sinY, cosP, sinP, focal);
-            const b = projectPoint(
+            const a = projectPointAt(
+              ring.points[j],
+              cxScreen,
+              cosY,
+              sinY,
+              cosP,
+              sinP,
+              focal
+            );
+            const b = projectPointAt(
               ring.points[j + 1],
+              cxScreen,
               cosY,
               sinY,
               cosP,
@@ -421,115 +480,208 @@ export function Parametric3DFitMock({
 
       drawCaliperHalf(true);
 
-      // Right-Gutter Caliper Callout Pills (strictly >= bodyMaxRightSx + 10 so NEVER overlaps 3D garment!)
-      ctx.font = "700 10px 'Plus Jakarta Sans', system-ui, sans-serif";
-      for (const ring of scene.caliperRings) {
-        let bestPt = projectPoint(ring.points[0], cosY, sinY, cosP, sinP, focal);
-        for (let j = 1; j < ring.points.length; j++) {
-          const cand = projectPoint(ring.points[j], cosY, sinY, cosP, sinP, focal);
-          if (cand.sx > bestPt.sx) bestPt = cand;
-        }
-
-        const pillBg =
-          ring.status === "too_tight"
-            ? "#FDECEB"
-            : ring.status === "sculpted_snug"
-            ? "#FEF6E6"
-            : "#E7F3EE";
-        const pillFg =
-          ring.status === "too_tight"
-            ? "#9E2A22"
-            : ring.status === "sculpted_snug"
-            ? "#8A5808"
-            : "#1D4232";
-
-        const labelText = `${ring.label} ${ring.bodyCircInches}" (${statusLabelShort(
-          ring.status,
-          ring.easeInches
-        )})`;
-        const tw = ctx.measureText(labelText).width;
-        const safeLeft = Math.max(bestPt.sx + 14, bodyMaxRightSx + 10);
-        const px = Math.min(W - tw - 12, safeLeft);
-        const py = Math.max(20, Math.min(H_PX - 20, bestPt.sy));
-
-        ctx.strokeStyle = pillFg;
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.moveTo(bestPt.sx + 2, bestPt.sy);
-        ctx.lineTo(px - 6, py);
-        ctx.stroke();
-
-        ctx.fillStyle = pillBg;
-        ctx.beginPath();
-        ctx.roundRect(px - 6, py - 10, tw + 12, 20, 10);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(20,21,24,0.1)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.fillStyle = pillFg;
-        ctx.fillText(labelText, px, py + 3.5);
-      }
-
-      // Left-Gutter Hem Landing Guides (strictly <= bodyMinLeftSx - 8 so NEVER overlaps 3D legs!)
-      if (scene.storeModelRelativeHemYInches !== undefined) {
-        const modelHemPt = projectPoint(
-          { x: -5.8, y: scene.storeModelRelativeHemYInches, z: 0 },
-          cosY,
-          sinY,
-          cosP,
-          sinP,
-          focal
-        );
-        const custHemPt = projectPoint(
-          { x: -5.8, y: scene.customerHemYInches, z: 0 },
-          cosY,
-          sinY,
-          cosP,
-          sinP,
-          focal
-        );
-
-        const lineEnd = Math.max(126, Math.min(bodyMinLeftSx - 4, modelHemPt.sx));
-
+      if (pedestalBanner) {
         ctx.save();
-        ctx.setLineDash([3, 3]);
-        ctx.strokeStyle = "#686D76";
-        ctx.lineWidth = 1.2;
+        ctx.font = "700 10.5px 'Plus Jakarta Sans', system-ui, sans-serif";
+        const tw = ctx.measureText(pedestalBanner).width;
+        const bx = cxScreen - (tw + 20) / 2;
+        const by = 14;
+        ctx.fillStyle = "rgba(20, 21, 24, 0.88)";
         ctx.beginPath();
-        ctx.moveTo(12, modelHemPt.sy);
-        ctx.lineTo(lineEnd, modelHemPt.sy);
-        ctx.stroke();
-
-        ctx.fillStyle = "rgba(255,255,255,0.94)";
-        ctx.beginPath();
-        ctx.roundRect(10, modelHemPt.sy - 19, 118, 17, 8);
-        ctx.fill();
-        ctx.fillStyle = "#5C6068";
-        ctx.font = "600 9.5px 'Plus Jakarta Sans', system-ui, sans-serif";
-        ctx.fillText(
-          `Model Hem (${product.fitMetadata?.modelStats?.wornSize || "XS"})`,
-          16,
-          modelHemPt.sy - 7
-        );
-
-        ctx.setLineDash([]);
-        ctx.strokeStyle = "#244B3B";
-        ctx.beginPath();
-        ctx.moveTo(12, custHemPt.sy);
-        ctx.lineTo(lineEnd, custHemPt.sy);
-        ctx.stroke();
-
-        const ft = Math.floor(avatar.heightInches / 12);
-        const inch = Math.round(avatar.heightInches % 12);
-        ctx.fillStyle = "#141518";
-        ctx.beginPath();
-        ctx.roundRect(10, custHemPt.sy + 2, 114, 18, 8);
+        ctx.roundRect(bx, by, tw + 20, 22, 11);
         ctx.fill();
         ctx.fillStyle = "#FFFFFF";
-        ctx.font = "700 9.5px 'Plus Jakarta Sans', system-ui, sans-serif";
-        ctx.fillText(`Your ${ft}'${inch}" Hem`, 16, custHemPt.sy + 14);
+        ctx.fillText(pedestalBanner, bx + 10, by + 14.5);
         ctx.restore();
+      }
+
+      if (showSideCallouts) {
+        ctx.font = "700 10px 'Plus Jakarta Sans', system-ui, sans-serif";
+        for (const ring of scene.caliperRings) {
+          let bestPt = projectPointAt(
+            ring.points[0],
+            cxScreen,
+            cosY,
+            sinY,
+            cosP,
+            sinP,
+            focal
+          );
+          for (let j = 1; j < ring.points.length; j++) {
+            const cand = projectPointAt(
+              ring.points[j],
+              cxScreen,
+              cosY,
+              sinY,
+              cosP,
+              sinP,
+              focal
+            );
+            if (cand.sx > bestPt.sx) bestPt = cand;
+          }
+
+          const pillBg =
+            ring.status === "too_tight"
+              ? "#FDECEB"
+              : ring.status === "sculpted_snug"
+              ? "#FEF6E6"
+              : "#E7F3EE";
+          const pillFg =
+            ring.status === "too_tight"
+              ? "#9E2A22"
+              : ring.status === "sculpted_snug"
+              ? "#8A5808"
+              : "#1D4232";
+
+          const labelText = `${ring.label} ${ring.bodyCircInches}" (${statusLabelShort(
+            ring.status,
+            ring.easeInches
+          )})`;
+          const tw = ctx.measureText(labelText).width;
+          const safeLeft = Math.max(bestPt.sx + 14, bodyMaxRightSx + 10);
+          const px = Math.min(W - tw - 12, safeLeft);
+          const py = Math.max(20, Math.min(H_PX - 20, bestPt.sy));
+
+          ctx.strokeStyle = pillFg;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(bestPt.sx + 2, bestPt.sy);
+          ctx.lineTo(px - 6, py);
+          ctx.stroke();
+
+          ctx.fillStyle = pillBg;
+          ctx.beginPath();
+          ctx.roundRect(px - 6, py - 10, tw + 12, 20, 10);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(20,21,24,0.1)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = pillFg;
+          ctx.fillText(labelText, px, py + 3.5);
+        }
+
+        if (scene.storeModelRelativeHemYInches !== undefined) {
+          const modelHemPt = projectPointAt(
+            { x: -5.8, y: scene.storeModelRelativeHemYInches, z: 0 },
+            cxScreen,
+            cosY,
+            sinY,
+            cosP,
+            sinP,
+            focal
+          );
+          const custHemPt = projectPointAt(
+            { x: -5.8, y: scene.customerHemYInches, z: 0 },
+            cxScreen,
+            cosY,
+            sinY,
+            cosP,
+            sinP,
+            focal
+          );
+
+          const lineEnd = Math.max(
+            126,
+            Math.min(bodyMinLeftSx - 4, modelHemPt.sx)
+          );
+
+          ctx.save();
+          ctx.setLineDash([3, 3]);
+          ctx.strokeStyle = "#686D76";
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(12, modelHemPt.sy);
+          ctx.lineTo(lineEnd, modelHemPt.sy);
+          ctx.stroke();
+
+          ctx.fillStyle = "rgba(255,255,255,0.94)";
+          ctx.beginPath();
+          ctx.roundRect(10, modelHemPt.sy - 19, 118, 17, 8);
+          ctx.fill();
+          ctx.fillStyle = "#5C6068";
+          ctx.font = "600 9.5px 'Plus Jakarta Sans', system-ui, sans-serif";
+          ctx.fillText(
+            `Model Hem (${product.fitMetadata?.modelStats?.wornSize || "XS"})`,
+            16,
+            modelHemPt.sy - 7
+          );
+
+          ctx.setLineDash([]);
+          ctx.strokeStyle = "#244B3B";
+          ctx.beginPath();
+          ctx.moveTo(12, custHemPt.sy);
+          ctx.lineTo(lineEnd, custHemPt.sy);
+          ctx.stroke();
+
+          const ft = Math.floor(avatar.heightInches / 12);
+          const inch = Math.round(avatar.heightInches % 12);
+          ctx.fillStyle = "#141518";
+          ctx.beginPath();
+          ctx.roundRect(10, custHemPt.sy + 2, 114, 18, 8);
+          ctx.fill();
+          ctx.fillStyle = "#FFFFFF";
+          ctx.font = "700 9.5px 'Plus Jakarta Sans', system-ui, sans-serif";
+          ctx.fillText(`Your ${ft}'${inch}" Hem`, 16, custHemPt.sy + 14);
+          ctx.restore();
+        }
+      }
+    };
+
+    const drawScene = () => {
+      const { yaw } = camRef.current;
+      const normDeg = ((Math.round((yaw * 180) / Math.PI) % 360) + 360) % 360;
+      if (Math.abs(normDeg - lastYawBadge) >= 2) {
+        lastYawBadge = normDeg;
+        setYawDegDisplay(normDeg);
+      }
+
+      ctx.save();
+      ctx.scale(dpr, dpr);
+
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, H_PX);
+      bgGrad.addColorStop(0, "#F8F9FB");
+      bgGrad.addColorStop(0.68, "#EEF1F6");
+      bgGrad.addColorStop(1, "#E3E7EF");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, W, H_PX);
+
+      if (splitFrontBack) {
+        const frontDeg = normDeg;
+        const backDeg = (normDeg + 180) % 360;
+        renderAvatarPass(
+          W * 0.265,
+          yaw,
+          0.86,
+          false,
+          `FRONT LOOK (${String(frontDeg).padStart(3, "0")}°)`
+        );
+
+        // Clean center studio divider
+        ctx.save();
+        ctx.strokeStyle = "rgba(20, 21, 24, 0.09)";
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(W * 0.5, 16);
+        ctx.lineTo(W * 0.5, H_PX - 16);
+        ctx.stroke();
+        ctx.restore();
+
+        renderAvatarPass(
+          W * 0.735,
+          yaw + Math.PI,
+          0.86,
+          false,
+          `BACK LOOK (${String(backDeg).padStart(3, "0")}°)`
+        );
+      } else {
+        const angleTag =
+          normDeg >= 135 && normDeg <= 225
+            ? `BACK LOOK (${String(normDeg).padStart(3, "0")}°)`
+            : normDeg <= 45 || normDeg >= 315
+            ? `FRONT LOOK (${String(normDeg).padStart(3, "0")}°)`
+            : `SIDE PROFILE (${String(normDeg).padStart(3, "0")}°)`;
+        renderAvatarPass(W * 0.46, yaw, 1.0, true, angleTag);
       }
 
       ctx.restore();
@@ -585,10 +737,28 @@ export function Parametric3DFitMock({
     return () => {
       cancelAnimationFrame(rafId);
     };
-  }, [autoSpin, avatar.heightInches, isGlossyFabric, product, renderMode, scene]);
+  }, [
+    autoSpin,
+    avatar.heightInches,
+    isGlossyFabric,
+    product,
+    renderMode,
+    scene,
+    splitFrontBack,
+  ]);
+
+  const isBackActive =
+    !splitFrontBack && yawDegDisplay >= 135 && yawDegDisplay <= 225;
+  const isFrontActive =
+    !splitFrontBack && (yawDegDisplay <= 45 || yawDegDisplay >= 315);
+  const isSideActive = !splitFrontBack && !isFrontActive && !isBackActive;
 
   return (
-    <div className="w-full h-[460px] lg:h-auto lg:flex-1 lg:min-h-0 rounded-3xl bg-white border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.08)] overflow-hidden flex flex-col justify-between select-none">
+    <div
+      className={`w-full ${
+        compactHeightClass || "h-[460px] lg:h-auto lg:flex-1 lg:min-h-0"
+      } rounded-3xl bg-white border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.08)] overflow-hidden flex flex-col justify-between select-none`}
+    >
       {/* Dedicated Top Bar OUTSIDE Canvas (Zero Model-Head Overlap!) */}
       <div className="shrink-0 px-3 py-2 bg-white border-b border-black/[0.06] flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex items-center gap-1 p-0.5 rounded-full bg-[#F1F2F5] border border-black/[0.05]">
@@ -631,7 +801,9 @@ export function Parametric3DFitMock({
         </div>
 
         <span className="px-2.5 py-1 rounded-full bg-[#141518] text-white text-[11px] font-bold">
-          Size {selectedSize} • {String(yawDegDisplay).padStart(3, "0")}°
+          {splitFrontBack
+            ? `Size ${selectedSize} • Front 0° + Back 180°`
+            : `Size ${selectedSize} • ${String(yawDegDisplay).padStart(3, "0")}°`}
         </span>
       </div>
 
@@ -674,9 +846,9 @@ export function Parametric3DFitMock({
         />
       </div>
 
-      {/* Dedicated Bottom Dock OUTSIDE Canvas (Zero Model-Feet or Legend Overlap!) */}
+      {/* Dedicated Bottom Dock OUTSIDE Canvas (Always-Visible Front, Back, Front+Back, & 360° Spin!) */}
       <div className="shrink-0 px-3 py-2 bg-white border-t border-black/[0.06] space-y-1.5">
-        {renderMode === "heatmap" && (
+        {renderMode === "heatmap" ? (
           <div className="flex flex-wrap items-center justify-center gap-3 pb-1 border-b border-black/[0.05] text-[10.5px] font-bold">
             <span className="inline-flex items-center gap-1 text-[#DC2626]">
               <span className="w-2 h-2 rounded-full bg-[#DC2626]" /> Pinch
@@ -691,40 +863,79 @@ export function Parametric3DFitMock({
               <span className="w-2 h-2 rounded-full bg-[#2563EB]" /> Drape Ease
             </span>
           </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-1 border-b border-black/[0.05] text-[10.5px] text-[#5C6068]">
+            <span className="truncate">
+              <strong className="text-[#141518]">Front:</strong>{" "}
+              {scene.frontFeatureSummary}
+            </span>
+            <span className="truncate">
+              <strong className="text-[#244B3B]">Back:</strong>{" "}
+              {scene.backFeatureSummary}
+            </span>
+          </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="inline-flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               id="gwo-3d-angle-front"
-              onClick={() => jumpToAngle(15)}
-              className="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518] cursor-pointer"
+              onClick={() => jumpToAngle(0)}
+              className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold cursor-pointer transition ${
+                isFrontActive
+                  ? "bg-[#141518] text-white"
+                  : "bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518]"
+              }`}
             >
-              Front
-            </button>
-            <button
-              type="button"
-              id="gwo-3d-angle-side"
-              onClick={() => jumpToAngle(90)}
-              className="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518] cursor-pointer"
-            >
-              Profile 90°
+              Front 0°
             </button>
             <button
               type="button"
               id="gwo-3d-angle-back"
               onClick={() => jumpToAngle(180)}
-              className="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518] cursor-pointer"
+              className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold cursor-pointer transition ${
+                isBackActive
+                  ? "bg-[#141518] text-white"
+                  : "bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518]"
+              }`}
             >
               {scene.hasCorsetBack ? "Corset Back 180°" : "Back 180°"}
+            </button>
+            <button
+              type="button"
+              id="gwo-3d-angle-split"
+              onClick={activateFrontAndBackSplit}
+              className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                splitFrontBack
+                  ? "bg-[#244B3B] text-white"
+                  : "bg-[#EBF3EE] hover:bg-[#DCECE3] text-[#1D4232]"
+              }`}
+            >
+              <Columns2 className="w-3 h-3" /> Front + Back
+            </button>
+            <button
+              type="button"
+              id="gwo-3d-angle-side"
+              onClick={() => jumpToAngle(90)}
+              className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold cursor-pointer transition ${
+                isSideActive
+                  ? "bg-[#141518] text-white"
+                  : "bg-[#F4F5F7] hover:bg-[#E7E9EE] text-[#141518]"
+              }`}
+            >
+              Side 90°
             </button>
           </div>
 
           <div className="inline-flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setAutoSpin((s) => !s)}
+              id="gwo-3d-spin-toggle"
+              onClick={() => {
+                setSplitFrontBack(false);
+                setAutoSpin((s) => !s);
+              }}
               title={autoSpin ? "Pause 360° spin" : "Auto-spin 360°"}
               className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer ${
                 autoSpin
@@ -737,7 +948,7 @@ export function Parametric3DFitMock({
               ) : (
                 <Play className="w-3 h-3" />
               )}
-              Spin
+              360° Spin
             </button>
             <button
               type="button"
@@ -760,10 +971,10 @@ export function Parametric3DFitMock({
             <button
               type="button"
               onClick={() => {
-                camRef.current.pitch = 0.07;
+                camRef.current.pitch = 0.06;
                 camRef.current.zoom = 1.0;
                 setZoomLevel(1.0);
-                jumpToAngle(18);
+                jumpToAngle(14);
               }}
               title="Reset 3D camera"
               aria-label="Reset 3D camera"

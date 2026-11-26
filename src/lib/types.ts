@@ -79,6 +79,23 @@ export interface SizeMeasurementSpec {
   hipsMax?: number;
 }
 
+export interface DropshipListingSpec {
+  supplierPlatform: "aliexpress";
+  aliexpressItemId: string;
+  supplierName: string;
+  supplierUrl: string;
+  supplierRating: number; // e.g. 4.9
+  ordersCount: number; // e.g. 2450
+  qualityTier: "Top 1% Gold Boutique" | "AliExpress Choice Verified";
+  wholesaleCostUsd: number;
+  shippingCostUsd: number;
+  profitMarginUsd: number;
+  marginPct: number;
+  shippingMethod: string;
+  /** Maps Customer US Size (e.g. "S") -> AliExpress Supplier Tag (e.g. "M") when boutique uses Asian sizing */
+  cnSizeTagMap?: Record<string, string>;
+}
+
 export interface Product {
   id: string;
   canonicalUrl: string;
@@ -95,13 +112,14 @@ export interface Product {
   imageUrl?: string;
   studioLookIndex?: number;
   fitMetadata?: ProductFitMetadata;
+  dropship?: DropshipListingSpec;
   occasions: string[];
   vibes: string[];
   availableSizes: string[];
   sizeChartInches: Record<string, SizeMeasurementSpec>;
   estDeliveryDays: number;
   inStock: boolean;
-  sourceType: "affiliate_feed" | "scraped_url";
+  sourceType: "affiliate_feed" | "scraped_url" | "aliexpress_dropship";
   addedByUsername?: string;
   lastScrapedAt: string;
   staleAfter: string;
@@ -211,6 +229,43 @@ export interface OutfitSuggestion {
   totalValue: number;
   maxDeliveryDays: number;
   stylistRationale: string;
+}
+
+export type SocialStyleArchetype =
+  | "siren_glam"
+  | "model_off_duty"
+  | "old_money_tailored"
+  | "clean_athleisure"
+  | "coquette_romantic"
+  | "streetwear_luxe";
+
+export interface SocialStyleDNA {
+  instagramHandle?: string;
+  tiktokHandle?: string;
+  pinterestBoard?: string;
+  archetypeScores: Record<SocialStyleArchetype, number>;
+  primaryArchetype: SocialStyleArchetype;
+  secondaryArchetype: SocialStyleArchetype;
+  extractedPaletteHex: string[];
+  glamSlider: number; // 0 = Daylight Casual, 100 = Night-Out Glam
+  edgeSlider: number; // 0 = Soft Romantic, 100 = Sculpted Siren/Edge
+  likedProductIds: string[];
+  likedOutfitIds: string[];
+  uploadedGridThumbs?: string[];
+  styleSummary: string;
+  updatedAt: string;
+}
+
+export interface EndlessAiOutfit extends OutfitSuggestion {
+  sequenceNumber: number;
+  socialDnaMatchPct: number;
+  colorHarmonyScore: number;
+  matchedArchetype: SocialStyleArchetype;
+  petiteProportionNote: string;
+  perItemSizes: Record<string, { usSize: string; supplierTag?: string }>;
+  dropshipPieceCount: number;
+  totalWholesaleCostUsd: number;
+  totalStoreProfitUsd: number;
 }
 
 export interface LocalDatabaseSchema {

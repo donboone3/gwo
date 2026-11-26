@@ -9,9 +9,11 @@ import {
   Rotate3d,
   Ruler,
   ShoppingBag,
+  Sparkles,
 } from "lucide-react";
 import "./runway-lookbook.css";
 import { useGwo } from "@/context/GwoAppContext";
+import { buildSynthetic3DProductFromPiece } from "@/lib/catalog/closet-look-3d-mapper";
 import {
   DEFAULT_AVATAR_MEASUREMENTS,
   deriveStandardApparelSize,
@@ -230,10 +232,12 @@ function createNestedSvgCrop(
 export function GwoRunwayLookbook() {
   const {
     user,
+    products,
     addToBag,
     customAvatar,
     setAvatarModalOpen,
     setAddUrlModalOpen,
+    openAvatar360,
   } = useGwo();
 
   const activeBust = user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches;
@@ -282,6 +286,30 @@ export function GwoRunwayLookbook() {
     addItemIndexToUnifiedBag(idx * 2);
     addItemIndexToUnifiedBag(idx * 2 + 1);
   }, [addItemIndexToUnifiedBag]);
+
+  const openRunwayItem360Ref = useRef<(idx: number) => void>(() => {});
+  openRunwayItem360Ref.current = (idx: number) => {
+    const item = ITEMS[idx];
+    if (!item) return;
+    const matched = item.productId
+      ? products.find((p) => p.id === item.productId)
+      : null;
+    const prod =
+      matched ||
+      buildSynthetic3DProductFromPiece({
+        id: `runway-piece-${idx}`,
+        name: item.name,
+        brand: item.brand,
+        price: item.priceNum,
+        imageUrl: item.imageUrl,
+        storeUrl: item.storeUrl,
+      });
+    openAvatar360({
+      title: `${item.brand} — ${item.name}`,
+      primaryProduct: prod,
+      initialAngleMode: "split",
+    });
+  };
 
   // Live-sync customer's uploaded avatar face onto all 6 runway models without re-initializing DOM!
   useEffect(() => {
@@ -369,7 +397,7 @@ export function GwoRunwayLookbook() {
         item.name
       }</a></h3><span>${item.brand} • ${
         item.priceDisplay
-      } • Fit: ${sizeTag}</span></div><button class="mv-add" type="button" data-idx="${i}">+ Bag</button></div><div class="mv-card-actions"><a class="mv-pill-link fit" href="${pdpHref}">3D Fit</a><a class="mv-pill-link" href="${tryHref}">Try On</a>${
+      } • Fit: ${sizeTag}</span></div><button class="mv-add" type="button" data-idx="${i}">+ Bag</button></div><div class="mv-card-actions"><button class="mv-pill-link fit mv-open-360" type="button" data-idx="${i}">360° F/B</button><a class="mv-pill-link" href="${tryHref}">Try On</a>${
         item.storeUrl
           ? `<a class="mv-pill-link buy" href="${item.storeUrl}" target="_blank" rel="noopener noreferrer">Buy ↗</a>`
           : ""
@@ -407,6 +435,10 @@ export function GwoRunwayLookbook() {
       const addBtn = targetEl.closest(".mv-add") as HTMLElement | null;
       if (addBtn) {
         addItemIndexToUnifiedBag(Number(addBtn.dataset.idx || 0));
+      }
+      const spinBtn = targetEl.closest(".mv-open-360") as HTMLElement | null;
+      if (spinBtn) {
+        openRunwayItem360Ref.current(Number(spinBtn.dataset.idx || 0));
       }
     };
     rail.addEventListener("click", onRailClick);
@@ -673,6 +705,12 @@ export function GwoRunwayLookbook() {
                   />
                   {customAvatar ? "Featuring You ✓" : "Your Avatar"}
                 </button>
+                <Link
+                  href="/feed"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#EBF3EE] hover:bg-[#DCECE3] border border-[#C5DFD0] text-[#1D4232] text-[11px] font-bold"
+                >
+                  <Sparkles className="w-3 h-3" /> AI Endless Feed →
+                </Link>
                 <button
                   type="button"
                   onClick={() => setAddUrlModalOpen(true)}
@@ -755,12 +793,53 @@ export function GwoRunwayLookbook() {
                 {currentOutfitPrice})
               </button>
 
+              <button
+                type="button"
+                id="gwo-runway-360-btn"
+                onClick={() => {
+                  const p0 = ITEMS[activeLookIdx * 2];
+                  const p1 = ITEMS[activeLookIdx * 2 + 1];
+                  const m0 = p0?.productId
+                    ? products.find((p) => p.id === p0.productId)
+                    : null;
+                  const primary =
+                    m0 ||
+                    buildSynthetic3DProductFromPiece({
+                      id: `runway-look-${activeLookIdx}-0`,
+                      name: p0?.name || "Runway Look",
+                      brand: p0?.brand,
+                      price: p0?.priceNum || 120,
+                      imageUrl: p0?.imageUrl,
+                      storeUrl: p0?.storeUrl,
+                    });
+                  const comps = p1
+                    ? [
+                        buildSynthetic3DProductFromPiece({
+                          id: `runway-look-${activeLookIdx}-1`,
+                          name: p1.name,
+                          brand: p1.brand,
+                          price: p1.priceNum,
+                        }),
+                      ]
+                    : [];
+                  openAvatar360({
+                    title: `Runway Outfit 0${activeLookIdx + 1}: ${primary.title}`,
+                    primaryProduct: primary,
+                    companionProducts: comps,
+                    initialAngleMode: "split",
+                  });
+                }}
+                className="px-3.5 py-2 rounded-full bg-[#EBF3EE] hover:bg-[#DCECE3] border border-[#C5DFD0] text-[#1D4232] text-xs font-bold inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <Rotate3d className="w-3.5 h-3.5" /> 360° Front &amp; Back
+              </button>
+
               <Link
                 href={current3dHref}
                 id="gwo-runway-3d-fit-btn"
                 className="px-3.5 py-2 rounded-full bg-white hover:bg-[#F4F5F7] border border-black/[0.08] text-[#141518] text-xs font-bold inline-flex items-center gap-1.5 shadow-xs"
               >
-                <Box className="w-3.5 h-3.5 text-[#244B3B]" /> 3D Fit Mock →
+                <Box className="w-3.5 h-3.5 text-[#244B3B]" /> 3D Fit →
               </Link>
 
               <Link

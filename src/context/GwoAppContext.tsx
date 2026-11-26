@@ -10,9 +10,11 @@ import React, {
 } from "react";
 import {
   ComputeBudgetLedger,
+  EndlessAiOutfit,
   EnrichedClosetItem,
   FitRating,
   Product,
+  SocialStyleDNA,
   UserProfile,
   WornOutfitState,
 } from "@/lib/types";
@@ -30,6 +32,14 @@ import {
   scrapeProductInBrowser,
 } from "@/lib/catalog/client-url-scraper";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
+import {
+  ARCHETYPE_META,
+  getDefaultSocialStyleDNA,
+  loadStoredSocialStyleDNA,
+  reinforceSocialDnaFromOutfit,
+  saveStoredSocialStyleDNA,
+} from "@/lib/social/social-style-dna";
+import { calculateDropshipEconomics } from "@/lib/dropship/aliexpress-dropship";
 
 interface TelemetryData {
   ledger: ComputeBudgetLedger;
@@ -49,6 +59,14 @@ export interface UnifiedBagItem {
   imageUrl?: string;
   friendRef?: string;
   storeUrl?: string;
+  productId?: string;
+}
+
+export interface Avatar360Target {
+  title: string;
+  primaryProduct: Product;
+  companionProducts?: Product[];
+  initialAngleMode?: "front" | "back" | "split" | "spin";
 }
 
 interface GwoContextValue {
@@ -92,6 +110,17 @@ interface GwoContextValue {
   clearCustomAvatar: () => void;
   avatarModalOpen: boolean;
   setAvatarModalOpen: (open: boolean) => void;
+  socialDna: SocialStyleDNA;
+  updateSocialDna: (dna: SocialStyleDNA) => void;
+  toggleLikeAiOutfit: (outfit: EndlessAiOutfit) => void;
+  socialModalOpen: boolean;
+  setSocialModalOpen: (open: boolean) => void;
+  dropshipMarkup: number;
+  setDropshipMarkup: (multiplier: number) => void;
+  importDropshipProductToStore: (product: Product) => Promise<void>;
+  avatar360Target: Avatar360Target | null;
+  openAvatar360: (target: Avatar360Target) => void;
+  closeAvatar360: () => void;
   wearProduct: (product: Product, referrerCode?: string) => void;
   wearOutfitSet: (items: Product[], referrerCode?: string) => void;
   removeWornSlot: (slot: keyof WornOutfitState) => void;
@@ -154,10 +183,27 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
     useState<Product | null>(null);
   const [customAvatar, setCustomAvatar] = useState<CustomerAvatarData | null>(null);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
+  const [socialDna, setSocialDna] = useState<SocialStyleDNA>(() =>
+    getDefaultSocialStyleDNA()
+  );
+  const [socialModalOpen, setSocialModalOpen] = useState(false);
+  const [dropshipMarkup, setDropshipMarkupState] = useState<number>(2.85);
+  const [avatar360Target, setAvatar360Target] =
+    useState<Avatar360Target | null>(null);
+
+  const openAvatar360 = useCallback((target: Avatar360Target) => {
+    setAvatar360Target(target);
+  }, []);
+
+  const closeAvatar360 = useCallback(() => {
+    setAvatar360Target(null);
+  }, []);
 
   useEffect(() => {
     const stored = loadStoredCustomerAvatar();
     if (stored) setCustomAvatar(stored);
+    const storedSocial = loadStoredSocialStyleDNA();
+    if (storedSocial) setSocialDna(storedSocial);
   }, []);
 
   const showToast = useCallback((msg: string) => {
@@ -190,6 +236,102 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
     saveStoredCustomerAvatar(null);
     showToast("Switched back to default GWO Studio model");
   }, [showToast]);
+
+  const updateSocialDna = useCallback(
+    (dna: SocialStyleDNA) => {
+      setSocialDna(dna);
+      saveStoredSocialStyleDNA(dna);
+      showToast(
+        `Synced Social DNA (${dna.instagramHandle || "Your Aesthetic"}) → AI Outfit Feed calibrated!`
+      );
+    },
+    [showToast]
+  );
+
+  const toggleLikeAiOutfit = useCallback(
+    (outfit: EndlessAiOutfit) => {
+      setSocialDna((prev) => {
+        const alreadyLiked = prev.likedOutfitIds.includes(outfit.id);
+        const next = reinforceSocialDnaFromOutfit(
+          prev,
+          outfit.id,
+          outfit.items,
+          outfit.matchedArchetype
+        );
+        saveStoredSocialStyleDNA(next);
+        const archLabel = ARCHETYPE_META[outfit.matchedArchetype].label;
+        showToast(
+          alreadyLiked
+            ? `Removed ${outfit.title} from liked looks`
+            : `AI Stylist learned "${outfit.title}" → boosting ${archLabel} looks!`
+        );
+        return next;
+      });
+    },
+    [showToast]
+  );
+
+  const setDropshipMarkup = useCallback(
+    (multiplier: number) => {
+      const clamped = Math.max(1.5, Math.min(4.5, Number(multiplier.toFixed(2))));
+      setDropshipMarkupState(clamped);
+      setProducts((prev) =>
+        prev.map((p) => {
+          if (!p.dropship) return p;
+          const econ = calculateDropshipEconomics(
+            p.dropship.wholesaleCostUsd,
+            p.dropship.shippingCostUsd,
+            clamped
+          );
+          return {
+            ...p,
+            price: econ.retailPriceUsd,
+            dropship: {
+              ...p.dropship,
+              profitMarginUsd: econ.profitMarginUsd,
+              marginPct: econ.marginPct,
+            },
+          };
+        })
+      );
+      showToast(`Store Dropship Markup set to ${clamped}x — live margins recalculated`);
+    },
+    [showToast]
+  );
+
+  const importDropshipProductToStore = useCallback(
+    async (product: Product) => {
+      const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      setProducts((prev) => [
+        product,
+        ...prev.filter(
+          (p) => p.id !== product.id && p.canonicalUrl !== product.canonicalUrl
+        ),
+      ]);
+      setActiveImportedProduct(product);
+      try {
+        await fetch(`${base}/api/dropship/aliexpress`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: product.canonicalUrl,
+            markupMultiplier: dropshipMarkup,
+            customTitle: product.title,
+            customWholesaleUsd: product.dropship?.wholesaleCostUsd,
+            customImageUrl: product.imageUrl,
+            persistToStore: true,
+          }),
+          signal: AbortSignal.timeout(2500),
+        });
+      } catch {
+        // Static export mode uses local state seamlessly
+      }
+      showToast(
+        `Imported "${product.title}" to GWO Dropship Store ($${product.price} retail • +$${product.dropship?.profitMarginUsd.toFixed(2) || "0"} profit)`
+      );
+    },
+    [dropshipMarkup, showToast]
+  );
 
   const addToBag = useCallback(
     (item: Omit<UnifiedBagItem, "id">) => {
@@ -710,6 +852,17 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         clearCustomAvatar,
         avatarModalOpen,
         setAvatarModalOpen,
+        socialDna,
+        updateSocialDna,
+        toggleLikeAiOutfit,
+        socialModalOpen,
+        setSocialModalOpen,
+        dropshipMarkup,
+        setDropshipMarkup,
+        importDropshipProductToStore,
+        avatar360Target,
+        openAvatar360,
+        closeAvatar360,
         wearProduct,
         wearOutfitSet,
         removeWornSlot,

@@ -5,6 +5,8 @@ import {
   getClosetItemsForUser,
 } from "@/lib/db/repository";
 import { buildCuratedOutfits } from "@/lib/stylist/outfit-stylist";
+import { generateEndlessOutfitBatch } from "@/lib/stylist/infinite-outfit-engine";
+import { getDefaultSocialStyleDNA } from "@/lib/social/social-style-dna";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +16,28 @@ export async function POST(req: NextRequest) {
       getAllProducts(),
       getClosetItemsForUser(user.id, true),
     ]);
+
+    if (body.mode === "endless") {
+      const endless = generateEndlessOutfitBatch({
+        catalog: products,
+        socialDna: body.socialDna || getDefaultSocialStyleDNA(),
+        avatar: {
+          heightInches: user.heightInches,
+          bustInches: user.bustInches,
+          waistInches: user.waistInches,
+          hipsInches: user.hipsInches,
+          shoeSize: user.shoeSize,
+        },
+        batchIndex: Number(body.batchIndex || 0),
+        batchSize: Number(body.batchSize || 6),
+        occasionFilter: body.occasion || "all",
+        sourceFilter: body.sourceFilter || "all",
+        maxBudget: body.maxBudget ? Number(body.maxBudget) : undefined,
+        ownedProductIds: myCloset.map((c) => c.productId),
+        seenSignatures: new Set<string>(body.seenSignatures || []),
+      });
+      return NextResponse.json({ outfits: endless });
+    }
 
     const outfits = buildCuratedOutfits(products, {
       occasion: body.occasion || "Coffee Run",

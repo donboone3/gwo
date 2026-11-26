@@ -27,6 +27,7 @@ import {
   analyzeExactAvatarFit,
   ZoneFeel,
 } from "@/lib/catalog/fit-intelligence";
+import { build3DOutfitForClosetLook } from "@/lib/catalog/closet-look-3d-mapper";
 import { DEFAULT_AVATAR_MEASUREMENTS } from "@/lib/catalog/sizing";
 import { Product } from "@/lib/types";
 
@@ -164,14 +165,26 @@ export function GwoSpinProduct() {
     setAvatarModalOpen,
   } = useGwo();
 
-  // Resolve inspected product if ?id=... was passed or user toggled to activeImportedProduct
+  // Resolve inspected product if ?id=... was passed or user selected any Closet/Store piece
+  const [selectedQuickProduct, setSelectedQuickProduct] =
+    useState<Product | null>(null);
+  const [selectedQuickCompanions, setSelectedQuickCompanions] = useState<
+    Product[]
+  >([]);
+
+  useEffect(() => {
+    setSelectedQuickProduct(null);
+    setSelectedQuickCompanions([]);
+  }, [queryId]);
+
   const matchedCatalogProduct = useMemo(() => {
+    if (selectedQuickProduct) return selectedQuickProduct;
     if (queryId) {
       if (activeImportedProduct?.id === queryId) return activeImportedProduct;
       return products.find((p) => p.id === queryId) || null;
     }
     return null;
-  }, [activeImportedProduct, products, queryId]);
+  }, [activeImportedProduct, products, queryId, selectedQuickProduct]);
 
   const [forceTurntableMode, setForceTurntableMode] = useState(false);
   const [turntable3dMode, setTurntable3dMode] = useState(viewParam === "3d");
@@ -739,6 +752,70 @@ export function GwoSpinProduct() {
               </p>
             </div>
 
+            {/* Quick Closet & Store 360° Item Switcher */}
+            <div className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-1.5">
+              <label
+                htmlFor="gwo-product-360-picker"
+                className="text-[11px] font-bold uppercase tracking-wider text-[#244B3B] flex items-center gap-1.5"
+              >
+                <Rotate3d className="w-3.5 h-3.5" /> Switch Any Closet or Store Piece (360° F/B)
+              </label>
+              <select
+                id="gwo-product-360-picker"
+                value={
+                  selectedQuickProduct?.id ||
+                  matchedCatalogProduct?.id ||
+                  "studio-contour-puffer"
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "studio-contour-puffer") {
+                    setSelectedQuickProduct(null);
+                    setSelectedQuickCompanions([]);
+                    setForceTurntableMode(true);
+                    setTurntable3dMode(false);
+                    return;
+                  }
+                  if (val.startsWith("closet-look:")) {
+                    const lkIdx = Number(val.split(":")[1] || 0);
+                    const lk = STUDIO_LOOKS[lkIdx] || STUDIO_LOOKS[0];
+                    const mapped = build3DOutfitForClosetLook(lk, products);
+                    setSelectedQuickProduct(mapped.primaryProduct);
+                    setSelectedQuickCompanions(mapped.companionProducts);
+                    setForceTurntableMode(false);
+                    setStageViewMode("3d");
+                    return;
+                  }
+                  const found = products.find((p) => p.id === val);
+                  if (found) {
+                    setSelectedQuickProduct(found);
+                    setSelectedQuickCompanions([]);
+                    setForceTurntableMode(false);
+                    setStageViewMode("3d");
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs font-semibold text-[#141518] focus:outline-none focus:border-[#141518]"
+              >
+                <option value="studio-contour-puffer">
+                  Studio 360° Turntable: Contour Metallic Cropped Puffer
+                </option>
+                <optgroup label="Closet Outfits (Front + Back 360°)">
+                  {STUDIO_LOOKS.map((lk) => (
+                    <option key={lk.index} value={`closet-look:${lk.index}`}>
+                      Closet #{lk.index + 1}: {lk.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Store & AliExpress Dropship Catalog (Front + Back 360°)">
+                  {products.map((prod) => (
+                    <option key={prod.id} value={prod.id}>
+                      {prod.brand} — {prod.title} (${prod.price})
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
             {/* Store Model & Proportion Intelligence Box */}
             <div className="p-3.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-1.5">
               <div className="flex items-center justify-between gap-2">
@@ -1045,6 +1122,7 @@ export function GwoSpinProduct() {
               {stageViewMode === "3d" ? (
                 <Parametric3DFitMock
                   product={activeProduct}
+                  companionProducts={selectedQuickCompanions}
                   selectedSize={selectedSize}
                   fitReport={liveFitReport}
                   avatar={{
@@ -1056,6 +1134,7 @@ export function GwoSpinProduct() {
                       customAvatar?.skinToneHex || user?.skinTone || "#D9A482",
                   }}
                   faceBadgeUrl={customAvatar?.badgeDataUrl}
+                  initialAngleMode="split"
                 />
               ) : stageViewMode === "avatar" &&
                 activeProduct.studioLookIndex !== undefined ? (

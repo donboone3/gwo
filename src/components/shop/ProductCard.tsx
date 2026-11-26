@@ -6,6 +6,7 @@ import {
   ExternalLink,
   Plus,
   RefreshCw,
+  Rotate3d,
   Sparkles,
   Truck,
   Users,
@@ -34,6 +35,7 @@ export function ProductCard({
     addToMyCloset,
     addToBag,
     getSizeRec,
+    openAvatar360,
   } = useGwo();
   const [addingCloset, setAddingCloset] = useState(false);
   const [selectedFit, setSelectedFit] = useState<FitRating>("true_to_size");
@@ -212,6 +214,21 @@ export function ProductCard({
           >
             <Sparkles className="w-3.5 h-3.5" />
             {isWorn ? "In Outfit Bag" : "Try & + Bag"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              openAvatar360({
+                title: `${product.brand} — ${product.title}`,
+                primaryProduct: product,
+                initialAngleMode: "split",
+              })
+            }
+            title="See Front & Back 360° Avatar Look"
+            className="px-2.5 py-2 rounded-full border border-[#CBE2D4] bg-[#EBF3EE] text-[#1D4232] text-xs font-bold inline-flex items-center gap-1 hover:bg-[#DCECE3] transition cursor-pointer"
+          >
+            <Rotate3d className="w-3.5 h-3.5" /> 360°
           </button>
 
           {!isOwned ? (
