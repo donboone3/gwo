@@ -11,10 +11,17 @@ import {
 import { ALL_CERTIFIED_MODULAR_SKU_IDS } from "./modular-outfit-compositor";
 export { ALL_CERTIFIED_MODULAR_SKU_IDS };
 import { AvatarExactFitReport, ZoneFeel } from "../catalog/fit-intelligence";
+import {
+  MASTER_AVATAR_ANATOMY_STANDARD,
+  FabricPhysicsProfile,
+  computePhysicalEaseExpansionMeters,
+  enforceRealisticAvatarAnatomy,
+  resolveGarmentFabricPhysics,
+} from "../realism/master-avatar-clothing-realism";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const GLB_ASSET_VER = "glb5";
-export const BASE_CHAR_HEIGHT_M = 1.58; // 5'2" (62") baseline in Three.js meters
+export const GLB_ASSET_VER = "glb7";
+export const BASE_CHAR_HEIGHT_M = MASTER_AVATAR_ANATOMY_STANDARD.canonicalHeightMeters;
 
 let sharedGltfLoader: GLTFLoader | null = null;
 const GLB_PROMISE_CACHE = new Map<string, Promise<THREE.Group>>();
@@ -31,6 +38,11 @@ export interface BodyMorphUniforms {
   uHeightScale: { value: number };
   uBodyScales: { value: THREE.Vector4 }; // x=shoulder, y=bust, z=waist, w=hips
   uIsRigidBag: { value: number };
+  uEaseOffsetM: { value: number };
+  uSubsurfaceWrap: { value: number };
+  uSubsurfaceColor: { value: THREE.Color };
+  uFresnelSheen: { value: number };
+  uSheenColor: { value: THREE.Color };
   uHeatmapMix: { value: number };
   uBustColor: { value: THREE.Color };
   uWaistColor: { value: THREE.Color };
@@ -42,6 +54,15 @@ export function createBodyMorphUniforms(): BodyMorphUniforms {
     uHeightScale: { value: 1.0 },
     uBodyScales: { value: new THREE.Vector4(1, 1, 1, 1) },
     uIsRigidBag: { value: 0.0 },
+    uEaseOffsetM: { value: 0.0 },
+    uSubsurfaceWrap: { value: 0.0 },
+    uSubsurfaceColor: {
+      value: new THREE.Color(
+        MASTER_AVATAR_ANATOMY_STANDARD.skinOptics.subsurfaceWarmTintHex
+      ),
+    },
+    uFresnelSheen: { value: 0.12 },
+    uSheenColor: { value: new THREE.Color("#FFFFFF") },
     uHeatmapMix: { value: 0.0 },
     uBustColor: { value: new THREE.Color("#10B981") },
     uWaistColor: { value: new THREE.Color("#10B981") },
@@ -67,24 +88,48 @@ function feelToHex(feel?: ZoneFeel): string {
 
 export function syncBodyMorphUniforms(
   uniforms: BodyMorphUniforms,
-  dims: BodyScanDimensions,
+  rawDims: BodyScanDimensions,
   visualMode: Render3DVisualMode,
   isGarment: boolean,
   isRigidBag: boolean,
-  fit?: AvatarExactFitReport
+  fit?: AvatarExactFitReport,
+  fabricProfile?: FabricPhysicsProfile
 ): void {
+  const dims = enforceRealisticAvatarAnatomy(rawDims);
+  const std = MASTER_AVATAR_ANATOMY_STANDARD;
   const clamp = (v: number, lo: number, hi: number) =>
     Math.min(hi, Math.max(lo, v));
-  uniforms.uHeightScale.value = clamp(dims.heightInches / 62.0, 0.92, 1.12);
+
+  uniforms.uHeightScale.value = clamp(
+    dims.heightInches / std.canonicalHeightInches,
+    0.92,
+    1.14
+  );
   uniforms.uBodyScales.value.set(
-    clamp(dims.shoulderInches / 15.0, 0.88, 1.22),
-    clamp(dims.bustInches / 32.25, 0.86, 1.34),
-    clamp(dims.waistInches / 27.0, 0.80, 1.34),
-    clamp(dims.hipsInches / 34.0, 0.86, 1.36)
+    clamp(dims.shoulderInches / std.canonicalShoulderInches, 0.88, 1.22),
+    clamp(dims.bustInches / std.canonicalBustInches, 0.86, 1.34),
+    clamp(dims.waistInches / std.canonicalWaistInches, 0.80, 1.34),
+    clamp(dims.hipsInches / std.canonicalHipsInches, 0.86, 1.36)
   );
   uniforms.uIsRigidBag.value = isRigidBag ? 1.0 : 0.0;
   uniforms.uHeatmapMix.value =
     isGarment && !isRigidBag && visualMode === "heatmap" ? 0.38 : 0.0;
+
+  if (!isGarment) {
+    uniforms.uSubsurfaceWrap.value = std.skinOptics.subsurfaceWrap;
+    uniforms.uFresnelSheen.value = std.skinOptics.fresnelRimStrength;
+    uniforms.uSheenColor.value.set(std.skinOptics.subsurfaceWarmTintHex);
+    uniforms.uEaseOffsetM.value = 0.0;
+  } else if (fabricProfile) {
+    uniforms.uSubsurfaceWrap.value = 0.0;
+    uniforms.uFresnelSheen.value = fabricProfile.fresnelSheen;
+    uniforms.uSheenColor.value.set(fabricProfile.sheenTintHex);
+    uniforms.uEaseOffsetM.value = computePhysicalEaseExpansionMeters(
+      fit,
+      fabricProfile,
+      isRigidBag
+    );
+  }
 
   if (fit) {
     const bFeel = fit.zones.find((z) => z.zone === "Bust")?.feel;
@@ -100,10 +145,16 @@ export function attachBodyMorphShader(
   material: THREE.MeshStandardMaterial,
   uniforms: BodyMorphUniforms
 ): void {
+  const lockY = MASTER_AVATAR_ANATOMY_STANDARD.craniofacialLockNormY.toFixed(4);
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uHeightScale = uniforms.uHeightScale;
     shader.uniforms.uBodyScales = uniforms.uBodyScales;
     shader.uniforms.uIsRigidBag = uniforms.uIsRigidBag;
+    shader.uniforms.uEaseOffsetM = uniforms.uEaseOffsetM;
+    shader.uniforms.uSubsurfaceWrap = uniforms.uSubsurfaceWrap;
+    shader.uniforms.uSubsurfaceColor = uniforms.uSubsurfaceColor;
+    shader.uniforms.uFresnelSheen = uniforms.uFresnelSheen;
+    shader.uniforms.uSheenColor = uniforms.uSheenColor;
     shader.uniforms.uHeatmapMix = uniforms.uHeatmapMix;
     shader.uniforms.uBustColor = uniforms.uBustColor;
     shader.uniforms.uWaistColor = uniforms.uWaistColor;
@@ -114,6 +165,7 @@ export function attachBodyMorphShader(
       uniform float uHeightScale;
       uniform vec4 uBodyScales;
       uniform float uIsRigidBag;
+      uniform float uEaseOffsetM;
       varying float vNormY;
       ` +
       shader.vertexShader.replace(
@@ -128,10 +180,11 @@ export function attachBodyMorphShader(
           transformed.y *= uHeightScale;
         } else {
           float wScale = 1.0;
-          if (yn > 0.855) {
+          // Strict 1:1 Craniofacial Lock above chin so face never stretches when height/bust morphs!
+          if (yn > ${lockY}) {
             wScale = 1.0;
           } else if (yn > 0.805) {
-            wScale = mix(uBodyScales.x, 1.0, smoothstep(0.805, 0.855, yn));
+            wScale = mix(uBodyScales.x, 1.0, smoothstep(0.805, ${lockY}, yn));
           } else if (yn > 0.725) {
             wScale = mix(uBodyScales.y, uBodyScales.x, smoothstep(0.725, 0.805, yn));
           } else if (yn > 0.605) {
@@ -144,13 +197,27 @@ export function attachBodyMorphShader(
           float zScale = mix(1.0, wScale, 0.82);
           transformed.x *= wScale;
           transformed.z *= zScale;
-          transformed.y *= uHeightScale;
+          if (abs(uEaseOffsetM) > 0.00005 && yn < 0.82 && yn > 0.12) {
+            vec2 radialDir = normalize(vec2(transformed.x, transformed.z) + vec2(0.0001));
+            transformed.xz += radialDir * uEaseOffsetM;
+          }
+          // Preserve 1:1 head height ratio while scaling body height below chin
+          float chinM = 1.58 * ${lockY};
+          if (transformed.y > chinM) {
+            transformed.y = chinM * uHeightScale + (transformed.y - chinM);
+          } else {
+            transformed.y *= uHeightScale;
+          }
         }
         `
       );
 
     shader.fragmentShader =
       `
+      uniform float uSubsurfaceWrap;
+      uniform vec3 uSubsurfaceColor;
+      uniform float uFresnelSheen;
+      uniform vec3 uSheenColor;
       uniform float uHeatmapMix;
       uniform vec3 uBustColor;
       uniform vec3 uWaistColor;
@@ -160,6 +227,19 @@ export function attachBodyMorphShader(
       shader.fragmentShader.replace(
         "#include <dithering_fragment>",
         `
+        vec3 nView = normalize(vNormal);
+        vec3 vDir = normalize(vViewPosition);
+        float ndv = clamp(dot(nView, vDir), 0.0, 1.0);
+        float fresnel = pow(1.0 - ndv, 2.6);
+        if (uSubsurfaceWrap > 0.01) {
+          // Soft dermal warm subsurface scattering in shadow terminators
+          float wrapGlow = (1.0 - ndv) * uSubsurfaceWrap * 0.22;
+          gl_FragColor.rgb += uSubsurfaceColor * wrapGlow * gl_FragColor.rgb;
+        }
+        if (uFresnelSheen > 0.01) {
+          // Silk / satin / calfskin grazing sheen
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb + uSheenColor * 0.24, fresnel * uFresnelSheen);
+        }
         if (uHeatmapMix > 0.01) {
           vec3 zoneCol = uHipColor;
           if (vNormY > 0.68) {
@@ -173,7 +253,7 @@ export function attachBodyMorphShader(
         `
       );
   };
-  material.customProgramCacheKey = () => "gwo-body-morph-v3";
+  material.customProgramCacheKey = () => "gwo-master-realism-v6";
   material.needsUpdate = true;
 }
 
@@ -193,24 +273,60 @@ function loadRawGlbPrototype(url: string): Promise<THREE.Group> {
 function cloneGroupWithMorphMaterials(
   proto: THREE.Group,
   uniforms: BodyMorphUniforms,
-  productMeta?: { product: Product; slot: WearableSlotType }
+  productMeta?: {
+    product: Product;
+    slot: WearableSlotType;
+    fabric: FabricPhysicsProfile;
+  }
 ): THREE.Group {
   const clone = proto.clone(true);
+  const std = MASTER_AVATAR_ANATOMY_STANDARD;
+
   clone.traverse((obj) => {
     if ((obj as THREE.Mesh).isMesh) {
       const mesh = obj as THREE.Mesh;
       mesh.castShadow = false;
       mesh.receiveShadow = false;
+      const isHairMesh = mesh.name.toLowerCase().includes("hair");
+
       if (productMeta) {
         mesh.userData.productId = productMeta.product.id;
         mesh.userData.product = productMeta.product;
         mesh.userData.slot = productMeta.slot;
+        mesh.userData.fabricProfile = productMeta.fabric;
       }
+
       const origMat = mesh.material;
       const cloneSingle = (m: THREE.Material) => {
         const cm = m.clone() as THREE.MeshStandardMaterial;
         if (cm.isMeshStandardMaterial) {
-          attachBodyMorphShader(cm, uniforms);
+          if (productMeta) {
+            // Preserve metallic gold hardware submeshes (buckles/chains) while calibrating fabric meshes
+            const isGoldHardware =
+              mesh.name.includes("gold_") || cm.metalness > 0.8;
+            if (!isGoldHardware) {
+              cm.roughness = productMeta.fabric.roughness;
+              cm.metalness = productMeta.fabric.metalness;
+              cm.envMapIntensity = productMeta.fabric.envMapIntensity;
+            }
+            attachBodyMorphShader(cm, uniforms);
+          } else if (isHairMesh) {
+            const hairUniforms: BodyMorphUniforms = {
+              ...uniforms,
+              uSubsurfaceWrap: { value: 0.0 },
+              uFresnelSheen: { value: std.hairOptics.anisotropicSheen },
+              uSheenColor: {
+                value: new THREE.Color(std.hairOptics.sheenTintHex),
+              },
+            };
+            cm.roughness = std.hairOptics.roughness;
+            cm.metalness = std.hairOptics.metalness;
+            attachBodyMorphShader(cm, hairUniforms);
+          } else {
+            cm.roughness = std.skinOptics.roughness;
+            cm.metalness = std.skinOptics.metalness;
+            attachBodyMorphShader(cm, uniforms);
+          }
         }
         return cm;
       };
@@ -231,9 +347,8 @@ export async function loadCharacterGlbInstance(
 }
 
 /**
- * Runtime 3D Volumetric Mesh Builder for ANY newly imported URL or uploaded photo!
- * Traces the alpha-isolated garment silhouette on an offscreen canvas and builds a smooth
- * closed 3D mesh positioned either at `(0,0,0)` (standalone 3D item) or anchored onto the 3D Character!
+ * Runtime 3D Volumetric Mesh Builder for ANY newly imported URL or uploaded photo,
+ * governed by `resolveGarmentFabricPhysics` from `master-avatar-clothing-realism.ts`.
  */
 async function buildRuntime3DItemPrototype(
   product: Product,
@@ -258,7 +373,7 @@ async function buildRuntime3DItemPrototype(
       im.src = cleanUrl;
     });
 
-    const G = 52;
+    const G = 56;
     const cv = document.createElement("canvas");
     cv.width = G;
     cv.height = G;
@@ -267,6 +382,7 @@ async function buildRuntime3DItemPrototype(
     const imgData = ctx.getImageData(0, 0, G, G).data;
 
     const anc = classifyWearableSlotAndAnchors(product);
+    const fabric = resolveGarmentFabricPhysics(product);
     const aspect = img.naturalWidth / Math.max(1, img.naturalHeight);
 
     let boxW = 0.44;
@@ -310,9 +426,10 @@ async function buildRuntime3DItemPrototype(
         const v = (r + 0.5) / G;
         const lx = (u - 0.5) * boxW;
         const ly = (0.5 - v) * boxH;
-        const archZ = !standalone && anc.slot !== "bag"
-          ? Math.cos((u - 0.5) * Math.PI) * 0.045
-          : 0;
+        const archZ =
+          !standalone && anc.slot !== "bag"
+            ? Math.cos((u - 0.5) * Math.PI) * 0.045
+            : 0;
         const lz = inside ? halfThick : 0;
 
         idxF[k] = positions.length / 3;
@@ -336,17 +453,44 @@ async function buildRuntime3DItemPrototype(
         const k10 = (r + 1) * G + c;
         const k11 = (r + 1) * G + (c + 1);
         const k01 = r * G + (c + 1);
-        if (idxF[k00] >= 0 && idxF[k10] >= 0 && idxF[k11] >= 0 && idxF[k01] >= 0) {
-          indices.push(idxF[k00], idxF[k10], idxF[k11], idxF[k00], idxF[k11], idxF[k01]);
+        if (
+          idxF[k00] >= 0 &&
+          idxF[k10] >= 0 &&
+          idxF[k11] >= 0 &&
+          idxF[k01] >= 0
+        ) {
+          indices.push(
+            idxF[k00],
+            idxF[k10],
+            idxF[k11],
+            idxF[k00],
+            idxF[k11],
+            idxF[k01]
+          );
         }
-        if (idxB[k00] >= 0 && idxB[k10] >= 0 && idxB[k11] >= 0 && idxB[k01] >= 0) {
-          indices.push(idxB[k00], idxB[k11], idxB[k10], idxB[k00], idxB[k01], idxB[k11]);
+        if (
+          idxB[k00] >= 0 &&
+          idxB[k10] >= 0 &&
+          idxB[k11] >= 0 &&
+          idxB[k01] >= 0
+        ) {
+          indices.push(
+            idxB[k00],
+            idxB[k11],
+            idxB[k10],
+            idxB[k00],
+            idxB[k01],
+            idxB[k11]
+          );
         }
       }
     }
 
     const geom = new THREE.BufferGeometry();
-    geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geom.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(positions, 3)
+    );
     geom.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
     geom.setIndex(indices);
     geom.computeVertexNormals();
@@ -355,8 +499,9 @@ async function buildRuntime3DItemPrototype(
     tex.colorSpace = THREE.SRGBColorSpace;
     const mat = new THREE.MeshStandardMaterial({
       map: tex,
-      roughness: 0.56,
-      metalness: 0.05,
+      roughness: fabric.roughness,
+      metalness: fabric.metalness,
+      envMapIntensity: fabric.envMapIntensity,
       side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(geom, mat);
@@ -373,31 +518,46 @@ export async function loadWearable3DItemInstance(
   uniforms: BodyMorphUniforms
 ): Promise<THREE.Group> {
   const slot = classifyWearableSlotAndAnchors(product).slot;
+  const fabric = resolveGarmentFabricPhysics(product);
   const proto = ALL_CERTIFIED_MODULAR_SKU_IDS.has(product.id)
     ? await loadRawGlbPrototype(
         `${BASE}/models/glb/items/${product.id}.glb?v=${GLB_ASSET_VER}`
       )
     : await buildRuntime3DItemPrototype(product, false);
 
-  return cloneGroupWithMorphMaterials(proto, uniforms, { product, slot });
+  return cloneGroupWithMorphMaterials(proto, uniforms, {
+    product,
+    slot,
+    fabric,
+  });
 }
 
 export async function loadStandalone3DItemInstance(
   product: Product
 ): Promise<THREE.Group> {
+  const fabric = resolveGarmentFabricPhysics(product);
   const proto = ALL_CERTIFIED_MODULAR_SKU_IDS.has(product.id)
     ? await loadRawGlbPrototype(
         `${BASE}/models/glb/standalone/${product.id}.glb?v=${GLB_ASSET_VER}`
       )
     : await buildRuntime3DItemPrototype(product, true);
 
-  return proto.clone(true);
+  const clone = proto.clone(true);
+  clone.traverse((obj) => {
+    if ((obj as THREE.Mesh).isMesh) {
+      const m = (obj as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      if (m?.isMeshStandardMaterial && m.metalness < 0.8) {
+        const cm = m.clone();
+        cm.roughness = fabric.roughness;
+        cm.metalness = fabric.metalness;
+        cm.envMapIntensity = fabric.envMapIntensity;
+        (obj as THREE.Mesh).material = cm;
+      }
+    }
+  });
+  return clone;
 }
 
-/**
- * Resolves the clean 3D-rendered in-app item image URL (`public/models/items_3d/<sku>.webp`)
- * for all 36 catalog SKUs, falling back to `product.imageUrl` for external URL imports!
- */
 export function getInApp3DRenderedItemUrl(product: Product): string | undefined {
   if (ALL_CERTIFIED_MODULAR_SKU_IDS.has(product.id)) {
     return `${BASE}/models/items_3d/${product.id}.webp?v=${GLB_ASSET_VER}`;

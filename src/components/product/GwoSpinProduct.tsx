@@ -33,6 +33,7 @@ import {
   deriveFullBodyDimensionsFromProfile,
   formatHeightFeetInches,
 } from "@/lib/three/body-scan-analyzer";
+import { certifyClothingItemRealism } from "@/lib/realism/master-avatar-clothing-realism";
 import { Product } from "@/lib/types";
 
 const SIZES = ["XS", "S", "M", "L"] as const;
@@ -430,6 +431,35 @@ export function GwoSpinProduct() {
                 {liveFitReport.lengthComparison.proportionNote}
               </p>
             </div>
+
+            {/* Master Realism PBR Fabric & Drape Certification Card */}
+            {(() => {
+              const cert = certifyClothingItemRealism(
+                activeProduct,
+                bodyDims,
+                selectedSize
+              );
+              return (
+                <div className="p-3.5 rounded-2xl bg-[#F4F8F6] border border-[#C6DFD1] space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-[#1D4232] inline-flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />{" "}
+                      {cert.fabricProfile.displayName}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-white text-[#1D4232] border border-[#C6DFD1] text-[10px] font-bold">
+                      {cert.realismScorePct}% Realism Certified
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-semibold text-[#141518]">
+                    {cert.fabricProfile.drapeBehavior}
+                  </p>
+                  <p className="text-[10.5px] text-[#4E5D55]">
+                    {cert.fabricProfile.handfeelNote} • {cert.layerClearanceMm}mm
+                    3D shell clearance
+                  </p>
+                </div>
+              );
+            })()}
 
             {/* Product Description & Fabric Physics Accordion */}
             <div className="divide-y divide-black/[0.07] border-t border-b border-black/[0.07]">

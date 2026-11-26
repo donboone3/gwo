@@ -38,6 +38,14 @@ import {
   preloadCore3DGlbs,
   syncBodyMorphUniforms,
 } from "@/lib/three/glb-character-engine";
+import {
+  ImmersiveLightingPresetId,
+  MASTER_IMMERSIVE_LIGHTING_PRESETS,
+  MASTER_LIGHTING_PRESET_ORDER,
+  enforceRealisticAvatarAnatomy,
+  resolveGarmentFabricPhysics,
+} from "@/lib/realism/master-avatar-clothing-realism";
+import { Sun } from "lucide-react";
 
 export interface Interactive3DAvatarStageProps {
   mode?: "avatar" | "product";
@@ -153,6 +161,23 @@ export function Interactive3DAvatarStage({
   const [showRings, setShowRings] = useState<boolean>(Boolean(propShowRings));
   const effectiveShowRings = propShowRings ?? showRings;
 
+  const [lightingPresetId, setLightingPresetId] =
+    useState<ImmersiveLightingPresetId>("editorial_daylight");
+  const activeLightingPreset = MASTER_IMMERSIVE_LIGHTING_PRESETS[lightingPresetId];
+  const cycleLightingPreset = useCallback(() => {
+    setLightingPresetId((prev) => {
+      const idx = MASTER_LIGHTING_PRESET_ORDER.indexOf(prev);
+      return MASTER_LIGHTING_PRESET_ORDER[
+        (idx + 1) % MASTER_LIGHTING_PRESET_ORDER.length
+      ];
+    });
+  }, []);
+
+  const safeDimensions = useMemo(
+    () => enforceRealisticAvatarAnatomy(dimensions),
+    [dimensions]
+  );
+
   const [liveDeg, setLiveDeg] = useState<number>(
     ((Math.round(initialYawDeg) % 360) + 360) % 360
   );
@@ -167,6 +192,10 @@ export function Interactive3DAvatarStage({
     renderer: THREE.WebGLRenderer;
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
+    hemi: THREE.HemisphereLight;
+    keyLight: THREE.DirectionalLight;
+    fillLight: THREE.DirectionalLight;
+    rimLight: THREE.DirectionalLight;
     turntable: THREE.Group;
     characterGroup: THREE.Group;
     equippedGroup: THREE.Group;
@@ -288,10 +317,11 @@ export function Interactive3DAvatarStage({
       alpha: true,
       powerPreference: "high-performance",
     });
+    const lp = MASTER_IMMERSIVE_LIGHTING_PRESETS[lightingPresetId];
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = lp.toneMappingExposure;
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.display = "block";
@@ -303,17 +333,30 @@ export function Interactive3DAvatarStage({
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTex;
-    scene.environmentIntensity = 0.52;
+    scene.environmentIntensity = lp.envIntensity;
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0xece8e2, 1.38);
+    const hemi = new THREE.HemisphereLight(
+      lp.hemiSkyHex,
+      lp.hemiGroundHex,
+      lp.hemiIntensity
+    );
     scene.add(hemi);
-    const keyLight = new THREE.DirectionalLight(0xfffdf9, 1.42);
-    keyLight.position.set(1.8, 2.5, 2.9);
+    const keyLight = new THREE.DirectionalLight(
+      lp.keyColorHex,
+      lp.keyIntensity
+    );
+    keyLight.position.set(lp.keyPos[0], lp.keyPos[1], lp.keyPos[2]);
     scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight(0xf3f6ff, 0.72);
+    const fillLight = new THREE.DirectionalLight(
+      lp.fillColorHex,
+      lp.fillIntensity
+    );
     fillLight.position.set(-2.0, 1.6, 1.9);
     scene.add(fillLight);
-    const rimLight = new THREE.DirectionalLight(0xffffff, 0.62);
+    const rimLight = new THREE.DirectionalLight(
+      lp.rimColorHex,
+      lp.rimIntensity
+    );
     rimLight.position.set(0.0, 2.2, -2.6);
     scene.add(rimLight);
 
@@ -354,6 +397,10 @@ export function Interactive3DAvatarStage({
       renderer,
       scene,
       camera,
+      hemi,
+      keyLight,
+      fillLight,
+      rimLight,
       turntable,
       characterGroup,
       equippedGroup,
@@ -626,14 +673,16 @@ export function Interactive3DAvatarStage({
     const tasks = slotEquippedProducts.map(async (prod) => {
       const slot = classifyWearableSlotAndAnchors(prod).slot;
       const isRigidBag = slot === "bag";
+      const fabric = resolveGarmentFabricPhysics(prod);
       const uniforms = createBodyMorphUniforms();
       syncBodyMorphUniforms(
         uniforms,
-        dimensions,
+        safeDimensions,
         activeVisualMode,
         true,
         isRigidBag,
-        fitByProductIdRef.current.get(prod.id)
+        fitByProductIdRef.current.get(prod.id),
+        fabric
       );
       const group = await loadWearable3DItemInstance(prod, uniforms);
       return { prod, uniforms, isRigidBag, group };
@@ -668,14 +717,33 @@ export function Interactive3DAvatarStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [equippedSignature, mode]);
 
-  // 3. Sync Real-Time GPU Body-Scan Inch Morphing, Fit Heatmap & 3D Tape Rings!
+  // 2b. Live Boutique Photometric Lighting Switcher (Daylight / Golden Hour / Runway / Evening)
+  useEffect(() => {
+    const ctx = threeCtxRef.current;
+    if (!ctx) return;
+    const lp = MASTER_IMMERSIVE_LIGHTING_PRESETS[lightingPresetId];
+    ctx.renderer.toneMappingExposure = lp.toneMappingExposure;
+    ctx.scene.environmentIntensity = lp.envIntensity;
+    ctx.hemi.color.setHex(lp.hemiSkyHex);
+    ctx.hemi.groundColor.setHex(lp.hemiGroundHex);
+    ctx.hemi.intensity = lp.hemiIntensity;
+    ctx.keyLight.color.setHex(lp.keyColorHex);
+    ctx.keyLight.intensity = lp.keyIntensity;
+    ctx.keyLight.position.set(lp.keyPos[0], lp.keyPos[1], lp.keyPos[2]);
+    ctx.fillLight.color.setHex(lp.fillColorHex);
+    ctx.fillLight.intensity = lp.fillIntensity;
+    ctx.rimLight.color.setHex(lp.rimColorHex);
+    ctx.rimLight.intensity = lp.rimIntensity;
+  }, [lightingPresetId]);
+
+  // 3. Sync Real-Time GPU Body-Scan Inch Morphing, Physical Fabric Ease, Fit Heatmap & 3D Tape Rings!
   useEffect(() => {
     const ctx = threeCtxRef.current;
     if (!ctx) return;
 
     syncBodyMorphUniforms(
       ctx.charUniforms,
-      dimensions,
+      safeDimensions,
       activeVisualMode,
       false,
       false
@@ -683,11 +751,12 @@ export function Interactive3DAvatarStage({
     for (const entry of ctx.itemUniformsList) {
       syncBodyMorphUniforms(
         entry.uniforms,
-        dimensions,
+        safeDimensions,
         activeVisualMode,
         true,
         entry.isRigidBag,
-        fitByProductId.get(entry.product.id)
+        fitByProductId.get(entry.product.id),
+        resolveGarmentFabricPhysics(entry.product)
       );
     }
 
@@ -827,15 +896,27 @@ export function Interactive3DAvatarStage({
               </button>
             </>
           )}
+          <button
+            type="button"
+            onClick={cycleLightingPreset}
+            className="px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 text-[#686D76] hover:text-[#141518] cursor-pointer transition"
+            title={`Boutique Lighting: ${activeLightingPreset.label} (tap to cycle)`}
+          >
+            <Sun className="w-2.5 h-2.5 text-[#D97706]" />{" "}
+            {activeLightingPreset.shortLabel}
+          </button>
         </div>
       )}
 
-      {/* Tapped 3D Garment Raycast Callout Pill */}
+      {/* Tapped 3D Garment Raycast Callout Pill with Master Fabric & Drape Physics */}
       {showHud && tappedInfo && !compactHud && (
-        <div className="absolute left-2.5 bottom-12 z-10 max-w-[260px] px-3 py-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-black/[0.09] shadow-md flex items-center justify-between gap-2">
+        <div className="absolute left-2.5 bottom-12 z-10 max-w-[295px] px-3 py-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-black/[0.09] shadow-md flex items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="text-[10.5px] font-bold text-[#141518] truncate">
               {tappedInfo.product.title}
+            </p>
+            <p className="text-[9.5px] font-semibold text-[#686D76] truncate">
+              {resolveGarmentFabricPhysics(tappedInfo.product).displayName}
             </p>
             {tappedInfo.fit && (
               <p className="text-[10px] font-semibold text-[#244B3B] truncate">
