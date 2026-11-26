@@ -111,7 +111,9 @@
 }
 
 .mv-m svg,
-.mv-m img.mv-avatar-img {
+.mv-m img.mv-avatar-img,
+.mv-m img.mv-avatar-top,
+.mv-m img.mv-avatar-bot {
   display: block;
   position: relative;
   width: 100%;
@@ -119,6 +121,46 @@
   object-fit: contain;
   object-position: center bottom;
   pointer-events: none;
+}
+
+.mv-m img.mv-avatar-top,
+.mv-m img.mv-avatar-bot {
+  position: absolute;
+  inset: 0;
+}
+
+.mv-m img.mv-avatar-top {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 44%,
+    transparent 50%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 44%,
+    transparent 50%,
+    transparent 100%
+  );
+}
+
+.mv-m img.mv-avatar-bot {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 43%,
+    #000 49%,
+    #000 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 43%,
+    #000 49%,
+    #000 100%
+  );
 }
 
 .mv-m img.mv-face-oval {

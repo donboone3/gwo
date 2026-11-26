@@ -5,9 +5,11 @@ import Link from "next/link";
 import {
   Check,
   Instagram,
+  Layers,
   Plus,
   Rotate3d,
   Ruler,
+  Shirt,
   ShoppingBag,
   Sparkles,
   Store,
@@ -25,6 +27,7 @@ import {
 import {
   AiRunwayOutfit,
   buildAiRunwayOutfits,
+  buildSinglePieceRunwayLineup,
 } from "@/lib/stylist/runway-ai-outfits";
 import { buildTopLineAliExpressDropshipCatalog } from "@/lib/dropship/aliexpress-dropship";
 import { ARCHETYPE_META } from "@/lib/social/social-style-dna";
@@ -40,6 +43,8 @@ interface CustomRunwayOutfitSaved {
   productIds: string[];
   frontAvatarUrl: string;
   backAvatarUrl: string;
+  bottomFrontAvatarUrl?: string;
+  bottomBackAvatarUrl?: string;
 }
 
 interface RailCardSpec {
@@ -96,9 +101,11 @@ export function GwoRunwayLookbook() {
     hipsInches: activeHips,
   });
 
+  const [browseMode, setBrowseMode] = useState<"outfits" | "pieces">("outfits");
   const [vibeInput, setVibeInput] = useState("");
   const [appliedVibe, setAppliedVibe] = useState("");
-  const [extraAiCount, setExtraAiCount] = useState(0);
+  // Start with 4 AI capsule remixes already queued onto the customer's Runway avatar, and auto-expand as they scroll!
+  const [extraAiCount, setExtraAiCount] = useState(4);
   const [runwayAngle, setRunwayAngle] = useState<"front" | "back">("front");
   const [activeLookIdx, setActiveLookIdx] = useState(0);
 
@@ -141,7 +148,6 @@ export function GwoRunwayLookbook() {
     []
   );
 
-  // Boutique catalog for building outfits (14 verified AliExpress SKUs + scraped store pieces)
   const boutiqueCatalog = useMemo(() => {
     const map = new Map<string, Product>();
     for (const p of buildTopLineAliExpressDropshipCatalog()) {
@@ -169,8 +175,16 @@ export function GwoRunwayLookbook() {
     [activeBust, activeHeight, activeHips, activeWaist, user?.shoeSize]
   );
 
-  // Build full Runway lineup: AI-Recommended AliExpress Outfits + User-Added Outfits
+  // Full Outfits vs Single Pieces Runway Lineups on the Customer's Avatar Model
   const runwayOutfits: AiRunwayOutfit[] = useMemo(() => {
+    if (browseMode === "pieces") {
+      return buildSinglePieceRunwayLineup({
+        catalog: products,
+        avatar: avatarStats,
+        socialDna,
+      });
+    }
+
     const baseAi = buildAiRunwayOutfits({
       catalog: products,
       avatar: avatarStats,
@@ -181,7 +195,7 @@ export function GwoRunwayLookbook() {
 
     const byId = new Map<string, Product>(boutiqueCatalog.map((p) => [p.id, p]));
     const customHydrated: AiRunwayOutfit[] = savedCustomOutfits
-      .map((co, idx) => {
+      .map((co, idx): AiRunwayOutfit | null => {
         const resolved = co.productIds
           .map((id) => byId.get(id))
           .filter((p): p is Product => Boolean(p));
@@ -197,23 +211,25 @@ export function GwoRunwayLookbook() {
         });
         return {
           id: co.id,
-          outfitNumber: baseAi.length + idx + 1,
+          outfitNumber: idx + 1,
+          mode: "outfit" as const,
           title: co.title,
           occasion: "Added Outfit",
           archetype: socialDna.primaryArchetype,
           archetypeLabel: "Custom Added",
-          aiReason: `Custom outfit added to your Runway (${pieces.length} pieces).`,
+          aiReason: `Custom outfit added onto your ${activeHeightStr} Runway avatar (${pieces.length} pieces).`,
           fitHeadline: `Exact ${activeHeightStr} Fit`,
           matchScorePct: 98,
           frontAvatarUrl: co.frontAvatarUrl,
           backAvatarUrl: co.backAvatarUrl,
+          bottomFrontAvatarUrl: co.bottomFrontAvatarUrl,
+          bottomBackAvatarUrl: co.bottomBackAvatarUrl,
           pieces,
           totalPriceUsd: pieces.reduce((s, x) => s + x.product.price, 0),
         } satisfies AiRunwayOutfit;
       })
       .filter((x): x is AiRunwayOutfit => x !== null);
 
-    // Also include Babyboo Cornelia Red Mini Dress look so existing store favorites stay right on the Runway!
     const corneliaProd = products.find(
       (p) => p.id === "prod-babyboo-cornelia-red"
     );
@@ -223,7 +239,8 @@ export function GwoRunwayLookbook() {
       ? [
           {
             id: "runway-babyboo-cornelia",
-            outfitNumber: baseAi.length + customHydrated.length + 1,
+            outfitNumber: 1,
+            mode: "outfit",
             title: "Cornelia Crimson Mini & 14k Gold Stilettos",
             occasion: "Party • Red Mini",
             archetype: "siren_glam",
@@ -252,26 +269,36 @@ export function GwoRunwayLookbook() {
         ]
       : [];
 
-    const combined = [...customHydrated, ...baseAi, ...corneliaOutfit];
+    // Put base signature 6 first, then Cornelia, then endless AI remixes at the tail so scrolling appends cleanly!
+    const coreSix = baseAi.slice(0, 6);
+    const aiExtras = baseAi.slice(6);
+    const combined = [
+      ...customHydrated,
+      ...coreSix,
+      ...corneliaOutfit,
+      ...aiExtras,
+    ];
     return combined.map((o, idx) => ({ ...o, outfitNumber: idx + 1 }));
   }, [
     activeHeightStr,
     appliedVibe,
     avatarStats,
     boutiqueCatalog,
+    browseMode,
     extraAiCount,
     products,
     savedCustomOutfits,
     socialDna,
   ]);
 
-  // Synchronized 3-piece-per-outfit rail cards (so all 3 visible slots in .mv-rail show the active outfit's pieces!)
+  const cardsPerEntry = browseMode === "pieces" ? 1 : 3;
+
   const railCards: RailCardSpec[] = useMemo(() => {
     const list: RailCardSpec[] = [];
     runwayOutfits.forEach((outfit, oIdx) => {
       const basePieces = outfit.pieces;
       if (basePieces.length === 0) return;
-      for (let slot = 0; slot < 3; slot++) {
+      for (let slot = 0; slot < cardsPerEntry; slot++) {
         const entry = basePieces[slot % basePieces.length];
         list.push({
           outfitIndex: oIdx,
@@ -284,20 +311,39 @@ export function GwoRunwayLookbook() {
       }
     });
     return list;
-  }, [runwayOutfits]);
+  }, [cardsPerEntry, runwayOutfits]);
 
   const stageRef = useRef<HTMLElement | null>(null);
   const lineRef = useRef<HTMLDivElement | null>(null);
   const railRef = useRef<HTMLElement | null>(null);
   const ringRef = useRef<HTMLDivElement | null>(null);
   const rollRef = useRef<HTMLSpanElement | null>(null);
-  const modelImgElsRef = useRef<Array<HTMLImageElement | null>>([]);
+  const modelTopImgElsRef = useRef<Array<HTMLImageElement | null>>([]);
+  const modelBotImgElsRef = useRef<Array<HTMLImageElement | null>>([]);
   const faceImgElsRef = useRef<Array<HTMLImageElement | null>>([]);
   const jumpLookRef = useRef<((lookIndex: number) => void) | null>(null);
   const currentPosRef = useRef(0);
+  const autoExpandCooldownRef = useRef(false);
 
   const railCardsRef = useRef<RailCardSpec[]>(railCards);
   railCardsRef.current = railCards;
+
+  // Endless AI Auto-Styling: when customer scrolls within 2 outfits of the end in Full Outfits mode,
+  // automatically synthesize & append more AI outfits onto their Runway avatar!
+  useEffect(() => {
+    if (browseMode !== "outfits") return;
+    if (
+      activeLookIdx >= runwayOutfits.length - 2 &&
+      extraAiCount < 24 &&
+      !autoExpandCooldownRef.current
+    ) {
+      autoExpandCooldownRef.current = true;
+      setExtraAiCount((prev) => Math.min(24, prev + 4));
+      setTimeout(() => {
+        autoExpandCooldownRef.current = false;
+      }, 600);
+    }
+  }, [activeLookIdx, browseMode, extraAiCount, runwayOutfits.length]);
 
   const addSinglePieceToBag = useCallback(
     (cardIdx: number, openCheckoutImmediately = false) => {
@@ -321,7 +367,7 @@ export function GwoRunwayLookbook() {
     [addToBag, openDropshipCheckout, recSize]
   );
 
-  const handleAddOrBuyFullOutfit = useCallback(
+  const handleAddOrBuyCurrentEntry = useCallback(
     (openCheckoutImmediately: boolean) => {
       const N = runwayOutfits.length;
       if (N === 0) return;
@@ -345,7 +391,9 @@ export function GwoRunwayLookbook() {
         openDropshipCheckout("checkout");
       } else {
         showToast(
-          `Added all ${outfit.pieces.length} pieces of "${outfit.title}" to Bag!`
+          outfit.mode === "piece"
+            ? `Added "${outfit.title}" to Bag!`
+            : `Added all ${outfit.pieces.length} pieces of "${outfit.title}" to Bag!`
         );
       }
     },
@@ -365,13 +413,24 @@ export function GwoRunwayLookbook() {
     });
   };
 
-  // Flip all diagonal runway models seamlessly between Front 0° and Back 180° without resetting scroll position!
+  // Flip all diagonal runway models seamlessly between Front 0° and Back 180°
   useEffect(() => {
-    modelImgElsRef.current.forEach((imgEl, i) => {
+    modelTopImgElsRef.current.forEach((imgEl, i) => {
       const outfit = runwayOutfits[i];
       if (!imgEl || !outfit) return;
       imgEl.src =
         runwayAngle === "back" ? outfit.backAvatarUrl : outfit.frontAvatarUrl;
+    });
+    modelBotImgElsRef.current.forEach((botEl, i) => {
+      const outfit = runwayOutfits[i];
+      if (!botEl || !outfit) return;
+      const botSrc =
+        runwayAngle === "back"
+          ? outfit.bottomBackAvatarUrl
+          : outfit.bottomFrontAvatarUrl;
+      if (botSrc) {
+        botEl.src = botSrc;
+      }
     });
     faceImgElsRef.current.forEach((faceEl) => {
       if (!faceEl) return;
@@ -384,7 +443,7 @@ export function GwoRunwayLookbook() {
     });
   }, [customAvatar, runwayAngle, runwayOutfits]);
 
-  // Build & animate the Diagonal Depth-of-Field Multi-Model Runway + Synchronized 3-Slot Piece Rail
+  // Build & animate the Diagonal Depth-of-Field Multi-Model Runway + Synchronized Piece Rail
   useEffect(() => {
     const stage = stageRef.current;
     const line = lineRef.current;
@@ -401,7 +460,8 @@ export function GwoRunwayLookbook() {
     if (N === 0) return;
 
     const calm = window.matchMedia("(prefers-reduced-motion:reduce)").matches;
-    const createdModelImgs: Array<HTMLImageElement | null> = [];
+    const createdTopImgs: Array<HTMLImageElement | null> = [];
+    const createdBotImgs: Array<HTMLImageElement | null> = [];
     const createdFaceImgs: Array<HTMLImageElement | null> = [];
 
     const people = runwayOutfits.map((outfit, i) => {
@@ -409,14 +469,31 @@ export function GwoRunwayLookbook() {
       e.className = "mv-m";
       e.dataset.i = String(i);
 
+      const hasMixedBottom = Boolean(outfit.bottomFrontAvatarUrl);
+
+      if (hasMixedBottom) {
+        const botImg = document.createElement("img");
+        botImg.className = "mv-avatar-bot";
+        botImg.src =
+          runwayAngle === "back"
+            ? outfit.bottomBackAvatarUrl || outfit.backAvatarUrl
+            : outfit.bottomFrontAvatarUrl || outfit.frontAvatarUrl;
+        botImg.alt = "";
+        botImg.decoding = "async";
+        e.append(botImg);
+        createdBotImgs.push(botImg);
+      } else {
+        createdBotImgs.push(null);
+      }
+
       const img = document.createElement("img");
-      img.className = "mv-avatar-img";
+      img.className = hasMixedBottom ? "mv-avatar-top" : "mv-avatar-img";
       img.src =
         runwayAngle === "back" ? outfit.backAvatarUrl : outfit.frontAvatarUrl;
       img.alt = outfit.title;
       img.decoding = "async";
       e.append(img);
-      createdModelImgs.push(img);
+      createdTopImgs.push(img);
 
       const faceImg = document.createElement("img");
       faceImg.className = "mv-face-oval";
@@ -442,7 +519,8 @@ export function GwoRunwayLookbook() {
       };
     });
 
-    modelImgElsRef.current = createdModelImgs;
+    modelTopImgElsRef.current = createdTopImgs;
+    modelBotImgElsRef.current = createdBotImgs;
     faceImgElsRef.current = createdFaceImgs;
 
     const cards = railCardsRef.current.map((spec, i) => {
@@ -456,13 +534,16 @@ export function GwoRunwayLookbook() {
       const e = document.createElement("article");
       e.className = "mv-card" + (i % 2 ? " alt" : "");
       e.dataset.idx = String(i);
+      e.dataset.outfitIdx = String(spec.outfitIndex);
       e.innerHTML = `<div class="mv-card-top"><button class="mv-fav" type="button" aria-pressed="false" aria-label="Save ${escapeHtml(
         prod.title
       )}"><svg viewBox="0 0 24 24"><path d="M12 20S3.5 15 3.5 9A4.6 4.6 0 0 1 12 6.6 4.6 4.6 0 0 1 20.5 9C20.5 15 12 20 12 20Z"/></svg></button><span class="mv-store-inline-badge">Size ${escapeHtml(
         spec.recommendedSize
-      )} • ${spec.confidencePct}% Fit</span></div><a class="mv-shot" href="${pdpHref}" title="Inspect ${escapeHtml(
+      )} • ${spec.confidencePct}% Fit</span></div><button class="mv-shot mv-jump-outfit" type="button" data-outfit-idx="${
+        spec.outfitIndex
+      }" title="Preview ${escapeHtml(
         prod.title
-      )} in 360° Fit"></a><div class="mv-meta"><div class="min-w-0 flex-1"><h3><a class="mv-title-link" href="${pdpHref}">${escapeHtml(
+      )} on Runway Avatar"></button><div class="mv-meta"><div class="min-w-0 flex-1"><h3><a class="mv-title-link" href="${pdpHref}">${escapeHtml(
         prod.title
       )}</a></h3><span class="mv-price-line">${escapeHtml(
         prod.brand || "GWO Boutique"
@@ -494,6 +575,24 @@ export function GwoRunwayLookbook() {
       roll.append(b);
     }
 
+    let W = 0;
+    let H = 0;
+    let base = 0;
+    let cardS = 0;
+    let side = false;
+    let dirty = true;
+    let p = clamp(currentPosRef.current, 0, Math.max(0, N - 1));
+    let target = p;
+    let last = 0;
+    let lastReportedIdx = Math.round(wrap(p, N)) % N;
+
+    jumpLookRef.current = (lookIndex: number) => {
+      const currMod = wrap(Math.round(target), N);
+      let delta = lookIndex - currMod;
+      if (delta < 0) delta += N;
+      target = Math.round(target) + delta;
+    };
+
     const onRailClick = (e: MouseEvent) => {
       const targetEl = e.target as HTMLElement;
       const favBtn = targetEl.closest(".mv-fav");
@@ -502,6 +601,10 @@ export function GwoRunwayLookbook() {
           "aria-pressed",
           favBtn.getAttribute("aria-pressed") !== "true" ? "true" : "false"
         );
+      }
+      const jumpBtn = targetEl.closest(".mv-jump-outfit") as HTMLElement | null;
+      if (jumpBtn) {
+        jumpLookRef.current?.(Number(jumpBtn.dataset.outfitIdx || 0));
       }
       const addBtn = targetEl.closest(".mv-add") as HTMLElement | null;
       if (addBtn) {
@@ -517,24 +620,6 @@ export function GwoRunwayLookbook() {
       }
     };
     rail.addEventListener("click", onRailClick);
-
-    let W = 0;
-    let H = 0;
-    let base = 0;
-    let cardS = 0;
-    let side = false;
-    let dirty = true;
-    let p = currentPosRef.current;
-    let target = currentPosRef.current;
-    let last = 0;
-    let lastReportedIdx = Math.round(wrap(p, N)) % N;
-
-    jumpLookRef.current = (lookIndex: number) => {
-      const currMod = wrap(Math.round(target), N);
-      let delta = lookIndex - currMod;
-      if (delta < 0) delta += N;
-      target = Math.round(target) + delta;
-    };
 
     const size = () => {
       W = stage.clientWidth;
@@ -597,7 +682,7 @@ export function GwoRunwayLookbook() {
 
       const M = cards.length;
       if (M > 0) {
-        const q = wrap(p * 3, M);
+        const q = wrap(p * cardsPerEntry, M);
         cards.forEach((c, i) => {
           let d = wrap(i - q, M);
           if (d > M - 4) d -= M;
@@ -769,7 +854,7 @@ export function GwoRunwayLookbook() {
       window.removeEventListener("keydown", onKeyDown);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addSinglePieceToBag, runwayOutfits]);
+  }, [addSinglePieceToBag, cardsPerEntry, runwayOutfits]);
 
   const safeActiveIdx =
     runwayOutfits.length > 0 ? activeLookIdx % runwayOutfits.length : 0;
@@ -778,31 +863,48 @@ export function GwoRunwayLookbook() {
 
   const handleApplyAiPrompt = (e?: React.FormEvent) => {
     e?.preventDefault();
+    setBrowseMode("outfits");
     if (!vibeInput.trim()) {
-      const nextCount = extraAiCount + 1;
-      setExtraAiCount(nextCount);
-      showToast("AI Stylist added a fresh boutique outfit to your Runway!");
+      const targetIdx = runwayOutfits.length;
+      setExtraAiCount((prev) => prev + 2);
+      showToast("AI Stylist added fresh outfits onto your Runway avatar!");
       setTimeout(() => {
-        jumpLookRef.current?.(runwayOutfits.length);
-      }, 60);
+        jumpLookRef.current?.(targetIdx);
+      }, 80);
       return;
     }
     setAppliedVibe(vibeInput.trim());
     currentPosRef.current = 0;
     setActiveLookIdx(0);
     setTimeout(() => jumpLookRef.current?.(0), 40);
-    showToast(`AI Runway styled around "${vibeInput.trim()}"!`);
+    showToast(`AI Runway styled outfits around "${vibeInput.trim()}"!`);
   };
 
   const handleCreateCustomRunwayOutfit = () => {
     if (selectedCustomIds.length === 0) return;
-    // Choose closest matching lifelike studio avatar render
-    let avatarIdx = 0;
-    if (selectedCustomIds.includes("prod-ae-ivory-tweed-blazer")) avatarIdx = 1;
-    else if (selectedCustomIds.includes("prod-ae-emerald-satin-midi")) avatarIdx = 2;
-    else if (selectedCustomIds.includes("prod-ae-champagne-blazer-dress")) avatarIdx = 3;
-    else if (selectedCustomIds.includes("prod-ae-camel-silk-wool-coat")) avatarIdx = 4;
-    else if (selectedCustomIds.includes("prod-ae-linen-cinch-cardigan")) avatarIdx = 5;
+
+    let topAvatarIdx = 0;
+    if (selectedCustomIds.includes("prod-ae-ivory-tweed-blazer"))
+      topAvatarIdx = 1;
+    else if (selectedCustomIds.includes("prod-ae-emerald-satin-midi"))
+      topAvatarIdx = 2;
+    else if (selectedCustomIds.includes("prod-ae-champagne-blazer-dress"))
+      topAvatarIdx = 3;
+    else if (selectedCustomIds.includes("prod-ae-camel-silk-wool-coat"))
+      topAvatarIdx = 4;
+    else if (selectedCustomIds.includes("prod-ae-linen-cinch-cardigan"))
+      topAvatarIdx = 5;
+
+    let botAvatarIdx = topAvatarIdx;
+    const isFullDress =
+      selectedCustomIds.includes("prod-ae-emerald-satin-midi") ||
+      selectedCustomIds.includes("prod-ae-champagne-blazer-dress");
+    if (!isFullDress) {
+      if (selectedCustomIds.includes("prod-ae-champagne-trousers"))
+        botAvatarIdx = 0;
+      else if (selectedCustomIds.includes("prod-ae-noir-pleated-mini"))
+        botAvatarIdx = 1;
+    }
 
     const title =
       customTitle.trim() ||
@@ -811,16 +913,25 @@ export function GwoRunwayLookbook() {
       id: `custom-runway-${Date.now()}`,
       title,
       productIds: selectedCustomIds,
-      frontAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_${avatarIdx}_front.webp`,
-      backAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_${avatarIdx}_back.webp`,
+      frontAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_${topAvatarIdx}_front.webp`,
+      backAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_${topAvatarIdx}_back.webp`,
+      bottomFrontAvatarUrl:
+        botAvatarIdx !== topAvatarIdx
+          ? `${BASE_PATH}/models/runway_ai/ae_outfit_${botAvatarIdx}_front.webp`
+          : undefined,
+      bottomBackAvatarUrl:
+        botAvatarIdx !== topAvatarIdx
+          ? `${BASE_PATH}/models/runway_ai/ae_outfit_${botAvatarIdx}_back.webp`
+          : undefined,
     };
     persistCustomRunway([created, ...savedCustomOutfits]);
+    setBrowseMode("outfits");
     setBuildModalOpen(false);
     setCustomTitle("");
     currentPosRef.current = 0;
     setActiveLookIdx(0);
     setTimeout(() => jumpLookRef.current?.(0), 50);
-    showToast(`Added "${title}" onto the Runway!`);
+    showToast(`Added "${title}" onto your Runway avatar!`);
   };
 
   return (
@@ -834,9 +945,46 @@ export function GwoRunwayLookbook() {
                 <h1 className="text-lg sm:text-xl font-bold tracking-tight text-[#141518]">
                   For You Runway
                 </h1>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-black/[0.07] text-[11px] font-bold text-[#244B3B]">
-                  <Ruler className="w-3 h-3" /> {activeHeightStr} • {activeBust}&quot; B •{" "}
-                  {activeWaist}&quot; W • {activeHips}&quot; H (Size {recSize})
+
+                {/* Full Outfits vs Single Pieces Runway Switcher */}
+                <div className="inline-flex items-center p-0.5 rounded-full bg-[#F1F2F5] border border-black/[0.07]">
+                  <button
+                    type="button"
+                    id="gwo-runway-mode-outfits"
+                    onClick={() => {
+                      currentPosRef.current = 0;
+                      setActiveLookIdx(0);
+                      setBrowseMode("outfits");
+                    }}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                      browseMode === "outfits"
+                        ? "bg-[#141518] text-white shadow-xs"
+                        : "text-[#686D76] hover:text-[#141518]"
+                    }`}
+                  >
+                    <Layers className="w-3 h-3" /> Full Outfits
+                  </button>
+                  <button
+                    type="button"
+                    id="gwo-runway-mode-pieces"
+                    onClick={() => {
+                      currentPosRef.current = 0;
+                      setActiveLookIdx(0);
+                      setBrowseMode("pieces");
+                    }}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                      browseMode === "pieces"
+                        ? "bg-[#141518] text-white shadow-xs"
+                        : "text-[#686D76] hover:text-[#141518]"
+                    }`}
+                  >
+                    <Shirt className="w-3 h-3" /> Single Pieces
+                  </button>
+                </div>
+
+                <div className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-black/[0.07] text-[11px] font-bold text-[#244B3B]">
+                  <Ruler className="w-3 h-3" /> {activeHeightStr} Avatar • Size{" "}
+                  {recSize}
                 </div>
               </div>
 
@@ -874,23 +1022,23 @@ export function GwoRunwayLookbook() {
                 >
                   <Instagram className="w-3 h-3" />
                   <span>
-                    {socialDna.instagramHandle || "Link IG / Pinterest"} •{" "}
+                    {socialDna.instagramHandle || "Link IG / Pin"} •{" "}
                     {ARCHETYPE_META[socialDna.primaryArchetype].shortTag}
                   </span>
                 </button>
 
-                {/* Avatar Badge */}
+                {/* Customer Avatar Badge */}
                 <button
                   type="button"
                   onClick={() => setAvatarModalOpen(true)}
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#F7F8FA] border border-black/[0.08] text-[11px] font-bold text-[#141518] cursor-pointer"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white hover:bg-[#F7F8FA] border border-black/[0.08] text-[11px] font-bold text-[#141518] cursor-pointer"
                 >
                   <img
                     src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
                     alt="Avatar"
                     className="w-4 h-4 rounded-full object-cover"
                   />
-                  {customAvatar ? "You ✓" : "Avatar"}
+                  {customAvatar ? "Your Face ✓" : "My Avatar"}
                 </button>
 
                 {/* + AI Outfit Generator */}
@@ -898,13 +1046,13 @@ export function GwoRunwayLookbook() {
                   type="button"
                   id="gwo-runway-add-ai-outfit-btn"
                   onClick={() => {
-                    const next = extraAiCount + 1;
-                    setExtraAiCount(next);
-                    showToast("AI Stylist added a new full outfit to the Runway!");
-                    setTimeout(
-                      () => jumpLookRef.current?.(runwayOutfits.length),
-                      80
+                    setBrowseMode("outfits");
+                    const jumpIdx = runwayOutfits.length;
+                    setExtraAiCount((prev) => prev + 1);
+                    showToast(
+                      "AI Stylist added a new outfit onto your Runway avatar!"
                     );
+                    setTimeout(() => jumpLookRef.current?.(jumpIdx), 80);
                   }}
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#244B3B] hover:bg-[#1D3E30] text-white text-[11px] font-bold shadow-xs cursor-pointer"
                 >
@@ -923,10 +1071,10 @@ export function GwoRunwayLookbook() {
               </div>
             </div>
 
-            {/* Row 2: Quick Outfit Jump Pills + AI Vibe Prompt */}
+            {/* Row 2: Quick Jump Pills + AI Runway Idea Input */}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
-                {runwayOutfits.slice(0, 7).map((outfit, idx) => {
+                {runwayOutfits.slice(0, 6).map((outfit, idx) => {
                   const active = safeActiveIdx === idx;
                   return (
                     <button
@@ -953,35 +1101,35 @@ export function GwoRunwayLookbook() {
                   type="text"
                   value={vibeInput}
                   onChange={(e) => setVibeInput(e.target.value)}
-                  placeholder="Ask AI for Runway ideas (e.g., Paris brunch, date night)..."
+                  placeholder="Ask AI to add Runway outfits (e.g., date night, Paris brunch)..."
                   className="w-64 px-3 py-1 rounded-full bg-white border border-black/[0.09] text-[11px] text-[#141518] focus:outline-none focus:border-[#141518]"
                 />
                 <button
                   type="submit"
                   className="px-3 py-1 rounded-full bg-[#EBF3EE] hover:bg-[#DCECE3] border border-[#C5DFD0] text-[#1D4232] text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
                 >
-                  <Wand2 className="w-3 h-3" /> Style
+                  <Wand2 className="w-3 h-3" /> Style Runway
                 </button>
               </form>
             </div>
           </div>
 
-          {/* ==================== DIAGONAL MULTI-MODEL PARALLAX RUNWAY STAGE ==================== */}
+          {/* ==================== DIAGONAL MULTI-MODEL CUSTOMER AVATAR RUNWAY STAGE ==================== */}
           <section
             className="mv-stage"
             ref={stageRef}
-            aria-label="AI Recommended Boutique Outfits. Drag, scroll or use arrow keys."
+            aria-label="Scroll Runway to shop full outfits or single pieces on your avatar."
             tabIndex={0}
           >
             <div className="mv-line" ref={lineRef} />
             <div className="mv-ring" ref={ringRef} />
           </section>
 
-          {/* ==================== DEDICATED BOTTOM FULL-OUTFIT & SINGLE-PIECE DOCK ==================== */}
+          {/* ==================== DEDICATED BOTTOM FULL-OUTFIT OR SINGLE-PIECE CHECKOUT DOCK ==================== */}
           <div className="mv-bottom-bar">
             <div className="flex flex-wrap items-center gap-2 min-w-0">
               <div className="mv-look" aria-live="polite">
-                <span>Outfit</span>
+                <span>{browseMode === "pieces" ? "Piece" : "Outfit"}</span>
                 <span className="mv-win">
                   <span className="mv-roll" ref={rollRef} />
                 </span>
@@ -1004,20 +1152,24 @@ export function GwoRunwayLookbook() {
                   <button
                     type="button"
                     id="gwo-runway-buy-full-outfit-btn"
-                    onClick={() => handleAddOrBuyFullOutfit(true)}
+                    onClick={() => handleAddOrBuyCurrentEntry(true)}
                     className="px-3.5 py-2 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                   >
-                    Buy Full Outfit (${activeOutfit.totalPriceUsd})
+                    {browseMode === "pieces"
+                      ? `Buy Piece ($${activeOutfit.totalPriceUsd})`
+                      : `Buy Full Outfit ($${activeOutfit.totalPriceUsd})`}
                   </button>
 
                   <button
                     type="button"
                     id="gwo-runway-bag-full-outfit-btn"
-                    onClick={() => handleAddOrBuyFullOutfit(false)}
+                    onClick={() => handleAddOrBuyCurrentEntry(false)}
                     className="px-3.5 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
                   >
-                    <ShoppingBag className="w-3.5 h-3.5" /> + Bag Outfit ($
-                    {activeOutfit.totalPriceUsd})
+                    <ShoppingBag className="w-3.5 h-3.5" />{" "}
+                    {browseMode === "pieces"
+                      ? `+ Bag Piece ($${activeOutfit.totalPriceUsd})`
+                      : `+ Bag Outfit ($${activeOutfit.totalPriceUsd})`}
                   </button>
 
                   {heroPiece && (
@@ -1026,7 +1178,9 @@ export function GwoRunwayLookbook() {
                       id="gwo-runway-360-btn"
                       onClick={() =>
                         openAvatar360({
-                          title: `Outfit 0${safeActiveIdx + 1}: ${activeOutfit.title}`,
+                          title: `${
+                            browseMode === "pieces" ? "Piece" : "Outfit"
+                          } 0${safeActiveIdx + 1}: ${activeOutfit.title}`,
                           primaryProduct: heroPiece,
                           companionProducts: activeOutfit.pieces
                             .slice(1)
@@ -1057,11 +1211,11 @@ export function GwoRunwayLookbook() {
           </div>
         </div>
 
-        {/* ==================== RIGHT / BOTTOM SYNCHRONIZED SINGLE-PIECES RAIL ==================== */}
+        {/* ==================== RIGHT / BOTTOM SYNCHRONIZED PIECES RAIL ==================== */}
         <aside
           className="mv-rail"
           ref={railRef}
-          aria-label="Single pieces in this Runway outfit"
+          aria-label="Individual pieces in this Runway look"
         />
       </main>
 
@@ -1078,10 +1232,10 @@ export function GwoRunwayLookbook() {
             <div className="flex items-start justify-between gap-3 shrink-0">
               <div>
                 <h3 className="text-lg font-bold text-[#141518]">
-                  Add Full Outfit to Runway
+                  Add Full Outfit onto Your Runway Avatar
                 </h3>
                 <p className="text-xs text-[#686D76] mt-0.5">
-                  Select boutique pieces below to assemble a custom Runway outfit—or pull a new store link first.
+                  Select boutique pieces below to style a custom outfit onto your Runway avatar—or pull a new store link first.
                 </p>
               </div>
               <div className="flex items-center gap-1.5">
