@@ -1,16 +1,28 @@
-import React, { Suspense } from "react";
-import { GwoEndlessOutfitFeed } from "@/components/feed/GwoEndlessOutfitFeed";
+"use client";
 
-export default function EndlessFeedPage() {
+import React, { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+
+function FeedRedirectInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const isAdmin = searchParams.get("studio") === "dropship";
+    router.replace(isAdmin ? "/admin" : "/shop");
+  }, [router, searchParams]);
+
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-[calc(100svh-64px)] bg-[#F3F4F7] flex items-center justify-center text-sm font-semibold text-[#686D76]">
-          Loading AI Endless Outfits &amp; Social Style DNA...
-        </div>
-      }
-    >
-      <GwoEndlessOutfitFeed />
-    </Suspense>
+    <div className="min-h-[60svh] flex items-center justify-center text-xs font-semibold text-[#686D76]">
+      Redirecting to GWO AI Runway...
+    </div>
+  );
+}
+
+export default function FeedPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <FeedRedirectInner />
+    </React.Suspense>
   );
 }

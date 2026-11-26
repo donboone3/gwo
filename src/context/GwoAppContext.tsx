@@ -64,15 +64,45 @@ export interface UnifiedBagItem {
   price: number;
   size: string;
   imageUrl?: string;
+  avatarFrontUrl?: string;
+  avatarBackUrl?: string;
+  slot?: "top" | "pants" | "full" | "shoes" | "accessory";
   friendRef?: string;
   storeUrl?: string;
   productId?: string;
+}
+
+export interface UploadedClosetPiece {
+  id: string;
+  title: string;
+  slot: "top" | "pants" | "full";
+  imageUrl: string;
+  colorName?: string;
+  createdAt: string;
+}
+
+export interface PurchasedClosetEntry {
+  id: string;
+  productId?: string;
+  title: string;
+  brand: string;
+  price: number;
+  size: string;
+  imageUrl?: string;
+  avatarFrontUrl?: string;
+  avatarBackUrl?: string;
+  lookIndex?: number;
+  slot: "top" | "pants" | "full" | "shoes" | "accessory";
+  purchasedAt: string;
 }
 
 export interface Avatar360Target {
   title: string;
   primaryProduct: Product;
   companionProducts?: Product[];
+  avatarFrontUrl?: string;
+  avatarBackUrl?: string;
+  avatarSideUrl?: string;
   initialAngleMode?: "front" | "back" | "split" | "spin";
 }
 
@@ -107,6 +137,10 @@ interface GwoContextValue {
   bagBump: boolean;
   addToBag: (item: Omit<UnifiedBagItem, "id">) => void;
   removeFromBag: (id: string) => void;
+  purchasedItems: PurchasedClosetEntry[];
+  uploadedClosetPieces: UploadedClosetPiece[];
+  addUploadedClosetPiece: (piece: Omit<UploadedClosetPiece, "id" | "createdAt">) => void;
+  removeUploadedClosetPiece: (id: string) => void;
   addUrlModalOpen: boolean;
   setAddUrlModalOpen: (open: boolean) => void;
   activeImportedProduct: Product | null;
@@ -162,6 +196,142 @@ interface GwoContextValue {
 
 const GwoContext = createContext<GwoContextValue | null>(null);
 
+const ASSET_BASE_CTX = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
+  {
+    id: "bought-look-0-top",
+    title: "Charcoal Ribbed Crop Tank",
+    brand: "Bought • My Closet",
+    price: 38,
+    size: "S",
+    imageUrl: `${ASSET_BASE_CTX}/models/signature/look_0_thumb.webp`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/signature/look_0.webp`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/signature/look_0_back.webp`,
+    lookIndex: 0,
+    slot: "top",
+    purchasedAt: "2026-11-10T12:00:00Z",
+  },
+  {
+    id: "bought-look-0-pants",
+    title: "Washed Denim Maxi Skirt",
+    brand: "Bought • My Closet",
+    price: 96,
+    size: "S",
+    imageUrl: `${ASSET_BASE_CTX}/models/signature/look_0_thumb.webp`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/signature/look_0.webp`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/signature/look_0_back.webp`,
+    lookIndex: 0,
+    slot: "pants",
+    purchasedAt: "2026-11-10T12:00:00Z",
+  },
+  {
+    id: "bought-look-1-top",
+    title: "Oat Half-Zip Sweatshirt",
+    brand: "Bought • My Closet",
+    price: 74,
+    size: "S",
+    imageUrl: `${ASSET_BASE_CTX}/models/signature/look_1_thumb.webp`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/signature/look_1.webp`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/signature/look_1_back.webp`,
+    lookIndex: 1,
+    slot: "top",
+    purchasedAt: "2026-11-12T12:00:00Z",
+  },
+  {
+    id: "bought-look-1-pants",
+    title: "Oat Wide Sweatpants",
+    brand: "Bought • My Closet",
+    price: 68,
+    size: "S",
+    imageUrl: `${ASSET_BASE_CTX}/models/signature/look_1_thumb.webp`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/signature/look_1.webp`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/signature/look_1_back.webp`,
+    lookIndex: 1,
+    slot: "pants",
+    purchasedAt: "2026-11-12T12:00:00Z",
+  },
+  {
+    id: "bought-look-2-top",
+    title: "Cream Cable-Knit Cardigan & Tee",
+    brand: "Bought • My Closet",
+    price: 112,
+    size: "S",
+    imageUrl: `${ASSET_BASE_CTX}/models/signature/look_2_thumb.webp`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/signature/look_2.webp`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/signature/look_2_back.webp`,
+    lookIndex: 2,
+    slot: "top",
+    purchasedAt: "2026-11-14T12:00:00Z",
+  },
+  {
+    id: "bought-look-2-pants",
+    title: "Heather Grey Pleated Trousers",
+    brand: "Bought • My Closet",
+    price: 98,
+    size: "S",
+    imageUrl: `${ASSET_BASE_CTX}/models/signature/look_2_thumb.webp`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/signature/look_2.webp`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/signature/look_2_back.webp`,
+    lookIndex: 2,
+    slot: "pants",
+    purchasedAt: "2026-11-14T12:00:00Z",
+  },
+  {
+    id: "bought-look-7-top",
+    title: "Black Bomber & White Crop Tee",
+    brand: "Bought • My Closet",
+    price: 148,
+    size: "S",
+    imageUrl: `${ASSET_BASE_CTX}/models/signature/look_7_thumb.webp`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/signature/look_7.webp`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/signature/look_7_back.webp`,
+    lookIndex: 7,
+    slot: "top",
+    purchasedAt: "2026-11-16T12:00:00Z",
+  },
+  {
+    id: "bought-look-7-pants",
+    title: "Khaki Parachute Cargo Pants",
+    brand: "Bought • My Closet",
+    price: 94,
+    size: "S",
+    imageUrl: `${ASSET_BASE_CTX}/models/signature/look_7_thumb.webp`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/signature/look_7.webp`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/signature/look_7_back.webp`,
+    lookIndex: 7,
+    slot: "pants",
+    purchasedAt: "2026-11-16T12:00:00Z",
+  },
+  {
+    id: "bought-look-8-dress",
+    productId: "prod-babyboo-cornelia-red",
+    title: "Cornelia Mini Dress - Red",
+    brand: "Bought • Babyboo",
+    price: 132,
+    size: "S",
+    imageUrl: `${ASSET_BASE_CTX}/models/catalog/cornelia_2.webp`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/signature/look_8.webp`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/signature/look_8_back.webp`,
+    lookIndex: 8,
+    slot: "full",
+    purchasedAt: "2026-11-20T12:00:00Z",
+  },
+];
+
+function inferClosetSlotFromTitle(
+  title: string,
+  explicit?: "top" | "pants" | "full" | "shoes" | "accessory"
+): "top" | "pants" | "full" | "shoes" | "accessory" {
+  if (explicit) return explicit;
+  const t = title.toLowerCase();
+  if (/(dress|gown|slip|romper)/.test(t)) return "full";
+  if (/(trouser|pant|jean|denim|skirt|cargo|legging)/.test(t)) return "pants";
+  if (/(heel|stiletto|slingback|boot|sneaker|shoe|flat)/.test(t)) return "shoes";
+  if (/(bag|tote|purse|belt)/.test(t)) return "accessory";
+  return "top";
+}
+
 export function GwoProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -186,16 +356,35 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
   const [bagItems, setBagItems] = useState<UnifiedBagItem[]>([
     {
       id: "starter-bag-1",
-      title: "Cornelia Mini Dress - Red",
-      brand: "Babyboo Fashion",
-      price: 132,
+      productId: "prod-ae-espresso-corset",
+      title: "Sculpted Espresso Boned Satin Basque Corset Top",
+      brand: "GWO × Atelier",
+      price: 52,
       size: "S",
-      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/catalog/cornelia_2.webp`,
-      storeUrl:
-        "https://babyboofashion-com-au.myshopify.com/products/cornelia-mini-dress-red",
-      friendRef: "MAYA-GWO",
+      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/dropship/ds_espresso_corset_top.webp`,
+      avatarFrontUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_front.webp`,
+      avatarBackUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_back.webp`,
+      slot: "top",
+    },
+    {
+      id: "starter-bag-2",
+      productId: "prod-ae-champagne-trousers",
+      title: "High-Waist Champagne Pleated Fluid Wide-Leg Trousers",
+      brand: "GWO × Atelier",
+      price: 54,
+      size: "S",
+      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/dropship/ds_champagne_wide_trousers.webp`,
+      avatarFrontUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_front.webp`,
+      avatarBackUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_back.webp`,
+      slot: "pants",
     },
   ]);
+  const [purchasedItems, setPurchasedItems] = useState<PurchasedClosetEntry[]>(
+    DEFAULT_PURCHASED_CLOSET
+  );
+  const [uploadedClosetPieces, setUploadedClosetPieces] = useState<
+    UploadedClosetPiece[]
+  >([]);
   const [bagOpen, setBagOpen] = useState(false);
   const [bagBump, setBagBump] = useState(false);
   const [addUrlModalOpen, setAddUrlModalOpen] = useState(false);
@@ -246,6 +435,24 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
     const storedOrders = loadStoredDropshipOrders();
     if (storedOrders && storedOrders.length > 0) {
       setDropshipOrders(storedOrders);
+    }
+    try {
+      const rawBought = window.localStorage.getItem("gwo_purchased_closet_v1");
+      if (rawBought) {
+        const parsed = JSON.parse(rawBought) as PurchasedClosetEntry[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setPurchasedItems(parsed);
+        }
+      }
+      const rawUp = window.localStorage.getItem("gwo_uploaded_closet_v1");
+      if (rawUp) {
+        const parsedUp = JSON.parse(rawUp) as UploadedClosetPiece[];
+        if (Array.isArray(parsedUp)) {
+          setUploadedClosetPieces(parsedUp);
+        }
+      }
+    } catch {
+      // Ignore storage error
     }
   }, []);
 
@@ -397,6 +604,49 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
     setBagItems((prev) => prev.filter((x) => x.id !== id));
   }, []);
 
+  const addUploadedClosetPiece = useCallback(
+    (piece: Omit<UploadedClosetPiece, "id" | "createdAt">) => {
+      const entry: UploadedClosetPiece = {
+        ...piece,
+        id: `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        createdAt: new Date().toISOString(),
+      };
+      setUploadedClosetPieces((prev) => {
+        const next = [entry, ...prev];
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem(
+              "gwo_uploaded_closet_v1",
+              JSON.stringify(next)
+            );
+          } catch {
+            // Ignore quota
+          }
+        }
+        return next;
+      });
+      showToast(`Uploaded "${piece.title}" to your Closet!`);
+    },
+    [showToast]
+  );
+
+  const removeUploadedClosetPiece = useCallback((id: string) => {
+    setUploadedClosetPieces((prev) => {
+      const next = prev.filter((x) => x.id !== id);
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            "gwo_uploaded_closet_v1",
+            JSON.stringify(next)
+          );
+        } catch {
+          // Ignore quota
+        }
+      }
+      return next;
+    });
+  }, []);
+
   const placeDropshipOrder = useCallback(
     (customer: {
       customerName: string;
@@ -415,11 +665,40 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         saveStoredDropshipOrders(next);
         return next;
       });
+
+      // Automatically unlock all newly purchased items inside the customer's Closet!
+      const nowIso = new Date().toISOString();
+      const newPurchased: PurchasedClosetEntry[] = bagItems.map((b, idx) => ({
+        id: `bought-${Date.now()}-${idx}`,
+        productId: b.productId,
+        title: b.title,
+        brand: "Bought • GWO",
+        price: b.price,
+        size: b.size,
+        imageUrl: b.imageUrl,
+        avatarFrontUrl: b.avatarFrontUrl,
+        avatarBackUrl: b.avatarBackUrl,
+        slot: inferClosetSlotFromTitle(b.title, b.slot),
+        purchasedAt: nowIso,
+      }));
+      setPurchasedItems((prev) => {
+        const next = [...newPurchased, ...prev];
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem(
+              "gwo_purchased_closet_v1",
+              JSON.stringify(next)
+            );
+          } catch {
+            // Ignore quota
+          }
+        }
+        return next;
+      });
+
       setBagItems([]);
       showToast(
-        `Order ${created.orderId} confirmed! Net store profit +$${created.totalNetStoreProfitUsd.toFixed(
-          2
-        )} queued for supplier dispatch.`
+        `Order ${created.orderId} confirmed — new items added to your Closet!`
       );
       return created;
     },
@@ -935,6 +1214,10 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         bagBump,
         addToBag,
         removeFromBag,
+        purchasedItems,
+        uploadedClosetPieces,
+        addUploadedClosetPiece,
+        removeUploadedClosetPiece,
         addUrlModalOpen,
         setAddUrlModalOpen,
         activeImportedProduct,

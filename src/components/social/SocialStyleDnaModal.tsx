@@ -469,7 +469,7 @@ export function SocialStyleDnaModal() {
         {/* Footer */}
         <div className="shrink-0 px-5 py-3.5 border-t border-black/[0.07] bg-[#F9FAFB] flex items-center justify-between gap-3">
           <span className="text-xs text-[#686D76]">
-            {socialDna.likedOutfitIds.length} liked AI outfits reinforcing your feed
+            Curates full AliExpress outfits directly on your Runway
           </span>
           <button
             type="button"
@@ -480,7 +480,7 @@ export function SocialStyleDnaModal() {
             }}
             className="px-5 py-2.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition"
           >
-            <Check className="w-3.5 h-3.5 text-[#A7D7C5]" /> Sync Social DNA &amp; Rebuild AI Outfits
+            <Check className="w-3.5 h-3.5 text-[#A7D7C5]" /> Sync Links &amp; Update My Runway
           </button>
         </div>
       </div>

@@ -15,6 +15,8 @@ import {
 } from "../src/lib/social/social-style-dna";
 import { buildIgStoryCardSpec } from "../src/lib/social/ig-story-card";
 import { generateEndlessOutfitBatch } from "../src/lib/stylist/infinite-outfit-engine";
+import { buildAiRunwayOutfits } from "../src/lib/stylist/runway-ai-outfits";
+import { resolveLifelikeAvatarPhotos } from "../src/lib/catalog/avatar-photo-resolver";
 import { buildParametric3DFitScene } from "../src/lib/catalog/parametric-3d-garment";
 import { build3DOutfitForClosetLook } from "../src/lib/catalog/closet-look-3d-mapper";
 import { STUDIO_LOOKS } from "../src/components/vell/vell-data";
@@ -273,5 +275,36 @@ describe("Universal 360° Front & Back Avatar + AliExpress Dropship + Endless AI
     });
     expect(dsBatch.every((o) => o.dropshipPieceCount >= 1)).toBe(true);
     expect(dsBatch[0].totalStoreProfitUsd).toBeGreaterThan(0);
+  });
+
+  it("curates full AliExpress Runway outfits from Instagram/Pinterest DNA with lifelike Front & Back avatar photos", () => {
+    const oldMoneyDna = buildSocialStyleDNA({
+      instagramHandle: "@chloe.atelier",
+      pinterestBoard: "pinterest.com/chloe/old-money-capsule",
+      bioOrCaptionText: "#oldmoney #tweed #blazer #tailored",
+      glamSlider: 66,
+      edgeSlider: 30,
+    });
+
+    const runwayLooks = buildAiRunwayOutfits({
+      catalog: INITIAL_SEED_DB.products,
+      avatar,
+      socialDna: oldMoneyDna,
+      extraGeneratedCount: 2,
+    });
+
+    expect(runwayLooks.length).toBe(8);
+    expect(runwayLooks[0].archetype).toBe("old_money_tailored");
+    expect(runwayLooks[0].frontAvatarUrl).toContain("ae_outfit_");
+    expect(runwayLooks[0].backAvatarUrl).toContain("_back.webp");
+    expect(runwayLooks[0].pieces.length).toBeGreaterThanOrEqual(3);
+    expect(runwayLooks[0].totalPriceUsd).toBeGreaterThan(120);
+
+    for (const prod of INITIAL_SEED_DB.products) {
+      const photos = resolveLifelikeAvatarPhotos({ product: prod });
+      expect(photos.frontUrl).toContain(".webp");
+      expect(photos.backUrl).toContain(".webp");
+      expect(photos.spinFrames.length).toBeGreaterThanOrEqual(2);
+    }
   });
 });

@@ -1,122 +1,88 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
-  Box,
   Camera,
   Check,
   ChevronLeft,
   ChevronRight,
-  Columns2,
-  Copy,
-  HeartHandshake,
-  Instagram,
-  Plus,
   Rotate3d,
   Ruler,
   ShoppingBag,
   Sparkles,
-  Store,
+  Trash2,
+  Upload,
   X,
-  ZoomIn,
 } from "lucide-react";
-import {
-  ACCESSORY_CATALOG,
-  H,
-  LOFT_BG_URL,
-  SIGNATURE_BADGE_URL,
-  STUDIO_LOOKS,
-} from "./vell-data";
-import { GarmentArtwork } from "../studio/GarmentArtwork";
-import { Parametric3DFitMock } from "../product/Parametric3DFitMock";
 import { useGwo } from "@/context/GwoAppContext";
-import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
-import {
-  build3DOutfitForClosetLook,
-  buildSynthetic3DProductFromPiece,
-} from "@/lib/catalog/closet-look-3d-mapper";
-import {
-  DEFAULT_AVATAR_MEASUREMENTS,
-  deriveStandardApparelSize,
-} from "@/lib/catalog/sizing";
-import { ARCHETYPE_META } from "@/lib/social/social-style-dna";
-import { Product } from "@/lib/types";
+import { buildSynthetic3DProductFromPiece } from "@/lib/catalog/closet-look-3d-mapper";
+import { DEFAULT_AVATAR_MEASUREMENTS, deriveStandardApparelSize } from "@/lib/catalog/sizing";
 
-type SimpleCategory = "all" | "everyday" | "athletic" | "going-out" | "accessories";
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-interface DragPayload {
-  kind: "look" | "accessory" | "scraped";
-  label: string;
-  price: number;
-  lookIndex?: number;
-  accessoryName?: string;
-  product?: Product;
+type ClosetSourceFilter = "all" | "bought" | "cart" | "uploaded";
+
+interface ClosetWearableSlotItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  slot: "top" | "pants" | "full";
+  source: "bought" | "cart" | "uploaded";
+  price?: number;
+  size: string;
+  thumbUrl: string;
+  avatarFrontUrl: string;
+  avatarBackUrl: string;
+  isUploadedPhoto?: boolean;
+  productId?: string;
 }
 
-export function VellGwoStudio() {
+interface AiClosetComboIdea {
+  id: string;
+  title: string;
+  reason: string;
+  mode: "mix" | "full";
+  topId?: string;
+  pantsId?: string;
+  fullId?: string;
+}
+
+function VellGwoStudioInner() {
+  const searchParams = useSearchParams();
+  const tryParam = searchParams.get("try");
+
   const {
     user,
-    friends,
     products,
-    addToBag,
     bagItems,
+    purchasedItems,
+    uploadedClosetPieces,
+    addUploadedClosetPiece,
+    removeUploadedClosetPiece,
     updateProfilePatch,
-    shareMyClosetAndClaimBonus,
-    setAddUrlModalOpen,
-    activeImportedProduct,
-    setActiveImportedProduct,
-    customAvatar,
-    setAvatarModalOpen,
-    socialDna,
-    setSocialModalOpen,
     openAvatar360,
-    showToast,
+    openDropshipCheckout,
+    customAvatar,
   } = useGwo();
 
-  const backdropRef = useRef<HTMLDivElement | null>(null);
-  const figsRef = useRef<HTMLDivElement | null>(null);
-  const scanRef = useRef<HTMLDivElement | null>(null);
-  const modelBoxRef = useRef<HTMLDivElement | null>(null);
-  const dragPillRef = useRef<HTMLDivElement | null>(null);
-  const preloadedImgsRef = useRef<Array<HTMLImageElement | null>>([]);
-  const swapTokenRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const swipeStartXRef = useRef<number | null>(null);
 
-  const [lookIdx, setLookIdx] = useState(0);
-  const [closetOwner, setClosetOwner] = useState<string>("all");
-  const [category, setCategory] = useState<SimpleCategory>("all");
-  const [zoomed, setZoomed] = useState(false);
-  const [closetStageAngle, setClosetStageAngle] = useState<
-    "studio" | "back" | "split" | "spin"
-  >("studio");
-  const [equippedAccessories, setEquippedAccessories] = useState<string[]>([
-    "Gold hoops",
-  ]);
+  const [sourceFilter, setSourceFilter] = useState<ClosetSourceFilter>("all");
+  const [stageAngle, setStageAngle] = useState<"front" | "back">("front");
   const [editingFit, setEditingFit] = useState(false);
-  const [copiedCloset, setCopiedCloset] = useState(false);
 
-  const [dragItem, setDragItem] = useState<DragPayload | null>(null);
-  const [overAvatar, setOverAvatar] = useState(false);
-  const [drapeFlatLay, setDrapeFlatLay] = useState(false);
+  // Upload My Clothes inline drawer
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadSlot, setUploadSlot] = useState<"top" | "pants" | "full">("top");
+  const [uploadTitle, setUploadTitle] = useState("");
 
-  useEffect(() => {
-    // Only use flat-lay multiply overlay if there is no full-body studio render for this piece
-    setDrapeFlatLay(
-      Boolean(
-        activeImportedProduct?.studioLookIndex === undefined &&
-          activeImportedProduct?.imageUrl &&
-          /flt|flat/i.test(activeImportedProduct.imageUrl)
-      )
-    );
-  }, [activeImportedProduct]);
+  // AI Recommendations panel
+  const [aiIdeasOpen, setAiIdeasOpen] = useState(false);
 
-  // Measurement inputs
-  const [bustIn, setBustIn] = useState<number | null>(null);
-  const [waistIn, setWaistIn] = useState<number | null>(null);
-  const [hipsIn, setHipsIn] = useState<number | null>(null);
-  const [heightIn, setHeightIn] = useState<number | null>(null);
-
+  // Measurements
   const activeBust = user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches;
   const activeWaist = user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches;
   const activeHips = user?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches;
@@ -127,644 +93,365 @@ export function VellGwoStudio() {
     hipsInches: activeHips,
   });
 
-  const activeImportedFit = useMemo(() => {
-    if (!activeImportedProduct) return null;
-    return analyzeExactAvatarFit(
-      {
-        bustInches: activeBust,
-        waistInches: activeWaist,
-        hipsInches: activeHips,
-        heightInches: activeHeight,
-        shoeSize: user?.shoeSize || "7.5",
-      },
-      activeImportedProduct
-    );
-  }, [activeBust, activeHeight, activeHips, activeImportedProduct, activeWaist, user?.shoeSize]);
+  const [bustIn, setBustIn] = useState<number | null>(null);
+  const [waistIn, setWaistIn] = useState<number | null>(null);
+  const [hipsIn, setHipsIn] = useState<number | null>(null);
+  const [heightIn, setHeightIn] = useState<number | null>(null);
 
-  const preloadLookByIndex = useCallback((idx: number) => {
-    const normalized =
-      ((idx % STUDIO_LOOKS.length) + STUDIO_LOOKS.length) % STUDIO_LOOKS.length;
-    if (preloadedImgsRef.current[normalized]) return;
-    const im = new Image();
-    im.decoding = "async";
-    im.src = H(STUDIO_LOOKS[normalized].file, 900);
-    preloadedImgsRef.current[normalized] = im;
-  }, []);
+  // Build unified personal Closet items strictly from: Bought + In Cart + Uploaded Pictures!
+  const allClosetItems: ClosetWearableSlotItem[] = useMemo(() => {
+    const list: ClosetWearableSlotItem[] = [];
 
-  // Fast first paint ONLY for initial active look (eliminates ~650KB eager background download storm!)
-  useEffect(() => {
-    const cache: Array<HTMLImageElement | null> = new Array(
-      STUDIO_LOOKS.length
-    ).fill(null);
-    preloadedImgsRef.current = cache;
-
-    let initialIdx = 0;
-    if (typeof window !== "undefined") {
-      const tryParam = new URLSearchParams(window.location.search).get("try");
-      if (tryParam) {
-        const matchedLook = STUDIO_LOOKS.find((l) => l.productId === tryParam);
-        if (matchedLook) {
-          initialIdx = matchedLook.index;
-          setLookIdx(initialIdx);
-        }
-      }
+    // 1. Uploaded real-life closet photos first so user sees uploads right away
+    for (const up of uploadedClosetPieces) {
+      list.push({
+        id: up.id,
+        title: up.title,
+        subtitle: "Uploaded from My Closet",
+        slot: up.slot,
+        source: "uploaded",
+        size: recSize,
+        thumbUrl: up.imageUrl,
+        avatarFrontUrl: `${BASE_PATH}/models/signature/look_0.webp`,
+        avatarBackUrl: `${BASE_PATH}/models/signature/look_0_back.webp`,
+        isUploadedPhoto: true,
+      });
     }
 
-    const first = new Image();
-    first.decoding = "async";
-    first.src = H(STUDIO_LOOKS[initialIdx].file, 900);
-    cache[initialIdx] = first;
+    // 2. In Cart / Applied to Cart items
+    for (const bag of bagItems) {
+      const slot: "top" | "pants" | "full" =
+        bag.slot === "pants"
+          ? "pants"
+          : bag.slot === "full" || /dress|slip|gown/i.test(bag.title)
+          ? "full"
+          : /trouser|pant|skirt|jean|denim|cargo|legging/i.test(bag.title)
+          ? "pants"
+          : "top";
 
-    if (figsRef.current) {
-      figsRef.current.innerHTML = "";
-      const base = document.createElement("div");
-      base.className = "gwo-fig-layer";
-      base.style.backgroundImage = `url("${H(
-        STUDIO_LOOKS[initialIdx].file,
-        900
-      )}")`;
-      figsRef.current.appendChild(base);
+      const frontFallback =
+        slot === "full"
+          ? `${BASE_PATH}/models/runway_ai/ae_outfit_2_front.webp`
+          : `${BASE_PATH}/models/runway_ai/ae_outfit_0_front.webp`;
+      const backFallback =
+        slot === "full"
+          ? `${BASE_PATH}/models/runway_ai/ae_outfit_2_back.webp`
+          : `${BASE_PATH}/models/runway_ai/ae_outfit_0_back.webp`;
+
+      list.push({
+        id: `cart-${bag.id}`,
+        title: bag.title,
+        subtitle: `In Cart • $${bag.price}`,
+        slot,
+        source: "cart",
+        price: bag.price,
+        size: bag.size || recSize,
+        thumbUrl: bag.imageUrl || frontFallback,
+        avatarFrontUrl: bag.avatarFrontUrl || frontFallback,
+        avatarBackUrl: bag.avatarBackUrl || backFallback,
+        productId: bag.productId,
+      });
     }
-  }, []);
 
-  // Deep-link handler for /?try=<productId> from Runway or Live Store Rack
-  const appliedTryQueryRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (typeof window === "undefined" || products.length === 0) return;
-    const tryId = new URLSearchParams(window.location.search).get("try");
-    if (!tryId || appliedTryQueryRef.current === tryId) return;
-    const found = products.find((p) => p.id === tryId);
-    if (found) {
-      appliedTryQueryRef.current = tryId;
-      setActiveImportedProduct(found);
+    // 3. Bought / Already Owned items
+    for (const b of purchasedItems) {
+      if (b.slot === "shoes" || b.slot === "accessory") continue;
+      const idx = b.lookIndex ?? 0;
+      const frontFallback = `${BASE_PATH}/models/signature/look_${idx}.webp`;
+      const backFallback = `${BASE_PATH}/models/signature/look_${idx}_back.webp`;
+      list.push({
+        id: b.id,
+        title: b.title,
+        subtitle: `Bought • Size ${b.size}`,
+        slot: b.slot,
+        source: "bought",
+        price: b.price,
+        size: b.size,
+        thumbUrl: b.imageUrl || frontFallback,
+        avatarFrontUrl: b.avatarFrontUrl || frontFallback,
+        avatarBackUrl: b.avatarBackUrl || backFallback,
+        productId: b.productId,
+      });
     }
-  }, [products, setActiveImportedProduct]);
 
-  const triggerScanLine = useCallback(() => {
-    const el = scanRef.current;
-    if (!el) return;
-    el.classList.remove("active");
-    void el.offsetWidth;
-    el.classList.add("active");
-  }, []);
+    return list;
+  }, [bagItems, purchasedItems, recSize, uploadedClosetPieces]);
 
-  const swapToLook = useCallback(
-    async (idx: number) => {
-      const normalized =
-        ((idx % STUDIO_LOOKS.length) + STUDIO_LOOKS.length) % STUDIO_LOOKS.length;
-      setLookIdx(normalized);
-      const token = ++swapTokenRef.current;
-
-      let preload = preloadedImgsRef.current[normalized];
-      if (!preload) {
-        preload = new Image();
-        preload.decoding = "async";
-        preload.src = H(STUDIO_LOOKS[normalized].file, 900);
-        preloadedImgsRef.current[normalized] = preload;
-      }
-      try {
-        await preload.decode();
-      } catch {
-        // Continue immediately
-      }
-      if (token !== swapTokenRef.current) return;
-
-      const container = figsRef.current;
-      if (!container) return;
-
-      const nextLayer = document.createElement("div");
-      nextLayer.className = "gwo-fig-layer wipe-in";
-      nextLayer.style.backgroundImage = `url("${H(STUDIO_LOOKS[normalized].file, 900)}")`;
-      container.appendChild(nextLayer);
-
-      triggerScanLine();
-
-      nextLayer.addEventListener(
-        "animationend",
-        () => {
-          Array.from(container.children).forEach((ch) => {
-            if (ch !== nextLayer) ch.remove();
-          });
-          nextLayer.classList.remove("wipe-in");
-        },
-        { once: true }
-      );
-    },
-    [triggerScanLine]
+  const topsPool = useMemo(
+    () => allClosetItems.filter((i) => i.slot === "top"),
+    [allClosetItems]
+  );
+  const pantsPool = useMemo(
+    () => allClosetItems.filter((i) => i.slot === "pants"),
+    [allClosetItems]
+  );
+  const fullPool = useMemo(
+    () => allClosetItems.filter((i) => i.slot === "full"),
+    [allClosetItems]
   );
 
-  // Automatically wipe into the lifelike full-body studio render when an imported/saved store item has a dedicated studioLookIndex!
+  // Active outfit mode: "mix" (Top + Pants swappable independently!) or "full" (1-piece dress/full look)
+  const [wearMode, setWearMode] = useState<"mix" | "full">("mix");
+  const [topIdx, setTopIdx] = useState(0);
+  const [pantsIdx, setPantsIdx] = useState(0);
+  const [fullIdx, setFullIdx] = useState(0);
+
+  // Support ?try=prod-... deep link from Runway
   useEffect(() => {
-    if (
-      activeImportedProduct?.studioLookIndex !== undefined &&
-      activeImportedProduct.studioLookIndex !== lookIdx
-    ) {
-      void swapToLook(activeImportedProduct.studioLookIndex);
+    if (!tryParam) return;
+    const matchFull = fullPool.findIndex((x) => x.productId === tryParam);
+    if (matchFull >= 0) {
+      setWearMode("full");
+      setFullIdx(matchFull);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeImportedProduct?.id, activeImportedProduct?.studioLookIndex, swapToLook]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.tagName === "INPUT") return;
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        void swapToLook(lookIdx + 1);
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        void swapToLook(lookIdx - 1);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [lookIdx, swapToLook]);
+    const matchTop = topsPool.findIndex((x) => x.productId === tryParam);
+    if (matchTop >= 0) {
+      setWearMode("mix");
+      setTopIdx(matchTop);
+      return;
+    }
+    const matchPants = pantsPool.findIndex((x) => x.productId === tryParam);
+    if (matchPants >= 0) {
+      setWearMode("mix");
+      setPantsIdx(matchPants);
+    }
+  }, [fullPool, pantsPool, topsPool, tryParam]);
 
-  const isOverModel = useCallback((cx: number, cy: number) => {
-    const box = modelBoxRef.current?.getBoundingClientRect();
-    if (!box) return false;
-    return (
-      cx >= box.left - 40 &&
-      cx <= box.right + 40 &&
-      cy >= box.top - 20 &&
-      cy <= box.bottom + 20
-    );
-  }, []);
+  const activeTop = topsPool[topIdx % Math.max(1, topsPool.length)] || null;
+  const activePants = pantsPool[pantsIdx % Math.max(1, pantsPool.length)] || null;
+  const activeFull = fullPool[fullIdx % Math.max(1, fullPool.length)] || null;
 
-  // Zero-React-Rerender Pointer Parallax & Drag Pill Tracking (60/120fps DOM transform)
-  useEffect(() => {
-    let rafPending = false;
-    let latestX = 0;
-    let latestY = 0;
-
-    const onMove = (e: PointerEvent) => {
-      latestX = e.clientX;
-      latestY = e.clientY;
-
-      if (dragItem && dragPillRef.current) {
-        dragPillRef.current.style.transform = `translate3d(${latestX + 14}px, ${
-          latestY - 18
-        }px, 0)`;
-        const over = isOverModel(latestX, latestY);
-        setOverAvatar((prev) => (prev === over ? prev : over));
-      }
-
-      if (!rafPending) {
-        rafPending = true;
-        requestAnimationFrame(() => {
-          rafPending = false;
-          if (backdropRef.current) {
-            const px = (latestX / window.innerWidth - 0.5) * -14;
-            const py = (latestY / window.innerHeight - 0.5) * -7;
-            backdropRef.current.style.transform = `translate3d(${px.toFixed(
-              1
-            )}px, ${py.toFixed(1)}px, 0) scale(1.03)`;
-          }
+  // Build swipeable outfit deck across Closet combinations + Dresses so customer can swipe left/right!
+  const swipeDeck = useMemo(() => {
+    const deck: Array<
+      | { kind: "mix"; tIdx: number; pIdx: number; label: string }
+      | { kind: "full"; fIdx: number; label: string }
+    > = [];
+    const pairCount = Math.max(topsPool.length, pantsPool.length);
+    for (let i = 0; i < pairCount; i++) {
+      if (topsPool.length > 0 && pantsPool.length > 0) {
+        const t = topsPool[i % topsPool.length];
+        const p = pantsPool[i % pantsPool.length];
+        deck.push({
+          kind: "mix",
+          tIdx: i % topsPool.length,
+          pIdx: i % pantsPool.length,
+          label: `${t.title} + ${p.title}`,
         });
       }
-    };
-
-    const onUp = (e: PointerEvent) => {
-      if (!dragItem) return;
-      if (isOverModel(e.clientX, e.clientY)) {
-        if (dragItem.kind === "look" && dragItem.lookIndex !== undefined) {
-          void swapToLook(dragItem.lookIndex);
-          showToast(`Trying on ${dragItem.label}`);
-        } else if (dragItem.kind === "accessory" && dragItem.accessoryName) {
-          const accName = dragItem.accessoryName;
-          setEquippedAccessories((prev) =>
-            prev.includes(accName) ? prev : [...prev, accName]
-          );
-          triggerScanLine();
-          showToast(`Added ${accName} to your look`);
-        } else if (dragItem.kind === "scraped") {
-          if (dragItem.product) {
-            setActiveImportedProduct(dragItem.product);
-          }
-          triggerScanLine();
-          showToast(`Styled ${dragItem.label} onto your avatar`);
-        }
-      }
-      setDragItem(null);
-      setOverAvatar(false);
-    };
-
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, [dragItem, isOverModel, setActiveImportedProduct, showToast, swapToLook, triggerScanLine]);
-
-  const startDrag = useCallback((e: React.PointerEvent, payload: DragPayload) => {
-    setDragItem(payload);
-    requestAnimationFrame(() => {
-      if (dragPillRef.current) {
-        dragPillRef.current.style.transform = `translate3d(${e.clientX + 14}px, ${
-          e.clientY - 18
-        }px, 0)`;
-      }
+    }
+    fullPool.forEach((f, idx) => {
+      deck.push({ kind: "full", fIdx: idx, label: f.title });
     });
-  }, []);
+    return deck;
+  }, [fullPool, pantsPool, topsPool]);
 
-  const currentLook = STUDIO_LOOKS[lookIdx];
+  const [deckCursor, setDeckCursor] = useState(0);
 
-  const filteredLooks = useMemo(() => {
-    return STUDIO_LOOKS.filter((lk) => {
-      if (closetOwner !== "all" && lk.friendOwner !== closetOwner) return false;
-      if (category === "all" || category === "accessories") return true;
-      if (category === "everyday") {
-        return lk.category === "everyday" || lk.category === "sleep";
-      }
-      if (category === "athletic") {
-        return lk.category === "athletic";
-      }
-      if (category === "going-out") {
-        return (
-          lk.category === "party" ||
-          lk.category === "formal" ||
-          lk.category === "street"
-        );
-      }
-      return true;
-    });
-  }, [category, closetOwner]);
+  const stepSwipeOutfit = (delta: number) => {
+    if (swipeDeck.length === 0) return;
+    const next = (deckCursor + delta + swipeDeck.length) % swipeDeck.length;
+    setDeckCursor(next);
+    const target = swipeDeck[next];
+    if (target.kind === "mix") {
+      setWearMode("mix");
+      setTopIdx(target.tIdx);
+      setPantsIdx(target.pIdx);
+    } else {
+      setWearMode("full");
+      setFullIdx(target.fIdx);
+    }
+  };
 
-  const currentPieces = useMemo(() => {
-    const p = currentLook.pieces;
-    const base = [
-      ...p.tops,
-      ...p.bottoms,
-      ...p.full,
-      ...p.shoes,
-      ...p.acc,
-    ];
-    const extraAcc = ACCESSORY_CATALOG.filter(
-      (a) =>
-        equippedAccessories.includes(a.name) &&
-        !p.acc.some((existing) => existing.name === a.name)
-    ).map((a) => ({ name: a.name, color: a.color, price: a.price }));
-    return [...base, ...extraAcc];
-  }, [currentLook, equippedAccessories]);
+  const cycleTop = (delta: number) => {
+    if (topsPool.length === 0) return;
+    setWearMode("mix");
+    setTopIdx((prev) => (prev + delta + topsPool.length) % topsPool.length);
+  };
 
-  const totalLookPrice = currentPieces.reduce((s, p) => s + p.price, 0);
-  const friendRefCode = currentLook.friendOwner
-    ? `${currentLook.friendOwner.toUpperCase()}-GWO`
-    : undefined;
+  const cyclePants = (delta: number) => {
+    if (pantsPool.length === 0) return;
+    setWearMode("mix");
+    setPantsIdx((prev) => (prev + delta + pantsPool.length) % pantsPool.length);
+  };
 
-  const handleAddFullLook = () => {
-    currentPieces.forEach((piece) => {
-      addToBag({
-        title: piece.name,
-        brand: currentLook.friendOwner
-          ? `@${currentLook.friendOwner}'s Closet`
-          : "GWO Studio",
-        price: piece.price,
-        size: recSize,
-        friendRef: friendRefCode,
+  // AI Closet Recommendations built from her own Bought + Uploaded + Cart wardrobe!
+  const aiClosetIdeas: AiClosetComboIdea[] = useMemo(() => {
+    const ideas: AiClosetComboIdea[] = [];
+    if (topsPool.length >= 1 && pantsPool.length >= 1) {
+      const cartTop = topsPool.find((t) => t.source === "cart") || topsPool[0];
+      const cartPants =
+        pantsPool.find((p) => p.source === "cart") || pantsPool[0];
+      ideas.push({
+        id: "ai-idea-1",
+        title: `${cartTop.title} + ${cartPants.title}`,
+        reason: `Sculpts your ${activeWaist}" waist and elongates a 5'2" petite frame.`,
+        mode: "mix",
+        topId: cartTop.id,
+        pantsId: cartPants.id,
       });
+    }
+    if (topsPool.length >= 2 && pantsPool.length >= 2) {
+      const t2 = topsPool[1];
+      const pLast = pantsPool[pantsPool.length - 1];
+      ideas.push({
+        id: "ai-idea-2",
+        title: `${t2.title} + ${pLast.title}`,
+        reason: "Effortless off-duty mix using pieces already in your closet.",
+        mode: "mix",
+        topId: t2.id,
+        pantsId: pLast.id,
+      });
+    }
+    if (fullPool.length >= 1) {
+      ideas.push({
+        id: "ai-idea-3",
+        title: fullPool[0].title,
+        reason: `One-piece statement look (${recSize} Exact Fit for ${activeBust}" B • ${activeWaist}" W).`,
+        mode: "full",
+        fullId: fullPool[0].id,
+      });
+    }
+    return ideas;
+  }, [activeBust, activeWaist, fullPool, pantsPool, recSize, topsPool]);
+
+  const filteredClosetItems = useMemo(() => {
+    if (sourceFilter === "all") return allClosetItems;
+    return allClosetItems.filter((i) => i.source === sourceFilter);
+  }, [allClosetItems, sourceFilter]);
+
+  const handleUploadClosetFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fallbackName =
+      uploadTitle.trim() ||
+      file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ") ||
+      `My Uploaded ${uploadSlot === "top" ? "Top" : uploadSlot === "pants" ? "Pants" : "Outfit"}`;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      if (!dataUrl) return;
+      addUploadedClosetPiece({
+        title: fallbackName,
+        slot: uploadSlot,
+        imageUrl: dataUrl,
+      });
+      setUploadTitle("");
+      setUploadOpen(false);
+      if (uploadSlot === "top") {
+        setWearMode("mix");
+        setTopIdx(0);
+      } else if (uploadSlot === "pants") {
+        setWearMode("mix");
+        setPantsIdx(0);
+      } else {
+        setWearMode("full");
+        setFullIdx(0);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  // Determine exact lifelike avatar image URLs for current stage state
+  const isSplitMixPhoto =
+    wearMode === "mix" &&
+    activeTop &&
+    activePants &&
+    activeTop.avatarFrontUrl !== activePants.avatarFrontUrl;
+
+  const primaryFrontPhoto =
+    wearMode === "full" && activeFull
+      ? activeFull.avatarFrontUrl
+      : activeTop?.avatarFrontUrl || `${BASE_PATH}/models/signature/look_0.webp`;
+
+  const primaryBackPhoto =
+    wearMode === "full" && activeFull
+      ? activeFull.avatarBackUrl
+      : activeTop?.avatarBackUrl || `${BASE_PATH}/models/signature/look_0_back.webp`;
+
+  const lowerFrontPhoto =
+    activePants?.avatarFrontUrl || `${BASE_PATH}/models/signature/look_0.webp`;
+  const lowerBackPhoto =
+    activePants?.avatarBackUrl || `${BASE_PATH}/models/signature/look_0_back.webp`;
+
+  const openCurrentOutfitIn360 = () => {
+    const heroItem = wearMode === "full" ? activeFull : activeTop;
+    if (!heroItem) return;
+    const matchedProd =
+      (heroItem.productId
+        ? products.find((p) => p.id === heroItem.productId)
+        : undefined) ||
+      buildSynthetic3DProductFromPiece({
+        id: `closet-${heroItem.id}`,
+        name: heroItem.title,
+        brand: heroItem.subtitle,
+        price: heroItem.price || 68,
+        imageUrl: heroItem.thumbUrl,
+      });
+
+    openAvatar360({
+      title:
+        wearMode === "mix" && activeTop && activePants
+          ? `${activeTop.title} + ${activePants.title}`
+          : heroItem.title,
+      primaryProduct: matchedProd,
+      avatarFrontUrl: primaryFrontPhoto,
+      avatarBackUrl: primaryBackPhoto,
+      initialAngleMode: "split",
     });
   };
 
-  const scrapedCommunityItems = useMemo(
-    () =>
-      products
-        .filter(
-          (p) =>
-            p.sourceType === "scraped_url" ||
-            p.sourceType === "aliexpress_dropship"
-        )
-        .slice(0, 6),
-    [products]
-  );
-
-  const activeCloset3DSet = useMemo(() => {
-    if (activeImportedProduct) {
-      return {
-        primaryProduct: activeImportedProduct,
-        companionProducts: [] as Product[],
-      };
-    }
-    return build3DOutfitForClosetLook(currentLook, products);
-  }, [activeImportedProduct, currentLook, products]);
-
-  const activeCloset3DFit = useMemo(
-    () =>
-      analyzeExactAvatarFit(
-        {
-          bustInches: activeBust,
-          waistInches: activeWaist,
-          hipsInches: activeHips,
-          heightInches: activeHeight,
-          shoeSize: user?.shoeSize || "7.5",
-        },
-        activeCloset3DSet.primaryProduct
-      ),
-    [
-      activeBust,
-      activeCloset3DSet.primaryProduct,
-      activeHeight,
-      activeHips,
-      activeWaist,
-      user?.shoeSize,
-    ]
-  );
-
-  const scrapedFitById = useMemo(() => {
-    const map = new Map<string, string>();
-    const stats = {
-      bustInches: activeBust,
-      waistInches: activeWaist,
-      hipsInches: activeHips,
-      heightInches: activeHeight,
-      shoeSize: user?.shoeSize || "7.5",
-    };
-    for (const p of scrapedCommunityItems) {
-      map.set(p.id, analyzeExactAvatarFit(stats, p).recommendedSize);
-    }
-    return map;
-  }, [
-    activeBust,
-    activeHeight,
-    activeHips,
-    activeWaist,
-    scrapedCommunityItems,
-    user?.shoeSize,
-  ]);
-
   return (
-    <div className="relative min-h-[calc(100svh-64px)] lg:h-[calc(100svh-64px)] w-full overflow-x-hidden lg:overflow-hidden select-none bg-[#E7EAEF]">
-      <style>{`
-        .gwo-fig-layer {
-          position: absolute;
-          inset: 0;
-          background-position: center bottom;
-          background-size: 100% 100%;
-          background-repeat: no-repeat;
-          will-change: clip-path;
-        }
-        .gwo-fig-layer.wipe-in {
-          clip-path: inset(0 0 100% 0);
-          animation: gwoCleanWipe 0.72s cubic-bezier(0.65, 0, 0.25, 1) forwards;
-        }
-        @keyframes gwoCleanWipe {
-          0% { clip-path: inset(0 0 100% 0); }
-          100% { clip-path: inset(0 0 0 0); }
-        }
-        .gwo-scan-beam {
-          position: absolute;
-          left: -8%;
-          right: -8%;
-          top: 0;
-          height: 2px;
-          opacity: 0;
-          pointer-events: none;
-          z-index: 25;
-          background: linear-gradient(90deg, transparent, #ffffff 25%, #ffffff 75%, transparent);
-          box-shadow: 0 0 18px 4px rgba(255, 255, 255, 0.7);
-          will-change: top, opacity;
-        }
-        .gwo-scan-beam.active {
-          animation: gwoBeamSweep 0.72s cubic-bezier(0.65, 0, 0.25, 1) forwards;
-        }
-        @keyframes gwoBeamSweep {
-          0% { top: 0%; opacity: 1; }
-          90% { opacity: 1; }
-          100% { top: 100%; opacity: 0; }
-        }
-      `}</style>
-
-      {/* ==================== PHOTOREAL DAYLIGHT STUDIO BACKDROP ==================== */}
-      <div
-        ref={backdropRef}
-        className="absolute inset-[-3%] bg-cover bg-center will-change-transform"
-        style={{
-          backgroundImage: `url("${LOFT_BG_URL}")`,
-          transform: "translate3d(0, 0, 0) scale(1.03)",
-        }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-black/18 pointer-events-none" />
-
-      {/* ==================== RESPONSIVE 3-ZONE STUDIO GRID ==================== */}
-      <div className="relative z-10 min-h-[calc(100svh-64px)] lg:h-full max-w-[1520px] mx-auto px-3 sm:px-5 py-3 sm:py-4 flex flex-col lg:flex-row items-stretch justify-between gap-3 sm:gap-4">
-        {/* ==================== LEFT PANEL: MY PHOTO AVATAR, CLOSETS & FIT PROFILE ==================== */}
-        <aside className="hidden lg:flex lg:w-[304px] xl:w-[314px] lg:h-full shrink-0 flex-col justify-between rounded-3xl bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 xl:p-5 overflow-y-auto">
-          <div className="space-y-4">
-            {/* Customer Photo Avatar Card */}
-            <div className="p-3.5 rounded-2xl bg-[#F4F8F5] border border-[#CBE2D4] space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <img
-                    src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
-                    alt="Your Avatar"
-                    className="w-10 h-10 rounded-full object-cover border-2 border-[#244B3B] shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-[#141518] truncate">
-                      Your 3D Studio Avatar ✓
-                    </p>
-                    <p className="text-[11px] text-[#4E5A54] leading-tight">
-                      Active across Closet, Runway &amp; 360°
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAvatarModalOpen(true)}
-                className="w-full py-2 rounded-full text-xs font-semibold bg-[#141518] hover:bg-[#27292E] text-white inline-flex items-center justify-center gap-1.5 cursor-pointer transition"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                Upload Different Selfie
-              </button>
-            </div>
-
-            {/* Step Context Header */}
+    <div className="min-h-[calc(100svh-64px)] bg-[#F5F6F8] pb-12">
+      <div className="max-w-[1380px] mx-auto px-3 sm:px-6 pt-4 grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-4 items-start">
+        {/* ==================== LEFT: MY SIMPLE PERSONAL CLOSET (BOUGHT, IN CART, UPLOADED) ==================== */}
+        <aside className="order-2 lg:order-1 rounded-3xl bg-white border border-black/[0.07] shadow-[0_8px_24px_rgba(20,21,24,0.04)] p-4 space-y-3.5">
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[#244B3B]">
-                Girls&apos; Shared Closets
-              </p>
-              <h1 className="text-base font-bold text-[#141518] mt-0.5">
-                Choose a Closet to Try On
+              <h1 className="text-base sm:text-lg font-bold text-[#141518]">
+                My Closet
               </h1>
+              <p className="text-xs text-[#686D76]">
+                Bought items, Cart items &amp; uploaded clothes
+              </p>
             </div>
 
-            {/* 1-Tap Closet Switcher */}
-            <div className="space-y-1.5">
+            <button
+              type="button"
+              id="gwo-upload-closet-btn"
+              onClick={() => setUploadOpen((v) => !v)}
+              className="px-3 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition shrink-0"
+            >
+              <Camera className="w-3.5 h-3.5 text-[#A7D7C5]" />
+              Upload Clothes
+            </button>
+          </div>
+
+          {/* Compact Avatar Fit Bar */}
+          <div className="p-2.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="font-semibold text-[#141518] inline-flex items-center gap-1.5">
+                <Ruler className="w-3.5 h-3.5 text-[#244B3B]" />
+                {Math.floor(activeHeight / 12)}&apos;{Math.round(activeHeight % 12)}&quot; •{" "}
+                {activeBust}&quot; • {activeWaist}&quot; • {activeHips}&quot;{" "}
+                <strong className="text-[#244B3B]">(Size {recSize})</strong>
+              </span>
               <button
                 type="button"
-                onClick={() => setClosetOwner("all")}
-                className={`w-full p-2.5 rounded-2xl text-left transition flex items-center justify-between border cursor-pointer ${
-                  closetOwner === "all"
-                    ? "bg-[#141518] text-white border-[#141518]"
-                    : "bg-[#F7F8FA] hover:bg-[#EFF1F5] text-[#141518] border-black/[0.05]"
-                }`}
+                onClick={() => setEditingFit((v) => !v)}
+                className="px-2.5 py-1 rounded-full bg-white border border-black/10 text-[11px] font-bold text-[#141518] cursor-pointer"
               >
-                <div>
-                  <p className="text-xs font-bold">All Shared Closets</p>
-                  <p
-                    className={`text-[11px] ${
-                      closetOwner === "all" ? "text-white/75" : "text-[#686D76]"
-                    }`}
-                  >
-                    {STUDIO_LOOKS.length} complete outfits ready to try
-                  </p>
-                </div>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/15">
-                  All
-                </span>
+                {editingFit ? "Close" : "Edit"}
               </button>
-
-              {[
-                { handle: "maya", name: "Maya", twin: 98, stats: '32.5" B • 27" W • 34.5" H' },
-                { handle: "chloe", name: "Chloe", twin: 80, stats: '35" B • 27.5" W • 38.5" H' },
-                { handle: "sofia", name: "Sofia", twin: 82, stats: '33" B • 25.5" W • 36" H' },
-              ].map((f) => {
-                const active = closetOwner === f.handle;
-                const matchedFriend = friends.find((x) => x.username === f.handle);
-                return (
-                  <button
-                    key={f.handle}
-                    type="button"
-                    onClick={() => {
-                      setClosetOwner(f.handle);
-                      const firstMatch = STUDIO_LOOKS.find(
-                        (l) => l.friendOwner === f.handle
-                      );
-                      if (firstMatch) void swapToLook(firstMatch.index);
-                    }}
-                    className={`w-full p-2.5 rounded-2xl text-left transition flex items-center justify-between border cursor-pointer ${
-                      active
-                        ? "bg-[#141518] text-white border-[#141518]"
-                        : "bg-[#F7F8FA] hover:bg-[#EFF1F5] text-[#141518] border-black/[0.05]"
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold truncate">
-                        @{f.handle} ({matchedFriend?.displayName || f.name})
-                      </p>
-                      <p
-                        className={`text-[11px] ${
-                          active ? "text-white/75" : "text-[#686D76]"
-                        }`}
-                      >
-                        {f.stats}
-                      </p>
-                    </div>
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                        active
-                          ? "bg-[#244B3B] text-[#C8F0DF]"
-                          : "bg-[#E7F3EE] text-[#244B3B]"
-                      }`}
-                    >
-                      <HeartHandshake className="w-3 h-3" /> {f.twin}% Twin
-                    </span>
-                  </button>
-                );
-              })}
             </div>
 
-            {/* Simple Fit Profile Measurements */}
-            <div className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[#141518] flex items-center gap-1.5">
-                  <Ruler className="w-3.5 h-3.5 text-[#686D76]" /> Avatar Measurements
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setEditingFit((v) => !v)}
-                  className="px-2.5 py-1 rounded-full bg-white border border-black/[0.08] text-[11px] font-bold text-[#244B3B] hover:bg-[#EBF3EE] cursor-pointer"
-                >
-                  {editingFit ? "Done" : "Edit"}
-                </button>
-              </div>
-
-              {!editingFit ? (
-                <div className="space-y-1.5">
-                  <div className="grid grid-cols-4 gap-1.5 text-center">
-                    <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
-                        Height
-                      </p>
-                      <p className="text-xs font-bold text-[#141518]">
-                        {Math.floor(activeHeight / 12)}&apos;{Math.round(activeHeight % 12)}&quot;
-                      </p>
-                    </div>
-                    <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
-                        Bust
-                      </p>
-                      <p className="text-xs font-bold text-[#141518]">
-                        {activeBust}&quot;
-                      </p>
-                    </div>
-                    <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
-                        Waist
-                      </p>
-                      <p className="text-xs font-bold text-[#141518]">
-                        {activeWaist}&quot;
-                      </p>
-                    </div>
-                    <div className="py-1.5 px-1.5 rounded-xl bg-white border border-black/[0.06]">
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-[#686D76]">
-                        Hips
-                      </p>
-                      <p className="text-xs font-bold text-[#141518]">
-                        {activeHips}&quot;
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-[#686D76]">
-                    Petite Frame ({activeHeight}&quot;) • Shoe {user?.shoeSize || "7.5"} • Best Fit:{" "}
-                    <strong className="text-[#244B3B]">Size {recSize}</strong>
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setSocialModalOpen(true)}
-                    className="w-full py-1.5 px-2.5 rounded-xl bg-[#FDEEF4] hover:bg-[#FADCE8] border border-[#F5C5D8] text-[10.5px] font-bold text-[#9D174D] flex items-center justify-between gap-1.5 cursor-pointer transition"
-                  >
-                    <span className="inline-flex items-center gap-1 truncate">
-                      <Instagram className="w-3 h-3 shrink-0" />
-                      {socialDna.instagramHandle || "@mila.nyc"} •{" "}
-                      {ARCHETYPE_META[socialDna.primaryArchetype].shortTag} DNA
-                    </span>
-                    <span className="underline shrink-0">Sync</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <label className="text-[10px] text-[#686D76] font-semibold">
-                    Bust (in)
-                    <input
-                      type="number"
-                      step="0.25"
-                      defaultValue={activeBust}
-                      onChange={(e) => setBustIn(Number(e.target.value))}
-                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
-                    />
-                  </label>
-                  <label className="text-[10px] text-[#686D76] font-semibold">
-                    Waist (in)
-                    <input
-                      type="number"
-                      step="0.25"
-                      defaultValue={activeWaist}
-                      onChange={(e) => setWaistIn(Number(e.target.value))}
-                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
-                    />
-                  </label>
-                  <label className="text-[10px] text-[#686D76] font-semibold">
-                    Hips (in)
-                    <input
-                      type="number"
-                      step="0.25"
-                      defaultValue={activeHips}
-                      onChange={(e) => setHipsIn(Number(e.target.value))}
-                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
-                    />
-                  </label>
-                  <label className="text-[10px] text-[#686D76] font-semibold">
+            {editingFit && (
+              <div className="space-y-2 pt-1 border-t border-black/[0.06]">
+                <div className="grid grid-cols-4 gap-1.5">
+                  <label className="text-[10px] font-bold text-[#686D76]">
                     Height (in)
                     <input
                       type="number"
@@ -774,691 +461,574 @@ export function VellGwoStudio() {
                       className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
                     />
                   </label>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await updateProfilePatch({
-                        ...(bustIn ? { bustInches: bustIn } : {}),
-                        ...(waistIn ? { waistInches: waistIn } : {}),
-                        ...(hipsIn ? { hipsInches: hipsIn } : {}),
-                        ...(heightIn ? { heightInches: heightIn } : {}),
-                      });
-                      setEditingFit(false);
-                    }}
-                    className="col-span-2 py-1.5 rounded-xl bg-[#141518] text-white text-xs font-semibold cursor-pointer"
-                  >
-                    Save Measurements
-                  </button>
+                  <label className="text-[10px] font-bold text-[#686D76]">
+                    Bust
+                    <input
+                      type="number"
+                      step="0.25"
+                      defaultValue={activeBust}
+                      onChange={(e) => setBustIn(Number(e.target.value))}
+                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
+                    />
+                  </label>
+                  <label className="text-[10px] font-bold text-[#686D76]">
+                    Waist
+                    <input
+                      type="number"
+                      step="0.25"
+                      defaultValue={activeWaist}
+                      onChange={(e) => setWaistIn(Number(e.target.value))}
+                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
+                    />
+                  </label>
+                  <label className="text-[10px] font-bold text-[#686D76]">
+                    Hips
+                    <input
+                      type="number"
+                      step="0.25"
+                      defaultValue={activeHips}
+                      onChange={(e) => setHipsIn(Number(e.target.value))}
+                      className="mt-0.5 w-full px-2 py-1 rounded-lg bg-white border border-black/10 text-xs text-[#141518]"
+                    />
+                  </label>
                 </div>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await updateProfilePatch({
+                      heightInches: heightIn ?? activeHeight,
+                      bustInches: bustIn ?? activeBust,
+                      waistInches: waistIn ?? activeWaist,
+                      hipsInches: hipsIn ?? activeHips,
+                    });
+                    setEditingFit(false);
+                  }}
+                  className="w-full py-1.5 rounded-full bg-[#244B3B] text-white text-xs font-bold cursor-pointer"
+                >
+                  Save Measurements
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Bottom Share Closet CTA */}
-          <button
-            type="button"
-            onClick={async () => {
-              await shareMyClosetAndClaimBonus();
-              setCopiedCloset(true);
-              setTimeout(() => setCopiedCloset(false), 2200);
-            }}
-            className="w-full py-2.5 px-4 rounded-2xl bg-[#EEF5F1] hover:bg-[#E2EFE8] text-[#1D4232] text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer mt-2"
-          >
-            {copiedCloset ? (
-              <>
-                <Check className="w-3.5 h-3.5" /> Closet Link Copied!
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" /> Share My Closet Link
-              </>
-            )}
-          </button>
-        </aside>
-
-        {/* ==================== CENTER STAGE: UNOBSTRUCTED PHOTOREAL AVATAR ==================== */}
-        <div className="relative flex-1 min-w-0 flex flex-col items-center justify-between h-[56svh] min-h-[400px] lg:h-full lg:min-h-0">
-          {/* Clean Top Bar (Never Overlaps Avatar Head!) */}
-          <div className="shrink-0 z-20 flex flex-wrap items-center justify-center gap-1.5">
-            <div className="px-3.5 py-1.5 rounded-full bg-white/94 backdrop-blur-md border border-black/[0.07] shadow-xs flex items-center gap-2 text-xs">
-              {customAvatar && (
-                <img
-                  src={customAvatar.badgeDataUrl}
-                  alt="You"
-                  className="w-4 h-4 rounded-full object-cover"
-                />
-              )}
-              <span className="font-bold text-[#141518]">{currentLook.name}</span>
-              {currentLook.friendOwner && (
-                <span className="text-[#244B3B] font-semibold">
-                  • {customAvatar ? "On You" : `@${currentLook.friendOwner}`}{" "}
-                  <span className="hidden sm:inline">
-                    ({currentLook.friendTwinPct}% Twin)
-                  </span>
+          {/* Upload Own Clothes Drawer */}
+          {uploadOpen && (
+            <div className="p-3 rounded-2xl bg-[#F4F8F5] border border-[#CBE2D4] space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#1D4232]">
+                  Upload Clothes You Already Own
                 </span>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setUploadOpen(false)}
+                  aria-label="Close Upload Drawer"
+                  className="p-1 rounded-full hover:bg-black/5 text-[#5C6068] cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
-            {/* Compact Mobile Fit Summary Pill (since Left Panel is lg+ only) */}
-            <button
-              type="button"
-              onClick={() => setAvatarModalOpen(true)}
-              className="lg:hidden px-3 py-1.5 rounded-full bg-[#EBF3EE] border border-[#C5DFD0] text-[11px] font-bold text-[#1D4232] inline-flex items-center gap-1 cursor-pointer"
-            >
-              <Ruler className="w-3 h-3" />
-              {Math.floor(activeHeight / 12)}&apos;{Math.round(activeHeight % 12)}&quot; • Size{" "}
-              {recSize}
-            </button>
-
-            {/* Universal Closet Front / Back / 360° Avatar Switcher */}
-            <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs">
-              {(
-                [
-                  ["studio", "Front"],
-                  ["back", "Back 180°"],
-                  ["split", "Front + Back"],
-                  ["spin", "360° Spin"],
-                ] as const
-              ).map(([modeId, modeLabel]) => {
-                const active = closetStageAngle === modeId;
-                return (
+              <div className="grid grid-cols-3 gap-1.5">
+                {(
+                  [
+                    { id: "top", label: "Top" },
+                    { id: "pants", label: "Pants / Skirt" },
+                    { id: "full", label: "Dress / Full" },
+                  ] as const
+                ).map((s) => (
                   <button
-                    key={modeId}
+                    key={s.id}
                     type="button"
-                    id={`gwo-closet-angle-${modeId}`}
-                    onClick={() => setClosetStageAngle(modeId)}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition whitespace-nowrap ${
-                      active
-                        ? "bg-[#141518] text-white"
-                        : "text-[#686D76] hover:text-[#141518]"
+                    onClick={() => setUploadSlot(s.id)}
+                    className={`py-1.5 rounded-xl text-xs font-bold border cursor-pointer ${
+                      uploadSlot === s.id
+                        ? "bg-[#141518] text-white border-[#141518]"
+                        : "bg-white text-[#141518] border-black/10"
                     }`}
                   >
-                    {modeId === "split" && <Columns2 className="w-3 h-3" />}
-                    {modeId === "spin" && <Rotate3d className="w-3 h-3" />}
-                    {modeLabel}
+                    {s.label}
                   </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Contained Interactive Avatar Viewport (overflow-hidden ensures Zoom NEVER overlaps top/bottom controls!) */}
-          <div className="relative flex-1 w-full min-h-0 my-1.5 flex items-end justify-center overflow-hidden">
-            {closetStageAngle !== "studio" && (
-              <div className="w-full h-full flex items-stretch justify-center px-1">
-                <Parametric3DFitMock
-                  product={activeCloset3DSet.primaryProduct}
-                  companionProducts={activeCloset3DSet.companionProducts}
-                  selectedSize={activeCloset3DFit.recommendedSize}
-                  fitReport={activeCloset3DFit}
-                  avatar={{
-                    heightInches: activeHeight,
-                    bustInches: activeBust,
-                    waistInches: activeWaist,
-                    hipsInches: activeHips,
-                    skinTone:
-                      customAvatar?.skinToneHex || user?.skinTone || "#D9A482",
-                  }}
-                  faceBadgeUrl={customAvatar?.badgeDataUrl}
-                  initialAngleMode={
-                    closetStageAngle === "back"
-                      ? "back"
-                      : closetStageAngle === "split"
-                      ? "split"
-                      : "spin"
-                  }
-                  compactHeightClass="h-full"
-                />
+                ))}
               </div>
-            )}
 
-            <div
-              ref={modelBoxRef}
-              onPointerDown={(e) => {
-                swipeStartXRef.current = e.clientX;
-              }}
-              onPointerUp={(e) => {
-                if (swipeStartXRef.current === null) return;
-                const dx = e.clientX - swipeStartXRef.current;
-                swipeStartXRef.current = null;
-                if (Math.abs(dx) > 40 && !dragItem) {
-                  void swapToLook(lookIdx + (dx < 0 ? 1 : -1));
-                }
-              }}
-              className={`${
-                closetStageAngle === "studio" ? "flex" : "hidden"
-              } relative h-full items-end justify-center cursor-grab active:cursor-grabbing transition-transform duration-500 will-change-transform ${
-                zoomed ? "scale-[1.35] translate-y-20" : "scale-100"
-              }`}
-            >
-              <div className="relative h-full aspect-[1360/2048]">
-                {/* Drop Halo when dragging an item onto avatar */}
-                {overAvatar && (
-                  <div className="absolute inset-x-2 inset-y-2 rounded-3xl border-2 border-dashed border-white bg-white/20 z-30 flex items-start justify-center pt-4 pointer-events-none">
-                    <span className="px-3 py-1 rounded-full bg-[#141518] text-white text-[11px] font-bold shadow-lg">
-                      Drop to Try On Avatar
-                    </span>
-                  </div>
-                )}
+              <input
+                type="text"
+                value={uploadTitle}
+                onChange={(e) => setUploadTitle(e.target.value)}
+                placeholder="Item name (e.g. Favorite White Tank)..."
+                className="w-full px-3 py-1.5 rounded-xl bg-white border border-black/10 text-xs text-[#141518]"
+              />
 
-                {/* Floor Shadow */}
-                <div
-                  className="absolute bottom-0 left-1/2 -translate-x-1/2 w-56 h-7 rounded-full pointer-events-none"
-                  style={{
-                    background:
-                      "radial-gradient(closest-side, rgba(25,26,30,0.42), transparent)",
-                  }}
-                />
-
-                {/* Stacked Outfit Cutout Layers */}
-                <div ref={figsRef} className="absolute inset-0 pointer-events-none" />
-
-                {/* Live Imported URL Garment Draped on Avatar Torso/Legs when Flat-Lay Mode Active */}
-                {activeImportedProduct?.imageUrl && drapeFlatLay && (
-                  <img
-                    src={activeImportedProduct.imageUrl}
-                    alt={activeImportedProduct.title}
-                    style={{
-                      left: "50%",
-                      top:
-                        activeImportedProduct.category === "bottom"
-                          ? "58%"
-                          : activeImportedProduct.category === "dress"
-                          ? "46%"
-                          : activeImportedProduct.category === "shoes"
-                          ? "88%"
-                          : "34%",
-                      width:
-                        activeImportedProduct.category === "shoes"
-                          ? "32%"
-                          : activeImportedProduct.category === "dress"
-                          ? "48%"
-                          : "44%",
-                    }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 object-contain mix-blend-multiply pointer-events-none z-14"
-                  />
-                )}
-
-                {/* Customer Uploaded Photo Avatar Face Overlay (Exact 1360x2048 Head Coordinates) */}
-                {customAvatar && (
-                  <img
-                    src={customAvatar.faceOvalDataUrl}
-                    alt="Your uploaded avatar face"
-                    decoding="async"
-                    style={{
-                      left: "49.95%",
-                      top: "13.2%",
-                      width: "12.9%",
-                      height: "9.7%",
-                    }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 object-fill pointer-events-none z-15"
-                  />
-                )}
-
-                <div ref={scanRef} className="gwo-scan-beam" />
-              </div>
-            </div>
-          </div>
-
-          {/* Clean Minimal Bottom Stage Controls (Dedicated Dock Below Avatar!) */}
-          <div className="shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:py-2 rounded-full bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-lg z-20">
-            <button
-              type="button"
-              onClick={() => void swapToLook(lookIdx - 1)}
-              className="p-2 rounded-full hover:bg-[#F1F2F5] text-[#141518] cursor-pointer"
-              title="Previous Outfit"
-              aria-label="Previous Outfit"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setZoomed((z) => !z)}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-[#F1F2F5] text-[#141518] inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-              {zoomed ? "Full Body" : "Zoom Fit"}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleAddFullLook}
-              className="px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              Bag Look (${totalLookPrice})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void swapToLook(lookIdx + 1)}
-              className="p-2 rounded-full hover:bg-[#F1F2F5] text-[#141518] cursor-pointer"
-              title="Next Outfit"
-              aria-label="Next Outfit"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* ==================== RIGHT PANEL: DOCKED IMPORTED PIECE, WARDROBE & WORN PIECES ==================== */}
-        <aside className="w-full lg:w-[376px] xl:w-[392px] lg:h-full shrink-0 rounded-3xl bg-white/94 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 xl:p-5 flex flex-col justify-between gap-3 lg:overflow-hidden">
-          <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 space-y-3.5">
-            {/* Docked Active Imported Store Piece Banner (Zero Avatar Overlap!) */}
-            {activeImportedProduct && (
-              <div
-                id="gwo-stage-imported-card"
-                className="rounded-2xl bg-[#F4F8F5] border border-[#CBE2D4] p-2.5 space-y-2"
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleUploadClosetFile}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-2 rounded-full bg-[#244B3B] hover:bg-[#1D3E30] text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-12 h-14 rounded-xl overflow-hidden bg-white border border-black/[0.06] shrink-0">
-                    <GarmentArtwork
-                      product={activeImportedProduct}
-                      className="w-full h-full"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#244B3B] truncate">
-                        {activeImportedProduct.brand} • Active Fit
-                      </span>
+                <Upload className="w-3.5 h-3.5" /> Choose Photo from Phone / PC
+              </button>
+            </div>
+          )}
+
+          {/* 4 Simple Closet Filter Tabs */}
+          <div className="grid grid-cols-4 gap-1 p-1 rounded-full bg-[#F1F2F5]">
+            {(
+              [
+                { id: "all", label: `All (${allClosetItems.length})` },
+                {
+                  id: "bought",
+                  label: `Bought (${
+                    allClosetItems.filter((x) => x.source === "bought").length
+                  })`,
+                },
+                {
+                  id: "cart",
+                  label: `Cart (${
+                    allClosetItems.filter((x) => x.source === "cart").length
+                  })`,
+                },
+                {
+                  id: "uploaded",
+                  label: `Mine (${uploadedClosetPieces.length})`,
+                },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSourceFilter(tab.id)}
+                className={`py-1.5 px-1 rounded-full text-[11px] font-bold transition cursor-pointer truncate ${
+                  sourceFilter === tab.id
+                    ? "bg-white text-[#141518] shadow-xs"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Closet Items List */}
+          <div className="space-y-2 max-h-[430px] overflow-y-auto pr-1">
+            {filteredClosetItems.length === 0 ? (
+              <div className="py-8 text-center space-y-2">
+                <p className="text-xs font-bold text-[#141518]">
+                  No items in this filter yet
+                </p>
+                <p className="text-[11px] text-[#686D76]">
+                  Upload a photo of your own clothes above or add pieces from the Runway!
+                </p>
+              </div>
+            ) : (
+              filteredClosetItems.map((item) => {
+                const isEquipped =
+                  (wearMode === "mix" &&
+                    (activeTop?.id === item.id ||
+                      activePants?.id === item.id)) ||
+                  (wearMode === "full" && activeFull?.id === item.id);
+
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      if (item.slot === "top") {
+                        setWearMode("mix");
+                        const idx = topsPool.findIndex((x) => x.id === item.id);
+                        if (idx >= 0) setTopIdx(idx);
+                      } else if (item.slot === "pants") {
+                        setWearMode("mix");
+                        const idx = pantsPool.findIndex((x) => x.id === item.id);
+                        if (idx >= 0) setPantsIdx(idx);
+                      } else {
+                        setWearMode("full");
+                        const idx = fullPool.findIndex((x) => x.id === item.id);
+                        if (idx >= 0) setFullIdx(idx);
+                      }
+                    }}
+                    className={`p-2.5 rounded-2xl border flex items-center justify-between gap-2.5 cursor-pointer transition ${
+                      isEquipped
+                        ? "bg-[#EBF3EE] border-[#244B3B]/40"
+                        : "bg-[#F8F9FB] hover:bg-[#F0F2F5] border-black/[0.06]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src={item.thumbUrl}
+                        alt={item.title}
+                        className="w-12 h-14 rounded-xl object-cover object-top bg-white border border-black/[0.06] shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold uppercase ${
+                              item.source === "cart"
+                                ? "bg-[#FEF6E6] text-[#8A5808]"
+                                : item.source === "uploaded"
+                                ? "bg-[#FDEEF4] text-[#9D174D]"
+                                : "bg-white text-[#244B3B]"
+                            }`}
+                          >
+                            {item.slot}
+                          </span>
+                          {isEquipped && (
+                            <span className="text-[10px] font-bold text-[#244B3B] inline-flex items-center gap-0.5">
+                              <Check className="w-3 h-3" /> Wearing
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs font-bold text-[#141518] truncate mt-0.5">
+                          {item.title}
+                        </p>
+                        <p className="text-[10.5px] text-[#686D76] truncate">
+                          {item.subtitle}
+                        </p>
+                      </div>
+                    </div>
+
+                    {item.source === "uploaded" && (
                       <button
                         type="button"
-                        onClick={() => setActiveImportedProduct(null)}
-                        className="p-1.5 rounded-full hover:bg-black/[0.06] text-[#686D76] cursor-pointer"
-                        title="Clear active store piece"
-                        aria-label="Clear active store piece"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeUploadedClosetPiece(item.id);
+                        }}
+                        aria-label={`Remove ${item.title}`}
+                        className="p-1.5 rounded-full hover:bg-black/10 text-[#686D76] cursor-pointer shrink-0"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {bagItems.length > 0 && (
+            <button
+              type="button"
+              onClick={() => openDropshipCheckout("checkout")}
+              className="w-full py-2.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer transition"
+            >
+              <ShoppingBag className="w-3.5 h-3.5 text-[#A7D7C5]" />
+              Buy Cart Items (${bagItems.reduce((s, b) => s + b.price, 0)})
+            </button>
+          )}
+        </aside>
+
+        {/* ==================== RIGHT: LIFELIKE AVATAR TRY-ON STAGE (SWIPE + CHANGE TOP / PANTS + ASK AI) ==================== */}
+        <main className="order-1 lg:order-2 rounded-3xl bg-white border border-black/[0.07] shadow-[0_10px_28px_rgba(20,21,24,0.05)] p-4 sm:p-5 space-y-4">
+          {/* Top Stage Bar: Front / Back / 360° + Ask AI Button */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-flex items-center p-1 rounded-full bg-[#F1F2F5] border border-black/[0.06]">
+              <button
+                type="button"
+                id="gwo-closet-angle-front"
+                onClick={() => setStageAngle("front")}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold cursor-pointer transition ${
+                  stageAngle === "front"
+                    ? "bg-white text-[#141518] shadow-xs"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+              >
+                Front Photo
+              </button>
+              <button
+                type="button"
+                id="gwo-closet-angle-back"
+                onClick={() => setStageAngle("back")}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold cursor-pointer transition ${
+                  stageAngle === "back"
+                    ? "bg-white text-[#141518] shadow-xs"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+              >
+                Back Photo (180°)
+              </button>
+              <button
+                type="button"
+                id="gwo-closet-open-360-btn"
+                onClick={openCurrentOutfitIn360}
+                className="px-3.5 py-1.5 rounded-full text-xs font-bold text-[#1D4232] hover:bg-white inline-flex items-center gap-1 cursor-pointer transition"
+              >
+                <Rotate3d className="w-3.5 h-3.5 text-[#244B3B]" /> 360° Fit
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                id="gwo-closet-ask-ai-btn"
+                onClick={() => setAiIdeasOpen((v) => !v)}
+                className={`px-4 py-2 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                  aiIdeasOpen
+                    ? "bg-[#244B3B] text-white"
+                    : "bg-[#EBF3EE] hover:bg-[#DCECE3] text-[#1D4232] border border-[#C5DFD0]"
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Ask AI Outfit Ideas
+              </button>
+
+              <Link
+                href="/shop"
+                className="px-4 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-bold transition"
+              >
+                Shop Runway →
+              </Link>
+            </div>
+          </div>
+
+          {/* AI Recommendations Drawer (from her own Closet + Runway) */}
+          {aiIdeasOpen && (
+            <div className="p-3.5 rounded-2xl bg-[#F4F8F5] border border-[#CBE2D4] space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#1D4232] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" /> AI Stylist Ideas from Your Closet &amp; Cart
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAiIdeasOpen(false)}
+                  aria-label="Close AI Ideas"
+                  className="p-1 rounded-full hover:bg-black/5 text-[#5C6068] cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                {aiClosetIdeas.map((idea) => (
+                  <div
+                    key={idea.id}
+                    className="p-3 rounded-xl bg-white border border-black/[0.06] flex flex-col justify-between gap-2"
+                  >
+                    <div>
+                      <p className="text-xs font-bold text-[#141518] line-clamp-2">
+                        {idea.title}
+                      </p>
+                      <p className="text-[11px] text-[#5C6068] mt-0.5 leading-snug">
+                        {idea.reason}
+                      </p>
                     </div>
-                    <p className="text-xs font-bold text-[#141518] truncate">
-                      {activeImportedProduct.title}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (idea.mode === "mix") {
+                          setWearMode("mix");
+                          const ti = topsPool.findIndex((x) => x.id === idea.topId);
+                          const pi = pantsPool.findIndex((x) => x.id === idea.pantsId);
+                          if (ti >= 0) setTopIdx(ti);
+                          if (pi >= 0) setPantsIdx(pi);
+                        } else {
+                          setWearMode("full");
+                          const fi = fullPool.findIndex((x) => x.id === idea.fullId);
+                          if (fi >= 0) setFullIdx(fi);
+                        }
+                      }}
+                      className="w-full py-1.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[11px] font-bold cursor-pointer"
+                    >
+                      Try This Combination
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Lifelike Studio Avatar Stage (Dedicated Left/Right Swipe Buttons Outside Avatar Body = Zero Overlap!) */}
+          <div
+            onTouchStart={(e) => {
+              swipeStartXRef.current = e.touches[0]?.clientX ?? null;
+            }}
+            onTouchEnd={(e) => {
+              const startX = swipeStartXRef.current;
+              const endX = e.changedTouches[0]?.clientX ?? null;
+              swipeStartXRef.current = null;
+              if (startX !== null && endX !== null && Math.abs(endX - startX) > 36) {
+                stepSwipeOutfit(endX < startX ? 1 : -1);
+              }
+            }}
+            className="grid grid-cols-[44px_1fr_44px] sm:grid-cols-[56px_1fr_56px] items-center gap-2 rounded-3xl bg-gradient-to-b from-[#FAFBFD] to-[#F0F2F6] border border-black/[0.06] px-2 py-3 min-h-[460px] sm:min-h-[540px]"
+          >
+            <button
+              type="button"
+              id="gwo-closet-swipe-prev"
+              onClick={() => stepSwipeOutfit(-1)}
+              aria-label="Previous Outfit"
+              className="w-10 h-10 sm:w-11 sm:h-11 mx-auto rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 shadow-xs flex items-center justify-center text-[#141518] cursor-pointer"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            {/* Pure Unobstructed Lifelike Avatar Photo Frame */}
+            <div className="relative h-[430px] sm:h-[510px] flex items-center justify-center overflow-hidden">
+              {isSplitMixPhoto ? (
+                <div className="relative w-full h-full flex items-center justify-center">
+                  {/* Lower Body (Pants / Skirt) Lifelike Avatar Photo */}
+                  <img
+                    src={stageAngle === "front" ? lowerFrontPhoto : lowerBackPhoto}
+                    alt={activePants?.title || "Pants"}
+                    className="gwo-fig-layer absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
+                  />
+                  {/* Upper Body (Top) Lifelike Avatar Photo Seamlessly Feathered at Natural 27" Waist */}
+                  <img
+                    src={stageAngle === "front" ? primaryFrontPhoto : primaryBackPhoto}
+                    alt={activeTop?.title || "Top"}
+                    style={{
+                      WebkitMaskImage:
+                        "linear-gradient(to bottom, #000 0%, #000 41.5%, transparent 46%)",
+                      maskImage:
+                        "linear-gradient(to bottom, #000 0%, #000 41.5%, transparent 46%)",
+                    }}
+                    className="gwo-fig-layer absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
+                  />
+                </div>
+              ) : (
+                <img
+                  src={stageAngle === "front" ? primaryFrontPhoto : primaryBackPhoto}
+                  alt="Your Lifelike Avatar Outfit"
+                  className="gwo-fig-layer w-full h-full object-contain select-none pointer-events-none"
+                />
+              )}
+
+              {/* Optional Custom Selfie Badge in Corner Only When Custom Selfie Uploaded */}
+              {customAvatar && stageAngle === "front" && (
+                <div className="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-white/90 border border-black/10 flex items-center gap-1.5 pointer-events-none">
+                  <img
+                    src={customAvatar.badgeDataUrl}
+                    alt="Your Face"
+                    className="w-5 h-5 rounded-full object-cover"
+                  />
+                  <span className="text-[10px] font-bold text-[#141518]">
+                    Your Avatar
+                  </span>
+                </div>
+              )}
+
+              {/* Uploaded Real-Life Garment Preview Card in Corner When Equipped */}
+              {((wearMode === "mix" &&
+                (activeTop?.isUploadedPhoto || activePants?.isUploadedPhoto)) ||
+                (wearMode === "full" && activeFull?.isUploadedPhoto)) && (
+                <div className="absolute bottom-2 right-2 p-2 rounded-2xl bg-white/95 border border-black/10 shadow-md flex items-center gap-2 pointer-events-none">
+                  <img
+                    src={
+                      (wearMode === "full"
+                        ? activeFull?.thumbUrl
+                        : activeTop?.isUploadedPhoto
+                        ? activeTop.thumbUrl
+                        : activePants?.thumbUrl) || ""
+                    }
+                    alt="Uploaded Piece"
+                    className="w-12 h-14 rounded-lg object-cover"
+                  />
+                  <div className="pr-1">
+                    <p className="text-[10px] font-bold text-[#9D174D]">
+                      Uploaded Piece
                     </p>
-                    <p className="text-[11px] font-semibold text-[#1D4232]">
-                      ${activeImportedProduct.price} • Size{" "}
-                      {activeImportedFit?.recommendedSize || recSize} (
-                      {activeImportedFit?.confidencePct || 94}% Match)
+                    <p className="text-[11px] font-bold text-[#141518] max-w-[110px] truncate">
+                      {wearMode === "full"
+                        ? activeFull?.title
+                        : activeTop?.isUploadedPhoto
+                        ? activeTop.title
+                        : activePants?.title}
                     </p>
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openAvatar360({
-                        title: `${activeImportedProduct.brand} — ${activeImportedProduct.title}`,
-                        primaryProduct: activeImportedProduct,
-                        initialAngleMode: "split",
-                      })
-                    }
-                    className="flex-1 py-1.5 px-2.5 rounded-full text-[11px] font-bold bg-[#141518] hover:bg-[#27292E] text-white inline-flex items-center justify-center gap-1 cursor-pointer transition"
-                  >
-                    <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> Front + Back 360°
-                  </button>
-                  <Link
-                    href={`/product?id=${encodeURIComponent(
-                      activeImportedProduct.id
-                    )}&view=3d`}
-                    className="py-1.5 px-2.5 rounded-full text-[11px] font-bold bg-white hover:bg-[#EAECEF] border border-black/10 text-[#141518] inline-flex items-center justify-center gap-1 transition"
-                  >
-                    <Box className="w-3 h-3 text-[#244B3B]" /> 3D Fit
-                  </Link>
-                </div>
-              </div>
-            )}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-[#141518]">
-                  Wardrobe &amp; Accessories
-                </h2>
-                <p className="text-xs text-[#686D76]">
-                  Tap or drag any piece onto {customAvatar ? "yourself" : "your avatar"}
+            <button
+              type="button"
+              id="gwo-closet-swipe-next"
+              onClick={() => stepSwipeOutfit(1)}
+              aria-label="Next Outfit"
+              className="w-10 h-10 sm:w-11 sm:h-11 mx-auto rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 shadow-xs flex items-center justify-center text-[#141518] cursor-pointer"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Simple Independent Top & Pants Switcher Bar Below Stage */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {/* Change Top Control */}
+            <div className="p-2.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] flex items-center justify-between gap-2">
+              <button
+                type="button"
+                id="gwo-change-top-prev"
+                onClick={() => cycleTop(-1)}
+                aria-label="Previous Top"
+                className="p-2 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[#141518] cursor-pointer shrink-0"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="min-w-0 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#686D76]">
+                  Change Top
+                </p>
+                <p className="text-xs font-bold text-[#141518] truncate">
+                  {wearMode === "full" && activeFull
+                    ? `${activeFull.title} (Dress)`
+                    : activeTop?.title || "Select Top"}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setAddUrlModalOpen(true)}
-                className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#F1F2F5] hover:bg-[#E5E7EC] text-[#141518] inline-flex items-center gap-1 cursor-pointer"
+                id="gwo-change-top-next"
+                onClick={() => cycleTop(1)}
+                aria-label="Next Top"
+                className="p-2 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[#141518] cursor-pointer shrink-0"
               >
-                <Store className="w-3.5 h-3.5 text-[#244B3B]" /> Pull Store
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Simple 5-Pill Filter */}
-            <div className="flex flex-wrap gap-1.5">
-              {(
-                [
-                  ["all", "All"],
-                  ["everyday", "Everyday"],
-                  ["athletic", "Active"],
-                  ["going-out", "Going Out"],
-                  ["accessories", "Accessories"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setCategory(id)}
-                  className={`px-2.5 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition cursor-pointer ${
-                    category === id
-                      ? "bg-[#141518] text-white"
-                      : "bg-[#F4F5F7] text-[#686D76] hover:text-[#141518]"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Clean Visual Look / Accessory Grid (Every Thumbnail Also Shows Customer's Uploaded Face!) */}
-            {category === "accessories" ? (
-              <div className="grid grid-cols-2 gap-2.5">
-                {ACCESSORY_CATALOG.map((acc) => {
-                  const on = equippedAccessories.includes(acc.name);
-                  return (
-                    <div
-                      key={acc.id}
-                      onPointerDown={(e) =>
-                        startDrag(e, {
-                          kind: "accessory",
-                          label: acc.name,
-                          price: acc.price,
-                          accessoryName: acc.name,
-                        })
-                      }
-                      onClick={() => {
-                        setEquippedAccessories((prev) =>
-                          prev.includes(acc.name)
-                            ? prev.filter((x) => x !== acc.name)
-                            : [...prev, acc.name]
-                        );
-                        triggerScanLine();
-                      }}
-                      className={`p-3 rounded-2xl border cursor-grab transition ${
-                        on
-                          ? "bg-[#141518] text-white border-[#141518]"
-                          : "bg-[#F7F8FA] hover:bg-[#EFF1F5] text-[#141518] border-black/[0.06]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold">{acc.name}</span>
-                        <span className="text-xs font-semibold">${acc.price}</span>
-                      </div>
-                      <p
-                        className={`text-[11px] mt-0.5 ${
-                          on ? "text-white/70" : "text-[#686D76]"
-                        }`}
-                      >
-                        {acc.color} • {on ? "Worn" : "Drag to wear"}
-                      </p>
-                    </div>
-                  );
-                })}
+            {/* Change Pants / Skirt Control */}
+            <div className="p-2.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] flex items-center justify-between gap-2">
+              <button
+                type="button"
+                id="gwo-change-pants-prev"
+                onClick={() => cyclePants(-1)}
+                aria-label="Previous Pants"
+                className="p-2 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[#141518] cursor-pointer shrink-0"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="min-w-0 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#686D76]">
+                  Change Pants / Skirt
+                </p>
+                <p className="text-xs font-bold text-[#141518] truncate">
+                  {wearMode === "full" && activeFull
+                    ? "Tap ◀ or ▶ to switch to Pants"
+                    : activePants?.title || "Select Pants"}
+                </p>
               </div>
-            ) : (
-              <div className="grid grid-cols-4 gap-2">
-                {filteredLooks.map((lk) => {
-                  const active = lookIdx === lk.index;
-                  return (
-                    <div
-                      key={lk.index}
-                      onPointerEnter={() => preloadLookByIndex(lk.index)}
-                      onClick={() => void swapToLook(lk.index)}
-                      onPointerDown={(e) =>
-                        startDrag(e, {
-                          kind: "look",
-                          label: lk.name,
-                          price: 180,
-                          lookIndex: lk.index,
-                        })
-                      }
-                      className={`group relative h-32 rounded-2xl overflow-hidden border cursor-grab transition ${
-                        active
-                          ? "border-[#141518] ring-2 ring-[#141518]/20 bg-[#EAECEF]"
-                          : "border-black/[0.08] bg-[#F4F5F7] hover:-translate-y-0.5"
-                      }`}
-                    >
-                      {/* Exact 1360:2048 miniature cutout + customer face overlay so ALL 8 thumbnails are YOU */}
-                      <div className="absolute inset-x-0 top-0 flex justify-center pointer-events-none transition-transform duration-300 group-hover:scale-105">
-                        <div className="relative w-[88px] aspect-[1360/2048]">
-                          <img
-                            src={H(lk.file, 260, 78)}
-                            alt={lk.name}
-                            loading="lazy"
-                            decoding="async"
-                            className="w-full h-full object-contain"
-                          />
-                          {customAvatar && (
-                            <img
-                              src={customAvatar.faceOvalDataUrl}
-                              alt=""
-                              decoding="async"
-                              style={{
-                                left: "49.95%",
-                                top: "13.2%",
-                                width: "12.9%",
-                                height: "9.7%",
-                              }}
-                              className="absolute -translate-x-1/2 -translate-y-1/2 object-fill"
-                            />
-                          )}
-                        </div>
-                      </div>
-                      <div className="absolute inset-x-1 bottom-1 px-1.5 py-0.5 rounded-lg bg-white/92 text-[10px] font-bold text-[#141518] truncate text-center">
-                        {lk.name}
-                      </div>
-                      {lk.productId && (
-                        <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md bg-[#C80815] text-white text-[8px] font-bold uppercase tracking-wider">
-                          Store Fit
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Imported Store Links (Visual Clothing Image Cards!) */}
-            {scrapedCommunityItems.length > 0 && category === "all" && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#686D76]">
-                    Saved Store Links ({scrapedCommunityItems.length})
-                  </p>
-                  <span className="text-[10px] text-[#244B3B] font-semibold">
-                    Tap to wear
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {scrapedCommunityItems.slice(0, 4).map((prod) => {
-                    const isWornUrl = activeImportedProduct?.id === prod.id;
-                    return (
-                      <button
-                        key={prod.id}
-                        type="button"
-                        onPointerDown={(e) =>
-                          startDrag(e, {
-                            kind: "scraped",
-                            label: `${prod.brand} ${prod.title}`,
-                            price: prod.price,
-                            product: prod,
-                          })
-                        }
-                        onClick={() => {
-                          if (prod.studioLookIndex !== undefined && !isWornUrl) {
-                            void swapToLook(prod.studioLookIndex);
-                          }
-                          setActiveImportedProduct(
-                            isWornUrl ? null : prod
-                          );
-                          triggerScanLine();
-                          showToast(
-                            isWornUrl
-                              ? `Removed ${prod.title}`
-                              : `Trying on ${prod.brand} ${prod.title}`
-                          );
-                        }}
-                        className={`group rounded-2xl overflow-hidden border text-left cursor-grab transition bg-white ${
-                          isWornUrl
-                            ? "border-[#141518] ring-2 ring-[#141518]/20"
-                            : "border-black/[0.08] hover:-translate-y-0.5"
-                        }`}
-                      >
-                        <div className="h-24 w-full bg-[#F6F7F9] border-b border-black/[0.05] overflow-hidden">
-                          <GarmentArtwork
-                            product={prod}
-                            className="w-full h-full"
-                          />
-                        </div>
-                        <div className="p-2 space-y-0.5">
-                          <div className="flex items-center justify-between gap-1 text-[10px] font-bold">
-                            <span className="text-[#244B3B] truncate">
-                              {prod.brand} • {scrapedFitById.get(prod.id) || recSize}
-                            </span>
-                            <span className="text-[#141518] shrink-0">
-                              ${prod.price}
-                            </span>
-                          </div>
-                          <p className="text-[11px] font-bold text-[#141518] truncate">
-                            {prod.title}
-                          </p>
-                          <p className="text-[9.5px] text-[#686D76] truncate">
-                            {prod.fitMetadata?.fabricComposition ||
-                              prod.fitMetadata?.descriptionSummary ||
-                              prod.colorName}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ==================== CURRENTLY WORN PIECES ==================== */}
-          <div className="shrink-0 pt-2.5 border-t border-black/[0.08] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-[#686D76]">
-                In This Outfit ({currentPieces.length})
-              </span>
-              <span className="text-[11px] font-semibold text-[#244B3B]">
-                {activeBust}&quot; • {activeWaist}&quot; • {activeHips}&quot; (Size {recSize})
-              </span>
-            </div>
-
-            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-              {currentPieces.map((piece) => {
-                const alreadyInBag = bagItems.some(
-                  (b) => b.title === piece.name
-                );
-                return (
-                  <div
-                    key={piece.name}
-                    className="p-2.5 rounded-xl bg-[#F7F8FA] border border-black/[0.05] flex items-center justify-between gap-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-[#141518] truncate">
-                        {piece.name}
-                      </p>
-                      <p className="text-[11px] text-[#686D76]">
-                        {piece.color} • <strong>${piece.price}</strong>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const matchedCatalog = currentLook.productId
-                            ? products.find((p) => p.id === currentLook.productId)
-                            : null;
-                          const targetProd =
-                            matchedCatalog ||
-                            buildSynthetic3DProductFromPiece({
-                              id: `closet-piece-${lookIdx}-${piece.name}`,
-                              name: piece.name,
-                              colorName: piece.color,
-                              price: piece.price,
-                              brand: currentLook.friendOwner
-                                ? `@${currentLook.friendOwner}'s Closet`
-                                : "GWO Closet",
-                            });
-                          openAvatar360({
-                            title: `${piece.name} (${piece.color})`,
-                            primaryProduct: targetProd,
-                            initialAngleMode: "split",
-                          });
-                        }}
-                        title="See Front & Back 360° Avatar Look"
-                        className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold bg-white border border-black/[0.09] text-[#141518] hover:bg-[#EFF1F5] inline-flex items-center gap-1 cursor-pointer"
-                      >
-                        <Rotate3d className="w-3 h-3 text-[#244B3B]" /> 360°
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          addToBag({
-                            title: piece.name,
-                            brand: currentLook.friendOwner
-                              ? `@${currentLook.friendOwner}'s Closet`
-                              : "GWO Studio",
-                            price: piece.price,
-                            size: recSize,
-                            friendRef: friendRefCode,
-                          })
-                        }
-                        className={`px-2.5 py-1.5 rounded-full text-[11px] font-semibold transition cursor-pointer inline-flex items-center gap-1 ${
-                          alreadyInBag
-                            ? "bg-[#244B3B] text-white"
-                            : "bg-[#141518] text-white hover:bg-[#27292E]"
-                        }`}
-                      >
-                        {alreadyInBag ? (
-                          <>
-                            <Check className="w-3 h-3" /> In Bag
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="w-3 h-3" /> Bag
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+              <button
+                type="button"
+                id="gwo-change-pants-next"
+                onClick={() => cyclePants(1)}
+                aria-label="Next Pants"
+                className="p-2 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[#141518] cursor-pointer shrink-0"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
-        </aside>
+        </main>
       </div>
-
-      {/* ==================== ZERO-LAG FLOATING DRAG PILL ==================== */}
-      {dragItem && (
-        <div
-          ref={dragPillRef}
-          style={{
-            position: "fixed",
-            left: 0,
-            top: 0,
-            zIndex: 9999,
-            pointerEvents: "none",
-            willChange: "transform",
-          }}
-          className="px-3.5 py-2 rounded-2xl bg-[#141518] text-white shadow-2xl flex items-center gap-2 text-xs font-semibold"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" />
-          <span>
-            {overAvatar
-              ? `Drop to wear ${dragItem.label}`
-              : `${dragItem.label} ($${dragItem.price})`}
-          </span>
-        </div>
-      )}
     </div>
+  );
+}
+
+export function VellGwoStudio() {
+  return (
+    <React.Suspense fallback={<div className="min-h-[calc(100svh-64px)] bg-[#F5F6F8]" />}>
+      <VellGwoStudioInner />
+    </React.Suspense>
   );
 }
