@@ -11,6 +11,20 @@ export function H(file: string, w: number, q = 82): string {
       ? `${BASE_PATH}/models/signature/look_${idx}_thumb.webp`
       : `${BASE_PATH}/models/signature/look_${idx}.webp`;
   }
+  if (file.startsWith("ae:")) {
+    const idx = file.slice(3);
+    return w <= 360
+      ? `${BASE_PATH}/models/runway_ai/ae_outfit_${idx}_thumb.webp`
+      : `${BASE_PATH}/models/runway_ai/ae_outfit_${idx}_front.webp`;
+  }
+  if (
+    file.startsWith("data:") ||
+    file.startsWith("http://") ||
+    file.startsWith("https://") ||
+    file.startsWith("/")
+  ) {
+    return file;
+  }
   return (
     "https://images.higgs.ai/?default=1&output=webp&url=" +
     encodeURIComponent(HIGGS_CDN + file) +
@@ -19,6 +33,18 @@ export function H(file: string, w: number, q = 82): string {
     "&q=" +
     q
   );
+}
+
+export function H_BACK(file: string): string {
+  if (file.startsWith("sig:")) {
+    const idx = file.slice(4);
+    return `${BASE_PATH}/models/signature/look_${idx}_back.webp`;
+  }
+  if (file.startsWith("ae:")) {
+    const idx = file.slice(3);
+    return `${BASE_PATH}/models/runway_ai/ae_outfit_${idx}_back.webp`;
+  }
+  return H(file, 900);
 }
 
 export const LOFT_BG_FILE =
@@ -40,6 +66,7 @@ export interface StudioLook {
   category: "everyday" | "athletic" | "sleep" | "formal" | "party" | "street";
   file: string;
   productId?: string;
+  relatedProductIds?: string[];
   friendOwner?: string;
   friendTwinPct?: number;
   pieces: {
@@ -206,6 +233,137 @@ export const STUDIO_LOOKS: StudioLook[] = [
         },
       ],
       shoes: [{ name: "Metallic strappy heels", color: "14k Gold", price: 145 }],
+      acc: [],
+    },
+  },
+  {
+    index: 9,
+    name: "Espresso Corset",
+    category: "party",
+    file: "ae:0",
+    productId: "prod-ae-espresso-corset",
+    relatedProductIds: [
+      "prod-ae-espresso-corset",
+      "prod-ae-champagne-trousers",
+      "prod-ae-noir-slingbacks",
+      "prod-ae-burgundy-crescent-bag",
+    ],
+    friendOwner: "maya",
+    friendTwinPct: 98,
+    pieces: {
+      tops: [{ name: "Boned Satin Draped Corset", color: "Espresso", price: 68 }],
+      bottoms: [{ name: "High-Waist Wide-Leg Trousers", color: "Champagne", price: 78 }],
+      full: [],
+      shoes: [{ name: "Pointed Leather Slingbacks", color: "Noir", price: 89 }],
+      acc: [{ name: "Sculpted Crescent Shoulder Bag", color: "Burgundy", price: 64 }],
+    },
+  },
+  {
+    index: 10,
+    name: "Bouclé Capsule",
+    category: "formal",
+    file: "ae:1",
+    productId: "prod-ae-ivory-tweed-blazer",
+    relatedProductIds: [
+      "prod-ae-ivory-tweed-blazer",
+      "prod-ae-acetate-beaded-tank",
+      "prod-ae-noir-pleated-mini",
+      "prod-ae-meotina-leather-boots",
+    ],
+    friendOwner: "chloe",
+    friendTwinPct: 94,
+    pieces: {
+      tops: [
+        { name: "Ivory Bouclé Tweed Blazer", color: "Ivory", price: 96 },
+        { name: "Beaded Satin Camisole", color: "Champagne", price: 48 },
+      ],
+      bottoms: [{ name: "Tailored Knife-Pleat Mini Skirt", color: "Noir", price: 54 }],
+      full: [],
+      shoes: [{ name: "Knee-High Riding Boots", color: "Espresso", price: 128 }],
+      acc: [{ name: "Turnlock Structured Tote", color: "Camel", price: 84 }],
+    },
+  },
+  {
+    index: 11,
+    name: "Emerald Silk",
+    category: "party",
+    file: "ae:2",
+    productId: "prod-ae-emerald-satin-midi",
+    relatedProductIds: [
+      "prod-ae-emerald-satin-midi",
+      "prod-ae-gold-strappy-heels",
+      "prod-ae-burgundy-crescent-bag",
+    ],
+    friendOwner: "maya",
+    friendTwinPct: 97,
+    pieces: {
+      tops: [],
+      bottoms: [],
+      full: [{ name: "Bias-Cut Heavy Silk Midi Dress", color: "Emerald", price: 92 }],
+      shoes: [{ name: "14k Metallic Strappy Stilettos", color: "Gold", price: 82 }],
+      acc: [],
+    },
+  },
+  {
+    index: 12,
+    name: "Blazer Mini",
+    category: "party",
+    file: "ae:3",
+    productId: "prod-ae-champagne-blazer-dress",
+    relatedProductIds: [
+      "prod-ae-champagne-blazer-dress",
+      "prod-ae-gold-strappy-heels",
+    ],
+    friendOwner: "sofia",
+    friendTwinPct: 93,
+    pieces: {
+      tops: [],
+      bottoms: [],
+      full: [{ name: "Corset-Waist Satin Blazer Dress", color: "Champagne", price: 108 }],
+      shoes: [{ name: "14k Metallic Strappy Stilettos", color: "Gold", price: 82 }],
+      acc: [],
+    },
+  },
+  {
+    index: 13,
+    name: "Camel Wool Edit",
+    category: "formal",
+    file: "ae:4",
+    productId: "prod-ae-camel-silk-wool-coat",
+    relatedProductIds: [
+      "prod-ae-camel-silk-wool-coat",
+      "prod-ae-acetate-beaded-tank",
+      "prod-ae-champagne-trousers",
+      "prod-ae-noir-slingbacks",
+    ],
+    friendOwner: "chloe",
+    friendTwinPct: 96,
+    pieces: {
+      tops: [{ name: "Double-Faced Silk-Wool Coat", color: "Camel", price: 168 }],
+      bottoms: [{ name: "High-Waist Wide-Leg Trousers", color: "Champagne", price: 78 }],
+      full: [],
+      shoes: [{ name: "Pointed Leather Slingbacks", color: "Noir", price: 89 }],
+      acc: [{ name: "Turnlock Structured Tote", color: "Camel", price: 84 }],
+    },
+  },
+  {
+    index: 14,
+    name: "Linen Off-Duty",
+    category: "everyday",
+    file: "ae:5",
+    productId: "prod-ae-linen-cinch-cardigan",
+    relatedProductIds: [
+      "prod-ae-linen-cinch-cardigan",
+      "prod-ae-noir-pleated-mini",
+      "prod-ae-noir-slingbacks",
+    ],
+    friendOwner: "sofia",
+    friendTwinPct: 92,
+    pieces: {
+      tops: [{ name: "Belted Cinch Linen Cardigan", color: "Oatmeal", price: 62 }],
+      bottoms: [{ name: "Tailored Knife-Pleat Mini Skirt", color: "Noir", price: 54 }],
+      full: [],
+      shoes: [{ name: "Pointed Leather Slingbacks", color: "Noir", price: 89 }],
       acc: [],
     },
   },

@@ -101,7 +101,26 @@ export function resolveLifelikeAvatarPhotos(params: {
     };
   }
 
-  // 4. Closet Signature Looks 0..7
+  // 4. Closet Signature Looks 0..7 & AI Runway Looks 9..14
+  if (
+    resolvedLookIdx !== undefined &&
+    resolvedLookIdx >= 9 &&
+    resolvedLookIdx <= 14
+  ) {
+    const aeIdx = resolvedLookIdx - 9;
+    const front =
+      explicitFrontUrl || `${BASE}/models/runway_ai/ae_outfit_${aeIdx}_front.webp`;
+    const back =
+      explicitBackUrl || `${BASE}/models/runway_ai/ae_outfit_${aeIdx}_back.webp`;
+    return {
+      frontUrl: front,
+      backUrl: back,
+      sideUrl: explicitSideUrl || front,
+      spinFrames: [front, front, back, front],
+      outfitLabel: product?.title || `AI Runway Outfit #0${aeIdx + 1}`,
+    };
+  }
+
   if (
     resolvedLookIdx !== undefined &&
     resolvedLookIdx >= 0 &&
@@ -115,7 +134,7 @@ export function resolveLifelikeAvatarPhotos(params: {
       frontUrl: front,
       backUrl: back,
       sideUrl: explicitSideUrl || front,
-      spinFrames: [front, back],
+      spinFrames: [front, front, back, front],
       outfitLabel: product?.title || `Closet Outfit #0${resolvedLookIdx + 1}`,
     };
   }

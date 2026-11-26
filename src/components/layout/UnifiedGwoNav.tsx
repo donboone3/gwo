@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
-  Box,
   Camera,
   Check,
   ImagePlus,
@@ -37,9 +36,9 @@ import {
 import { Product } from "@/lib/types";
 
 const STEPS = [
-  { href: "/", match: ["/", "/closet"], label: "Closet", shortLabel: "Closet" },
-  { href: "/shop", match: ["/shop", "/recommended"], label: "Runway", shortLabel: "Runway" },
-  { href: "/product", match: ["/product"], label: "360° Try-On", shortLabel: "360°" },
+  { href: "/", match: ["/", "/closet"], label: "Closet & Try-On", shortLabel: "Closet" },
+  { href: "/shop", match: ["/shop", "/recommended"], label: "For You Runway", shortLabel: "Runway" },
+  { href: "/product", match: ["/product"], label: "360° Fit", shortLabel: "360°" },
 ];
 
 const QUICK_SAMPLE_LINKS = [
@@ -235,34 +234,71 @@ export function UnifiedGwoNav() {
           })}
         </nav>
 
-        {/* Right: Simple My Avatar & Cart Only */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        {/* Right: My Photo Avatar, + Add Store Link, Share Closet, Unified Bag */}
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           <button
             type="button"
             id="gwo-my-avatar-btn"
             onClick={() => setAvatarModalOpen(true)}
             aria-label="My Avatar"
-            className="inline-flex items-center justify-center gap-2 p-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold transition cursor-pointer border bg-[#EBF3EE] border-[#C5DFD0] text-[#1D4232]"
+            className="inline-flex items-center justify-center gap-2 p-1 md:px-3 md:py-1.5 rounded-full text-xs font-semibold transition cursor-pointer border bg-[#EBF3EE] border-[#C5DFD0] text-[#1D4232]"
           >
             <img
               src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
               alt="My Avatar"
-              className="w-6 h-6 sm:w-5 sm:h-5 rounded-full object-cover border border-[#244B3B]/30"
+              className="w-6 h-6 md:w-5 md:h-5 rounded-full object-cover border border-[#244B3B]/30"
             />
-            <span className="hidden sm:inline">My Avatar</span>
+            <span className="hidden md:inline">My Avatar ✓</span>
+          </button>
+
+          <button
+            type="button"
+            id="gwo-add-url-btn"
+            onClick={() => {
+              setPreviewProduct(null);
+              setAddUrlModalOpen(true);
+            }}
+            aria-label="Add Outfit or Store Link"
+            className="inline-flex items-center justify-center gap-1 p-2 sm:px-3.5 sm:py-2 rounded-full text-xs font-semibold bg-[#F1F2F5] hover:bg-[#E6E8ED] text-[#141518] transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
+            <span className="hidden lg:inline">Add Outfit</span>
+            <span className="hidden sm:inline lg:hidden">Add</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={async () => {
+              await shareMyClosetAndClaimBonus();
+              setCopiedLink(true);
+              setTimeout(() => setCopiedLink(false), 2200);
+            }}
+            title="Share your closet link with friends"
+            className="hidden xl:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold border border-black/[0.1] bg-white hover:bg-[#F7F8FA] text-[#141518] transition cursor-pointer"
+          >
+            {copiedLink ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-[#244B3B]" /> Copied!
+              </>
+            ) : (
+              <>
+                <Share2 className="w-3.5 h-3.5" /> Share Closet
+              </>
+            )}
           </button>
 
           <button
             type="button"
             id="gwo-unified-bag-btn"
             onClick={() => setBagOpen(true)}
-            aria-label={`Cart (${bagItems.length})`}
-            className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] transition cursor-pointer ${
+            aria-label={`Shopping Bag (${bagItems.length})`}
+            className={`inline-flex items-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] transition cursor-pointer ${
               bagBump ? "scale-110" : "scale-100"
             }`}
           >
             <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
-            <span>Cart ({bagItems.length})</span>
+            <span className="hidden sm:inline">Bag ({bagItems.length})</span>
+            <span className="sm:hidden">{bagItems.length}</span>
           </button>
         </div>
       </header>
@@ -280,10 +316,10 @@ export function UnifiedGwoNav() {
             <div className="px-6 py-5 border-b border-black/[0.08] flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold text-[#141518]">
-                  Your Cart ({bagItems.length})
+                  Your Outfit Bag ({bagItems.length})
                 </h2>
                 <p className="text-xs text-[#686D76] mt-0.5">
-                  Cart items also appear in your Closet to mix &amp; try on
+                  One unified bag across your Closet, Runway &amp; 360° View
                 </p>
               </div>
               <button
@@ -366,8 +402,6 @@ export function UnifiedGwoNav() {
                           openAvatar360({
                             title: `${item.brand} — ${item.title}`,
                             primaryProduct: targetProd,
-                            avatarFrontUrl: item.avatarFrontUrl,
-                            avatarBackUrl: item.avatarBackUrl,
                             initialAngleMode: "split",
                           });
                         }}
@@ -410,18 +444,9 @@ export function UnifiedGwoNav() {
                   }}
                   className="w-full py-3.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
                 >
-                  Buy Now (${bagTotal.toLocaleString()}){" "}
+                  Checkout with GWO Boutique (${bagTotal.toLocaleString()}){" "}
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-                <div className="pt-1 text-center">
-                  <Link
-                    href="/admin"
-                    onClick={() => setBagOpen(false)}
-                    className="text-[11px] font-medium text-[#8A9099] hover:text-[#141518] underline"
-                  >
-                    Store Back-Office (Pricing &amp; AliExpress)
-                  </Link>
-                </div>
               </div>
             )}
           </div>
@@ -442,10 +467,10 @@ export function UnifiedGwoNav() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-bold text-[#141518]">
-                  Pull Store Clothing &amp; Generate 3D Exact-Fit Mocks
+                  Add Outfit or Store Link to Closet &amp; Runway
                 </h3>
                 <p className="text-xs text-[#686D76] mt-1">
-                  Paste any single product URL or pull a live 6-piece clothing rack from Babyboo Fashion, Princess Polly, EDIKTED, or any Shopify store—automatically matched to your{" "}
+                  Paste any product link or pull a live 6-piece boutique rack to try on your lifelike{" "}
                   <strong>
                     {Math.floor(activeAvatarStats.heightInches / 12)}&apos;
                     {Math.round(activeAvatarStats.heightInches % 12)}&quot; •{" "}
@@ -501,11 +526,11 @@ export function UnifiedGwoNav() {
                 id="gwo-modal-tab-aliexpress"
                 onClick={() => {
                   setAddUrlModalOpen(false);
-                  router.push("/feed?studio=dropship");
+                  router.push("/admin");
                 }}
                 className="px-4 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 text-[#1D4232] hover:bg-white cursor-pointer transition"
               >
-                <Sparkles className="w-3.5 h-3.5 text-[#244B3B]" /> AliExpress Dropship →
+                <Sparkles className="w-3.5 h-3.5 text-[#244B3B]" /> Back-Office AliExpress →
               </button>
             </div>
 
@@ -887,13 +912,13 @@ export function UnifiedGwoNav() {
                           setActiveImportedProduct(previewProduct);
                           setAddUrlModalOpen(false);
                           router.push(
-                            `/product?id=${encodeURIComponent(previewProduct.id)}&view=3d`
+                            `/product?id=${encodeURIComponent(previewProduct.id)}`
                           );
                         }}
                         className="px-4 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Box className="w-3.5 h-3.5 text-[#A7D7C5]" />
-                        Open 3D Exact-Fit Mock{" "}
+                        <Rotate3d className="w-3.5 h-3.5 text-[#A7D7C5]" />
+                        Open 360° Fit Inspector{" "}
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
 
