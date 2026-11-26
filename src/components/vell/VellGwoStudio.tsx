@@ -795,7 +795,7 @@ export function VellGwoStudio() {
   return (
     <div
       onPointerMove={handleLoftPointerMove}
-      className="relative min-h-[calc(100svh-64px)] lg:h-[calc(100svh-64px)] w-full overflow-x-hidden lg:overflow-hidden select-none bg-[#E7EAEF]"
+      className="relative min-h-[calc(100svh-64px)] lg:h-[calc(100svh-64px)] w-full overflow-x-hidden lg:overflow-hidden select-none bg-white"
     >
       <input
         ref={uploadInputRef}
@@ -815,16 +815,11 @@ export function VellGwoStudio() {
         </div>
       )}
 
-      {/* Daylight NYC Loft Studio Backdrop with Pointer Parallax */}
+      {/* Pure Clean White Studio Background Behind Closet Avatar */}
       <div
         ref={backdropRef}
-        className="absolute inset-[-3%] bg-cover bg-center pointer-events-none opacity-92 transition-transform duration-150 ease-out"
-        style={{
-          backgroundImage: `url("${LOFT_BG_URL}")`,
-          transform: "scale(1.035)",
-        }}
+        className="absolute inset-0 bg-white pointer-events-none"
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-black/15 pointer-events-none" />
 
       {/* 3-ZONE INTERACTIVE 3D DRESS-UP STUDIO */}
       <div className="relative z-10 min-h-[calc(100svh-64px)] lg:h-full max-w-[1560px] mx-auto px-3 sm:px-5 py-3 sm:py-3.5 flex flex-col lg:flex-row items-stretch justify-between gap-3.5">
@@ -1437,7 +1432,7 @@ export function VellGwoStudio() {
                       }`}
                     >
                       <div>
-                        <div className="relative h-24 rounded-xl bg-[#F6F7F9] overflow-hidden mb-1.5">
+                        <div className="relative h-24 rounded-xl bg-white border border-black/[0.04] overflow-hidden mb-1.5">
                           <GarmentArtwork
                             product={prod}
                             className="w-full h-full"

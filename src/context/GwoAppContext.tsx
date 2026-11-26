@@ -206,7 +206,7 @@ const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
     brand: "Bought • GWO × Atelier",
     price: 52,
     size: "S",
-    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_espresso_corset_top.webp?v=pure4`,
+    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_espresso_corset_top.webp?v=rgba5`,
     avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_front.webp?v=life4`,
     avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_back.webp?v=life4`,
     lookIndex: 0,
@@ -220,7 +220,7 @@ const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
     brand: "Bought • GWO × Atelier",
     price: 54,
     size: "S",
-    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_champagne_wide_trousers.webp?v=pure4`,
+    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_champagne_wide_trousers.webp?v=rgba5`,
     avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_front.webp?v=life4`,
     avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_back.webp?v=life4`,
     lookIndex: 0,
@@ -234,7 +234,7 @@ const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
     brand: "Bought • GWO × Maison",
     price: 68,
     size: "S",
-    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_ivory_tweed_blazer.webp?v=pure4`,
+    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_ivory_tweed_blazer.webp?v=rgba5`,
     avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_front.webp?v=life4`,
     avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_back.webp?v=life4`,
     lookIndex: 1,
@@ -248,7 +248,7 @@ const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
     brand: "Bought • GWO × Maison",
     price: 39,
     size: "S",
-    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_noir_pleated_mini.webp?v=pure4`,
+    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_noir_pleated_mini.webp?v=rgba5`,
     avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_front.webp?v=life4`,
     avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_back.webp?v=life4`,
     lookIndex: 1,
@@ -262,7 +262,7 @@ const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
     brand: "Bought • GWO × Soirée",
     price: 69,
     size: "S",
-    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_crimson_corset_mini.webp?v=pure4`,
+    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_crimson_corset_mini.webp?v=rgba5`,
     avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_6_front.webp?v=life4`,
     avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_6_back.webp?v=life4`,
     lookIndex: 6,
@@ -313,7 +313,7 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       brand: "GWO × Atelier",
       price: 52,
       size: "S",
-      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/dropship/ds_espresso_corset_top.webp?v=pure4`,
+      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/dropship/ds_espresso_corset_top.webp?v=rgba5`,
       avatarFrontUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_front.webp?v=life4`,
       avatarBackUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_back.webp?v=life4`,
       slot: "top",
@@ -325,7 +325,7 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       brand: "GWO × Atelier",
       price: 54,
       size: "S",
-      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/dropship/ds_champagne_wide_trousers.webp?v=pure4`,
+      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/dropship/ds_champagne_wide_trousers.webp?v=rgba5`,
       avatarFrontUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_front.webp?v=life4`,
       avatarBackUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_back.webp?v=life4`,
       slot: "pants",
@@ -513,8 +513,20 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
   );
 
   const importDropshipProductToStore = useCallback(
-    async (product: Product) => {
+    async (rawProduct: Product) => {
       const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      const {
+        ensureProductIs360AndAvatarReady,
+        isolateProductBackgroundClient,
+      } = await import("@/lib/three/avatar-ready-pipeline");
+      let cleanImg = rawProduct.imageUrl;
+      if (cleanImg) {
+        cleanImg = await isolateProductBackgroundClient(cleanImg);
+      }
+      const product = ensureProductIs360AndAvatarReady({
+        ...rawProduct,
+        imageUrl: cleanImg,
+      });
       setProducts((prev) => [
         product,
         ...prev.filter(
@@ -522,25 +534,30 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         ),
       ]);
       setActiveImportedProduct(product);
-      try {
-        await fetch(`${base}/api/dropship/aliexpress`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            url: product.canonicalUrl,
-            markupMultiplier: dropshipMarkup,
-            customTitle: product.title,
-            customWholesaleUsd: product.dropship?.wholesaleCostUsd,
-            customImageUrl: product.imageUrl,
-            persistToStore: true,
-          }),
-          signal: AbortSignal.timeout(2500),
-        });
-      } catch {
-        // Static export mode uses local state seamlessly
+      const isStaticHost =
+        typeof window !== "undefined" &&
+        (window.location.hostname.endsWith("github.io") || Boolean(base));
+      if (!isStaticHost) {
+        try {
+          await fetch(`${base}/api/dropship/aliexpress`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: product.canonicalUrl,
+              markupMultiplier: dropshipMarkup,
+              customTitle: product.title,
+              customWholesaleUsd: product.dropship?.wholesaleCostUsd,
+              customImageUrl: product.imageUrl,
+              persistToStore: true,
+            }),
+            signal: AbortSignal.timeout(2500),
+          });
+        } catch {
+          // Static export mode uses local state seamlessly
+        }
       }
       showToast(
-        `Imported "${product.title}" to GWO Dropship Store ($${product.price} retail • +$${product.dropship?.profitMarginUsd.toFixed(2) || "0"} profit)`
+        `360° & Avatar-Ready: Published "${product.title}" ($${product.price} retail)!`
       );
     },
     [dropshipMarkup, showToast]
@@ -750,6 +767,13 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
   const refreshState = useCallback(async () => {
     try {
       const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      const isStaticHost =
+        typeof window !== "undefined" &&
+        (window.location.hostname.endsWith("github.io") || Boolean(base));
+      if (isStaticHost) {
+        applyClientSeedFallback();
+        return;
+      }
       const res = await fetch(`${base}/api/state`, { cache: "no-store" });
       if (!res.ok) {
         applyClientSeedFallback();

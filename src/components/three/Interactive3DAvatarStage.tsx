@@ -26,9 +26,11 @@ import {
   AvatarExactFitReport,
   ZoneFeel,
 } from "@/lib/catalog/fit-intelligence";
-import { BAG_RGBA_OVERLAY_BY_ID } from "@/lib/stylist/runway-ai-outfits";
-
-const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
+import {
+  composeModularOutfitToCanvas,
+  getCachedOrLoadImage,
+  preloadCoreModularLayers,
+} from "@/lib/three/modular-outfit-compositor";
 
 export interface Interactive3DAvatarStageProps {
   mode?: "avatar" | "product";
@@ -51,157 +53,6 @@ export interface Interactive3DAvatarStageProps {
   selectedProductId?: string | null;
   onSelectProduct?: (product: Product, fit?: AvatarExactFitReport) => void;
   className?: string;
-}
-
-const IMG_CACHE = new Map<string, HTMLImageElement>();
-
-function loadCachedImage(
-  url: string,
-  onReady: () => void
-): HTMLImageElement | null {
-  if (!url || typeof Image === "undefined") return null;
-  const hit = IMG_CACHE.get(url);
-  if (hit && hit.complete && hit.naturalWidth > 0) return hit;
-  if (hit) {
-    hit.addEventListener("load", onReady, { once: true });
-    return null;
-  }
-
-  const im = new Image();
-  if (!url.startsWith("data:") && !url.startsWith("/")) {
-    im.crossOrigin = "anonymous";
-  }
-  im.decoding = "async";
-  IMG_CACHE.set(url, im);
-  im.addEventListener("load", onReady, { once: true });
-  im.addEventListener(
-    "error",
-    () => {
-      IMG_CACHE.delete(url);
-    },
-    { once: true }
-  );
-  im.src = url;
-  return null;
-}
-
-const UPPER_LOOK_HELD_BAG: Record<number, string> = {
-  0: "prod-ae-burgundy-crescent-bag",
-  1: "prod-ae-camel-turnlock-tote",
-  2: "prod-ae-burgundy-crescent-bag",
-  3: "prod-ae-ivory-mini-bag",
-  4: "prod-ae-camel-turnlock-tote",
-  5: "prod-ae-camel-turnlock-tote",
-  6: "prod-ae-noir-quilted-bag",
-  7: "prod-ae-burgundy-crescent-bag",
-  8: "prod-ae-ivory-mini-bag",
-  9: "prod-ae-noir-quilted-bag",
-};
-
-function resolvePhotorealLookIndices(wornPieces: Worn3DPieceSpec[]): {
-  topIdx: number;
-  botIdx: number;
-  isSinglePieceDressOrCoat: boolean;
-  bagOverlay: { url: string; pos: "hand" | "shoulder" } | null;
-} {
-  const ids = new Set(wornPieces.map((w) => w.product.id));
-
-  // Native full-combo shortcut: Espresso Corset + Vintage Jeans -> Outfit 9!
-  if (
-    ids.has("prod-ae-espresso-corset") &&
-    ids.has("prod-ae-vintage-wide-denim") &&
-    !wornPieces.some((w) => w.product.category === "outerwear")
-  ) {
-    const activeBag = wornPieces.find(
-      (w) => w.product.id in BAG_RGBA_OVERLAY_BY_ID
-    )?.product.id;
-    const bagOverlay =
-      activeBag && activeBag !== UPPER_LOOK_HELD_BAG[9]
-        ? BAG_RGBA_OVERLAY_BY_ID[activeBag]
-        : null;
-    return {
-      topIdx: 9,
-      botIdx: 9,
-      isSinglePieceDressOrCoat: false,
-      bagOverlay,
-    };
-  }
-
-  // 1. Resolve Upper Photorealistic Cutout (Outerwear takes visual layer priority, then Dress, then Top)
-  let topIdx = 0;
-  let isSinglePieceDressOrCoat = false;
-
-  if (ids.has("prod-ae-camel-silk-wool-coat")) {
-    topIdx = 4;
-    isSinglePieceDressOrCoat = true;
-  } else if (ids.has("prod-ae-ivory-tweed-blazer")) {
-    topIdx = 1;
-  } else if (ids.has("prod-ae-linen-cinch-cardigan")) {
-    topIdx = 5;
-  } else if (ids.has("prod-ae-noir-tailored-blazer")) {
-    topIdx = 7;
-  } else if (ids.has("prod-ae-sage-zip-jacket")) {
-    topIdx = 8;
-  } else if (ids.has("prod-ae-emerald-satin-midi")) {
-    topIdx = 2;
-    isSinglePieceDressOrCoat = true;
-  } else if (ids.has("prod-ae-champagne-blazer-dress")) {
-    topIdx = 3;
-    isSinglePieceDressOrCoat = true;
-  } else if (ids.has("prod-ae-crimson-corset-mini")) {
-    topIdx = 6;
-    isSinglePieceDressOrCoat = true;
-  } else if (ids.has("prod-ae-acetate-beaded-tank")) {
-    topIdx = 5;
-  } else if (ids.has("prod-ae-espresso-corset")) {
-    topIdx = 0;
-  } else if (wornPieces.length === 1) {
-    // Single-piece inspection fallback
-    const p = wornPieces[0].product;
-    const low = p.title.toLowerCase();
-    if (/crimson|scarlet/.test(low)) {
-      topIdx = 6;
-      isSinglePieceDressOrCoat = true;
-    } else if (/emerald|midi/.test(low)) {
-      topIdx = 2;
-      isSinglePieceDressOrCoat = true;
-    } else if (/blazer dress/.test(low)) {
-      topIdx = 3;
-      isSinglePieceDressOrCoat = true;
-    } else if (/sage|legging|sneaker/.test(low)) {
-      topIdx = 8;
-    } else if (/jean|denim|belt/.test(low)) {
-      topIdx = 7;
-    } else if (/pleat|boot|tweed/.test(low)) {
-      topIdx = 1;
-    }
-  }
-
-  // 2. Resolve Lower Photorealistic Cutout (Matches exact trousers/skirt/jeans/leggings + footwear!)
-  let botIdx = topIdx;
-  const hasBoots = ids.has("prod-ae-meotina-leather-boots");
-  if (!isSinglePieceDressOrCoat) {
-    if (ids.has("prod-ae-champagne-trousers")) {
-      botIdx = 0;
-    } else if (ids.has("prod-ae-noir-pleated-mini")) {
-      botIdx = hasBoots ? 1 : 5;
-    } else if (ids.has("prod-ae-vintage-wide-denim")) {
-      botIdx = hasBoots ? 9 : 7;
-    } else if (ids.has("prod-ae-sage-flare-leggings")) {
-      botIdx = 8;
-    }
-  }
-
-  // 3. Resolve Held Bag RGBA Overlay if customer equipped a different bag than the upper cutout's native held bag
-  const activeBagId = wornPieces.find(
-    (w) => w.product.id in BAG_RGBA_OVERLAY_BY_ID
-  )?.product.id;
-  const bagOverlay =
-    activeBagId && UPPER_LOOK_HELD_BAG[topIdx] !== activeBagId
-      ? BAG_RGBA_OVERLAY_BY_ID[activeBagId]
-      : null;
-
-  return { topIdx, botIdx, isSinglePieceDressOrCoat, bagOverlay };
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -307,6 +158,29 @@ export function Interactive3DAvatarStage({
     product: Product;
     fit?: AvatarExactFitReport;
   } | null>(null);
+  const [isStreamingLayer, setIsStreamingLayer] = useState<boolean>(false);
+  const streamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    preloadCoreModularLayers();
+    return () => {
+      if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
+    };
+  }, []);
+
+  const markStreaming = useCallback((pending: boolean) => {
+    if (!pending) {
+      if (streamTimerRef.current) {
+        clearTimeout(streamTimerRef.current);
+        streamTimerRef.current = null;
+      }
+      setIsStreamingLayer(false);
+    } else if (!streamTimerRef.current) {
+      streamTimerRef.current = setTimeout(() => {
+        setIsStreamingLayer(true);
+      }, 140);
+    }
+  }, []);
 
   const setVisualMode = useCallback(
     (m: Render3DVisualMode) => {
@@ -364,11 +238,6 @@ export function Interactive3DAvatarStage({
     }
   }, [fitByProductId, selectedProductId, wornPieces]);
 
-  const lookSpec = useMemo(
-    () => resolvePhotorealLookIndices(wornPieces),
-    [wornPieces]
-  );
-
   // Trigger repaint whenever props change
   useEffect(() => {
     needsPaintRef.current = true;
@@ -378,7 +247,6 @@ export function Interactive3DAvatarStage({
     effectiveShowRings,
     faceOvalDataUrl,
     fitByProductId,
-    lookSpec,
     mode,
     selectedSize,
     singleProduct,
@@ -513,7 +381,9 @@ export function Interactive3DAvatarStage({
           );
 
           let picked: Worn3DPieceSpec | undefined;
-          if (bagSpec && u > 0.56 && v > 0.24 && v < 0.62) {
+          const hitShoulderBag = u >= 0.52 && v >= 0.18 && v <= 0.52;
+          const hitHandBag = u >= 0.24 && u <= 0.44 && v >= 0.5 && v <= 0.72;
+          if (bagSpec && (hitShoulderBag || hitHandBag)) {
             picked = bagSpec;
           } else if (shoeSpec && v >= 0.86) {
             picked = shoeSpec;
@@ -556,104 +426,35 @@ export function Interactive3DAvatarStage({
       needsPaintRef.current = true;
     };
 
-    // Compose a single angle ("front" | "side" | "back") onto compCv (900x1355)
+    // Atomically compose 900x1355 modular RGBA layers onto offscreen compCv BEFORE touching visible canvas!
     const composeAngleLayer = (
       angleKind: "front" | "side" | "back",
       mirrorSide: boolean
     ): boolean => {
-      const { topIdx, botIdx, isSinglePieceDressOrCoat, bagOverlay } = lookSpec;
+      const productsList = wornPieces.map((w) => w.product);
+      let status = composeModularOutfitToCanvas({
+        ctx: compCtx,
+        products: productsList,
+        angle: angleKind,
+        mirrorHorizontal: mirrorSide,
+        faceOvalDataUrl,
+        onAssetReady: requestRepaint,
+      });
 
-      const urlFor = (idx: number, kind: "front" | "side" | "back") => {
-        return `${BASE}/models/runway_ai/ae_outfit_${idx}_${kind}.webp?v=life4`;
-      };
-
-      let topImg = loadCachedImage(urlFor(topIdx, angleKind), requestRepaint);
-      // Graceful fallback to front/back if side-profile asset is still decoding
-      if (!topImg && angleKind === "side") {
-        topImg = loadCachedImage(urlFor(topIdx, "front"), requestRepaint);
-      }
-      if (!topImg) return false;
-
-      compCtx.clearRect(0, 0, 900, 1355);
-      compCtx.save();
-      if (mirrorSide) {
-        compCtx.translate(900, 0);
-        compCtx.scale(-1, 1);
-      }
-
-      const mixedBottom = !isSinglePieceDressOrCoat && botIdx !== topIdx;
-      let botImg = mixedBottom
-        ? loadCachedImage(urlFor(botIdx, angleKind), requestRepaint) ||
-          (angleKind === "side"
-            ? loadCachedImage(urlFor(botIdx, "front"), requestRepaint)
-            : null)
-        : null;
-
-      if (mixedBottom && botImg) {
-        // Draw lower body (waist v=0.41 down to shoes v=1.0)
-        compCtx.drawImage(
-          botImg,
-          0,
-          Math.round(1355 * 0.425),
-          900,
-          Math.round(1355 * 0.575),
-          0,
-          Math.round(1355 * 0.425),
-          900,
-          Math.round(1355 * 0.575)
-        );
-        // Draw upper body (head v=0.0 down to waist v=0.445) with soft overlap blend
-        compCtx.drawImage(
-          topImg,
-          0,
-          0,
-          900,
-          Math.round(1355 * 0.435),
-          0,
-          0,
-          900,
-          Math.round(1355 * 0.435)
-        );
-        // Feather seam across v = 0.425..0.448
-        for (let s = 0; s < 8; s++) {
-          const t = s / 8;
-          const ySlice = Math.round(1355 * (0.432 + t * 0.018));
-          compCtx.globalAlpha = 1 - t;
-          compCtx.drawImage(topImg, 0, ySlice, 900, 4, 0, ySlice, 900, 4);
-        }
-        compCtx.globalAlpha = 1;
-      } else {
-        compCtx.drawImage(topImg, 0, 0, 900, 1355);
+      // Graceful instant fallback to front view while 90° side profile asset streams in
+      if (status !== "ready" && angleKind === "side") {
+        status = composeModularOutfitToCanvas({
+          ctx: compCtx,
+          products: productsList,
+          angle: "front",
+          mirrorHorizontal: mirrorSide,
+          faceOvalDataUrl: undefined,
+          onAssetReady: requestRepaint,
+        });
       }
 
-      // Composite Held RGBA Bag Overlay when custom bag differs from upper cutout's native bag
-      if (bagOverlay && angleKind !== "side") {
-        const bagImg = loadCachedImage(bagOverlay.url, requestRepaint);
-        if (bagImg) {
-          const isShoulder = bagOverlay.pos === "shoulder";
-          const bx = isShoulder ? 900 * 0.545 : 900 * 0.575;
-          const by = isShoulder ? 1355 * 0.255 : 1355 * 0.435;
-          const bw = isShoulder ? 900 * 0.165 : 900 * 0.195;
-          const bh = bw * (bagImg.naturalHeight / Math.max(1, bagImg.naturalWidth));
-          compCtx.save();
-          compCtx.shadowColor = "rgba(20, 21, 24, 0.24)";
-          compCtx.shadowBlur = 14;
-          compCtx.shadowOffsetY = 6;
-          compCtx.drawImage(bagImg, bx, by, bw, bh);
-          compCtx.restore();
-        }
-      }
-
-      // Project customer's scanned selfie onto front face when provided
-      if (faceOvalDataUrl && angleKind === "front") {
-        const faceIm = loadCachedImage(faceOvalDataUrl, requestRepaint);
-        if (faceIm) {
-          const fw = 900 * 0.129;
-          const fh = 1355 * 0.097;
-          const fx = 900 * 0.4995 - fw / 2;
-          const fy = 1355 * 0.132 - fh / 2;
-          compCtx.drawImage(faceIm, fx, fy, fw, fh);
-        }
+      if (status !== "ready") {
+        return false;
       }
 
       // Garment-Masked Fit Heatmap Tint (keeps real photorealistic face, hair, skin & folds 100% lifelike!)
@@ -678,26 +479,24 @@ export function Interactive3DAvatarStage({
         compCtx.restore();
       }
 
-      compCtx.restore();
       return true;
     };
 
     const paintProduct3D = () => {
+      const prod = singleProduct || wornPieces[0]?.product;
+      if (!prod || !prod.imageUrl) return;
+
+      // CRITICAL ZERO-FLICKER GUARD: never clear canvas until new product image is 100% decoded!
+      const im = getCachedOrLoadImage(prod.imageUrl, requestRepaint);
+      if (!im) {
+        markStreaming(true);
+        return;
+      }
+      markStreaming(false);
+
       ctx.save();
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, viewW, viewH);
-
-      const prod = singleProduct || wornPieces[0]?.product;
-      if (!prod || !prod.imageUrl) {
-        ctx.restore();
-        return;
-      }
-
-      const im = loadCachedImage(prod.imageUrl, requestRepaint);
-      if (!im) {
-        ctx.restore();
-        return;
-      }
 
       const yaw = yawRef.current;
       const pitch = pitchRef.current;
@@ -746,7 +545,7 @@ export function Interactive3DAvatarStage({
       );
       ctx.fill();
 
-      // 12-Layer 3D Fabric Volume Extrusion Stack + Real Ghost-Mannequin Photo!
+      // 10-Layer 3D Fabric Volume Extrusion Stack + Pure Alpha-Isolated Garment Cutout!
       const thicknessPx = 14 * Math.abs(sinY) * zoom;
       const layers = 10;
       for (let l = layers; l >= 0; l--) {
@@ -788,63 +587,47 @@ export function Interactive3DAvatarStage({
     };
 
     const paintAvatar = () => {
-      ctx.save();
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, viewW, viewH);
-
       const normDeg =
         ((((yawRef.current * 180) / Math.PI) % 360) + 360) % 360;
       const pitch = pitchRef.current;
       const zoom = zoomRef.current;
 
-      // Determine primary & secondary quadrant angles for silky 360° turnaround
-      // 0° = front, 90° = right side, 180° = back, 270° = left side (mirrored)
+      // Determine quadrant angle for silky 360° turnaround (0° Front, 90° Right Side, 180° Back, 270° Left Side)
       let primaryKind: "front" | "side" | "back" = "front";
       let mirrorSide = false;
       let foreshorten = 1.0;
 
-      // Check if side image is already decoded for current topIdx
-      const sideTestUrl = `${BASE}/models/runway_ai/ae_outfit_${lookSpec.topIdx}_side.webp?v=life4`;
-      const hasSideDecoded = Boolean(
-        IMG_CACHE.get(sideTestUrl)?.complete &&
-          (IMG_CACHE.get(sideTestUrl)?.naturalWidth || 0) > 0
-      );
-      // Trigger background preload of side view
-      loadCachedImage(sideTestUrl, requestRepaint);
-
-      if (hasSideDecoded) {
-        if (normDeg >= 52 && normDeg < 128) {
-          primaryKind = "side";
-          mirrorSide = false;
-          const dist90 = Math.abs(normDeg - 90) / 38;
-          foreshorten = lerp(1.0, 0.9, dist90);
-        } else if (normDeg >= 128 && normDeg < 232) {
-          primaryKind = "back";
-          const dist180 = Math.abs(normDeg - 180) / 52;
-          foreshorten = lerp(1.0, 0.88, dist180);
-        } else if (normDeg >= 232 && normDeg < 308) {
-          primaryKind = "side";
-          mirrorSide = true;
-          const dist270 = Math.abs(normDeg - 270) / 38;
-          foreshorten = lerp(1.0, 0.9, dist270);
-        } else {
-          primaryKind = "front";
-          const dist0 = Math.min(normDeg, 360 - normDeg) / 52;
-          foreshorten = lerp(1.0, 0.88, dist0);
-        }
+      if (normDeg >= 56 && normDeg < 124) {
+        primaryKind = "side";
+        mirrorSide = false;
+        const dist90 = Math.abs(normDeg - 90) / 34;
+        foreshorten = lerp(1.0, 0.9, dist90);
+      } else if (normDeg >= 124 && normDeg < 236) {
+        primaryKind = "back";
+        const dist180 = Math.abs(normDeg - 180) / 56;
+        foreshorten = lerp(1.0, 0.88, dist180);
+      } else if (normDeg >= 236 && normDeg < 304) {
+        primaryKind = "side";
+        mirrorSide = true;
+        const dist270 = Math.abs(normDeg - 270) / 34;
+        foreshorten = lerp(1.0, 0.9, dist270);
       } else {
-        // Smooth Front <-> Back 3D turnaround while side asset streams in
-        const rad = (normDeg * Math.PI) / 180;
-        const cosA = Math.cos(rad);
-        primaryKind = cosA >= 0 ? "front" : "back";
-        foreshorten = 0.72 + 0.28 * Math.abs(cosA);
+        primaryKind = "front";
+        const dist0 = Math.min(normDeg, 360 - normDeg) / 56;
+        foreshorten = lerp(1.0, 0.88, dist0);
       }
 
+      // CRITICAL ZERO-FLICKER GUARD: compose offscreen FIRST; if any layer is still downloading, keep current frame on screen!
       const ready = composeAngleLayer(primaryKind, mirrorSide);
       if (!ready) {
-        ctx.restore();
+        markStreaming(true);
         return;
       }
+      markStreaming(false);
+
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, viewW, viewH);
 
       // Compute Photorealistic Body-Scan Proportions relative to baseline 5'2" (32.25 / 27 / 34)
       const heightScale = clamp(dimensions.heightInches / 62, 0.92, 1.10);
@@ -1103,7 +886,7 @@ export function Interactive3DAvatarStage({
     faceOvalDataUrl,
     fitByProductId,
     inertiaSpin,
-    lookSpec,
+    markStreaming,
     mode,
     seamlessStage,
     showHud,
@@ -1137,6 +920,13 @@ export function Interactive3DAvatarStage({
           style={{ touchAction: "pan-y" }}
         />
       </div>
+
+      {/* Non-blanking layer update pill if slow network takes >140ms */}
+      {isStreamingLayer && (
+        <div className="pointer-events-none absolute top-11 left-1/2 -translate-x-1/2 z-20 px-2.5 py-1 rounded-full bg-white/95 border border-black/[0.08] shadow-xs text-[10px] font-bold text-[#244B3B]">
+          Updating outfit…
+        </div>
+      )}
 
       {/* Top-Left Scanned Body Twin Live Badge (sm+ screens) */}
       {showHud && mode === "avatar" && !compactHud && (

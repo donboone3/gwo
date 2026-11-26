@@ -19,7 +19,6 @@ import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 import { deriveStandardApparelSize } from "@/lib/catalog/sizing";
 import {
   AiRunwayOutfit,
-  BAG_RGBA_OVERLAY_BY_ID,
   buildAiRunwayOutfits,
   buildSinglePieceRunwayLineup,
 } from "@/lib/stylist/runway-ai-outfits";
@@ -28,10 +27,14 @@ import {
   deriveFullBodyDimensionsFromProfile,
   formatHeightFeetInches,
 } from "@/lib/three/body-scan-analyzer";
+import {
+  preloadCoreModularLayers,
+  renderModularOutfitDataUrlAsync,
+} from "@/lib/three/modular-outfit-compositor";
 import { Product } from "@/lib/types";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
-const CUSTOM_RUNWAY_KEY = "gwo_custom_runway_outfits_v2";
+const CUSTOM_RUNWAY_KEY = "gwo_custom_runway_outfits_v3";
 
 interface CustomRunwayOutfitSaved {
   id: string;
@@ -39,10 +42,6 @@ interface CustomRunwayOutfitSaved {
   productIds: string[];
   frontAvatarUrl: string;
   backAvatarUrl: string;
-  bottomFrontAvatarUrl?: string;
-  bottomBackAvatarUrl?: string;
-  bagOverlayUrl?: string;
-  bagOverlayPos?: "hand" | "shoulder";
 }
 
 // Original Diagonal Depth-of-Field Runway Curves with Commanding Foreground Avatar (`KH[1] = 0.99`)
@@ -54,19 +53,6 @@ const KO = [1, 1, 1, 1, 0.86, 0.5, 0];
 
 const wrap = (x: number, n: number) => ((x % n) + n) % n;
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
-
-const UPPER_LOOK_HELD_BAG: Record<number, string> = {
-  0: "prod-ae-burgundy-crescent-bag",
-  1: "prod-ae-camel-turnlock-tote",
-  2: "prod-ae-burgundy-crescent-bag",
-  3: "prod-ae-ivory-mini-bag",
-  4: "prod-ae-camel-turnlock-tote",
-  5: "prod-ae-camel-turnlock-tote",
-  6: "prod-ae-noir-quilted-bag",
-  7: "prod-ae-burgundy-crescent-bag",
-  8: "prod-ae-ivory-mini-bag",
-  9: "prod-ae-noir-quilted-bag",
-};
 
 export function GwoRunwayLookbook() {
   const {
@@ -121,6 +107,7 @@ export function GwoRunwayLookbook() {
   >([]);
 
   useEffect(() => {
+    preloadCoreModularLayers();
     if (typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem(CUSTOM_RUNWAY_KEY);
@@ -236,10 +223,7 @@ export function GwoRunwayLookbook() {
           matchScorePct: 98,
           frontAvatarUrl: co.frontAvatarUrl,
           backAvatarUrl: co.backAvatarUrl,
-          bottomFrontAvatarUrl: co.bottomFrontAvatarUrl,
-          bottomBackAvatarUrl: co.bottomBackAvatarUrl,
-          bagOverlayUrl: co.bagOverlayUrl,
-          bagOverlayPos: co.bagOverlayPos,
+          isModularRemix: true,
           pieces,
           totalPriceUsd: pieces.reduce((s, x) => s + x.product.price, 0),
         } satisfies AiRunwayOutfit;
@@ -309,38 +293,86 @@ export function GwoRunwayLookbook() {
   const ringRef = useRef<HTMLDivElement | null>(null);
   const rollRef = useRef<HTMLSpanElement | null>(null);
   const modelTopImgElsRef = useRef<Array<HTMLImageElement | null>>([]);
-  const modelBotImgElsRef = useRef<Array<HTMLImageElement | null>>([]);
   const faceImgElsRef = useRef<Array<HTMLImageElement | null>>([]);
+  const modularDataUrlCacheRef = useRef<Record<string, string>>({});
+  const runwayAngleRef = useRef<"front" | "back">(runwayAngle);
+  runwayAngleRef.current = runwayAngle;
   const jumpLookRef = useRef<((lookIndex: number) => void) | null>(null);
   const currentPosRef = useRef(0);
 
-  // Flip all diagonal runway models seamlessly between Front 0° and Back 180°
+  const resolveEffectiveOutfitProducts = useCallback(
+    (outfit: AiRunwayOutfit): { products: Product[]; hasSwap: boolean } => {
+      let hasSwap = false;
+      const products = outfit.pieces.map((p, slotIdx) => {
+        const override = swappedPieceBySlot[`${outfit.id}:${slotIdx}`];
+        if (override) {
+          hasSwap = true;
+          return override;
+        }
+        return p.product;
+      });
+      return { products, hasSwap };
+    },
+    [swappedPieceBySlot]
+  );
+
+  // Sync Front 0° / Back 180° + Live Modular Piece Swaps & AI Remixes seamlessly!
   useEffect(() => {
+    const targetAngle = runwayAngle;
     modelTopImgElsRef.current.forEach((imgEl, i) => {
       const outfit = runwayOutfits[i];
       if (!imgEl || !outfit) return;
-      imgEl.src =
-        runwayAngle === "back" ? outfit.backAvatarUrl : outfit.frontAvatarUrl;
+
+      const { products: effProducts, hasSwap } =
+        resolveEffectiveOutfitProducts(outfit);
+      const needsModular =
+        Boolean(outfit.isModularRemix) ||
+        outfit.id.startsWith("custom-runway-") ||
+        hasSwap;
+
+      if (!needsModular) {
+        imgEl.src =
+          targetAngle === "back" ? outfit.backAvatarUrl : outfit.frontAvatarUrl;
+        return;
+      }
+
+      const cacheKey = `${targetAngle}:${effProducts
+        .map((p) => p.id)
+        .join("|")}`;
+      const cached = modularDataUrlCacheRef.current[cacheKey];
+      if (cached) {
+        imgEl.src = cached;
+        return;
+      }
+
+      void renderModularOutfitDataUrlAsync(effProducts, targetAngle).then(
+        (dataUrl) => {
+          if (!dataUrl) return;
+          modularDataUrlCacheRef.current[cacheKey] = dataUrl;
+          const latestEl = modelTopImgElsRef.current[i];
+          if (latestEl && runwayAngleRef.current === targetAngle) {
+            latestEl.src = dataUrl;
+          }
+        }
+      );
     });
-    modelBotImgElsRef.current.forEach((botEl, i) => {
-      const outfit = runwayOutfits[i];
-      if (!botEl || !outfit) return;
-      const botSrc =
-        runwayAngle === "back"
-          ? outfit.bottomBackAvatarUrl
-          : outfit.bottomFrontAvatarUrl;
-      if (botSrc) botEl.src = botSrc;
-    });
+
     faceImgElsRef.current.forEach((faceEl) => {
       if (!faceEl) return;
       if (customAvatar?.faceOvalDataUrl && runwayAngle === "front") {
         faceEl.src = customAvatar.faceOvalDataUrl;
         faceEl.style.display = "block";
       } else {
+        faceEl.removeAttribute("src");
         faceEl.style.display = "none";
       }
     });
-  }, [customAvatar, runwayAngle, runwayOutfits]);
+  }, [
+    customAvatar,
+    resolveEffectiveOutfitProducts,
+    runwayAngle,
+    runwayOutfits,
+  ]);
 
   // Iconic Diagonal Depth-of-Field Multi-Model Lifelike Runway Physics (Original Prompt Properties!)
   useEffect(() => {
@@ -358,7 +390,6 @@ export function GwoRunwayLookbook() {
 
     const calm = window.matchMedia("(prefers-reduced-motion:reduce)").matches;
     const createdTopImgs: Array<HTMLImageElement | null> = [];
-    const createdBotImgs: Array<HTMLImageElement | null> = [];
     const createdFaceImgs: Array<HTMLImageElement | null> = [];
 
     // Body-scan proportion subtle width factor so scanned curves reflect gently on the lifelike figure
@@ -369,41 +400,40 @@ export function GwoRunwayLookbook() {
       e.className = "mv-m";
       e.dataset.i = String(i);
 
-      const hasMixedBottom = Boolean(outfit.bottomFrontAvatarUrl);
-      if (hasMixedBottom) {
-        const botImg = document.createElement("img");
-        botImg.className = "mv-avatar-bot";
-        botImg.src =
-          runwayAngle === "back"
-            ? outfit.bottomBackAvatarUrl || outfit.backAvatarUrl
-            : outfit.bottomFrontAvatarUrl || outfit.frontAvatarUrl;
-        botImg.alt = "";
-        botImg.decoding = "async";
-        e.append(botImg);
-        createdBotImgs.push(botImg);
-      } else {
-        createdBotImgs.push(null);
-      }
+      const { products: effProducts, hasSwap } =
+        resolveEffectiveOutfitProducts(outfit);
+      const needsModular =
+        Boolean(outfit.isModularRemix) ||
+        outfit.id.startsWith("custom-runway-") ||
+        hasSwap;
+      const cacheKey = `${runwayAngle}:${effProducts
+        .map((p) => p.id)
+        .join("|")}`;
+      const cachedMod = needsModular
+        ? modularDataUrlCacheRef.current[cacheKey]
+        : undefined;
 
       const img = document.createElement("img");
-      img.className = hasMixedBottom ? "mv-avatar-top" : "mv-avatar-img";
+      img.className = "mv-avatar-img";
       img.src =
-        runwayAngle === "back" ? outfit.backAvatarUrl : outfit.frontAvatarUrl;
+        cachedMod ||
+        (runwayAngle === "back" ? outfit.backAvatarUrl : outfit.frontAvatarUrl);
       img.alt = outfit.title;
       img.decoding = "async";
       e.append(img);
       createdTopImgs.push(img);
 
-      if (outfit.bagOverlayUrl) {
-        const bagImg = document.createElement("img");
-        bagImg.className = "mv-bag-overlay";
-        bagImg.src = outfit.bagOverlayUrl;
-        bagImg.alt = "Held boutique bag";
-        const isShoulder = outfit.bagOverlayPos === "shoulder";
-        bagImg.style.left = isShoulder ? "54.5%" : "57.5%";
-        bagImg.style.top = isShoulder ? "25.5%" : "43.5%";
-        bagImg.style.width = isShoulder ? "16.5%" : "19.5%";
-        e.append(bagImg);
+      if (needsModular && !cachedMod) {
+        const reqAngle = runwayAngle;
+        void renderModularOutfitDataUrlAsync(effProducts, reqAngle).then(
+          (dataUrl) => {
+            if (!dataUrl) return;
+            modularDataUrlCacheRef.current[cacheKey] = dataUrl;
+            if (runwayAngleRef.current === reqAngle) {
+              img.src = dataUrl;
+            }
+          }
+        );
       }
 
       const faceImg = document.createElement("img");
@@ -431,7 +461,6 @@ export function GwoRunwayLookbook() {
     });
 
     modelTopImgElsRef.current = createdTopImgs;
-    modelBotImgElsRef.current = createdBotImgs;
     faceImgElsRef.current = createdFaceImgs;
 
     for (let i = 0; i <= N; i++) {
@@ -732,48 +761,6 @@ export function GwoRunwayLookbook() {
   const handleCreateCustomRunwayOutfit = () => {
     if (selectedCustomIds.length === 0) return;
 
-    let topAvatarIdx = 0;
-    if (selectedCustomIds.includes("prod-ae-ivory-tweed-blazer"))
-      topAvatarIdx = 1;
-    else if (selectedCustomIds.includes("prod-ae-emerald-satin-midi"))
-      topAvatarIdx = 2;
-    else if (selectedCustomIds.includes("prod-ae-champagne-blazer-dress"))
-      topAvatarIdx = 3;
-    else if (selectedCustomIds.includes("prod-ae-camel-silk-wool-coat"))
-      topAvatarIdx = 4;
-    else if (selectedCustomIds.includes("prod-ae-linen-cinch-cardigan"))
-      topAvatarIdx = 5;
-    else if (selectedCustomIds.includes("prod-ae-crimson-corset-mini"))
-      topAvatarIdx = 6;
-    else if (selectedCustomIds.includes("prod-ae-noir-tailored-blazer"))
-      topAvatarIdx = 7;
-    else if (selectedCustomIds.includes("prod-ae-sage-zip-jacket"))
-      topAvatarIdx = 8;
-
-    let botAvatarIdx = topAvatarIdx;
-    const isFullDress =
-      selectedCustomIds.includes("prod-ae-emerald-satin-midi") ||
-      selectedCustomIds.includes("prod-ae-champagne-blazer-dress") ||
-      selectedCustomIds.includes("prod-ae-crimson-corset-mini");
-    if (!isFullDress) {
-      if (selectedCustomIds.includes("prod-ae-champagne-trousers"))
-        botAvatarIdx = 0;
-      else if (selectedCustomIds.includes("prod-ae-noir-pleated-mini"))
-        botAvatarIdx = 1;
-      else if (selectedCustomIds.includes("prod-ae-vintage-wide-denim"))
-        botAvatarIdx = 7;
-      else if (selectedCustomIds.includes("prod-ae-sage-flare-leggings"))
-        botAvatarIdx = 8;
-    }
-
-    const selectedBagId = selectedCustomIds.find(
-      (id) => id in BAG_RGBA_OVERLAY_BY_ID
-    );
-    const bagOverlay =
-      selectedBagId && UPPER_LOOK_HELD_BAG[topAvatarIdx] !== selectedBagId
-        ? BAG_RGBA_OVERLAY_BY_ID[selectedBagId]
-        : undefined;
-
     const title =
       customTitle.trim() ||
       `Custom Boutique Edit #0${savedCustomOutfits.length + 1}`;
@@ -781,18 +768,8 @@ export function GwoRunwayLookbook() {
       id: `custom-runway-${Date.now()}`,
       title,
       productIds: selectedCustomIds,
-      frontAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_${topAvatarIdx}_front.webp?v=life4`,
-      backAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_${topAvatarIdx}_back.webp?v=life4`,
-      bottomFrontAvatarUrl:
-        botAvatarIdx !== topAvatarIdx
-          ? `${BASE_PATH}/models/runway_ai/ae_outfit_${botAvatarIdx}_front.webp?v=life4`
-          : undefined,
-      bottomBackAvatarUrl:
-        botAvatarIdx !== topAvatarIdx
-          ? `${BASE_PATH}/models/runway_ai/ae_outfit_${botAvatarIdx}_back.webp?v=life4`
-          : undefined,
-      bagOverlayUrl: bagOverlay?.url,
-      bagOverlayPos: bagOverlay?.pos,
+      frontAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_0_front.webp?v=mod7`,
+      backAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_0_back.webp?v=mod7`,
     };
     persistCustomRunway([created, ...savedCustomOutfits]);
     setBrowseMode("outfits");
@@ -999,7 +976,7 @@ export function GwoRunwayLookbook() {
 
                         <Link
                           href={pdpHref}
-                          className="relative h-28 sm:h-32 rounded-xl bg-[#F4F6F9] border border-black/[0.04] overflow-hidden flex items-center justify-center block"
+                          className="relative h-28 sm:h-32 rounded-xl bg-white border border-black/[0.04] overflow-hidden flex items-center justify-center block"
                         >
                           <GarmentArtwork
                             product={prod}
@@ -1148,7 +1125,7 @@ export function GwoRunwayLookbook() {
                     }`}
                   >
                     <div>
-                      <div className="h-28 rounded-xl bg-[#F7F8FA] overflow-hidden mb-1.5 relative">
+                      <div className="h-28 rounded-xl bg-white border border-black/[0.05] overflow-hidden mb-1.5 relative">
                         <GarmentArtwork product={prod} className="w-full h-full" />
                         {selected && (
                           <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#244B3B] text-white flex items-center justify-center">

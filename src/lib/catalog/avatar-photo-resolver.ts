@@ -34,6 +34,19 @@ const PRODUCT_TO_RUNWAY_OUTFIT_IDX: Record<string, number> = {
   "prod-ae-sage-flare-leggings": 8,
   "prod-ae-cloud-platform-sneakers": 8,
   "prod-ae-ivory-mini-bag": 8,
+  "prod-ae-blush-ruched-offshoulder": 10,
+  "prod-ae-ivory-satin-bias-midi": 10,
+  "prod-ae-noir-halter-vest": 11,
+  "prod-ae-charcoal-pinstripe-trousers": 11,
+  "prod-ae-cobalt-draped-mini": 12,
+  "prod-ae-silver-crystal-heels": 12,
+  "prod-ae-silver-metallic-shoulder-bag": 12,
+  "prod-ae-burgundy-leather-trench": 13,
+  "prod-ae-cream-cropped-fur-jacket": 14,
+  "prod-ae-butter-lace-slip-midi": 14,
+  "prod-ae-butter-silk-cami": 15,
+  "prod-ae-espresso-tailored-shorts": 15,
+  "prod-ae-burgundy-patent-heels": 15,
 };
 
 /**
@@ -64,16 +77,16 @@ export function resolveLifelikeAvatarPhotos(params: {
     product?.studioLookIndex ??
     (product?.id ? PRODUCT_TO_RUNWAY_OUTFIT_IDX[product.id] : undefined);
 
-  if (resolvedIdx !== undefined && resolvedIdx >= 0 && resolvedIdx <= 9) {
+  if (resolvedIdx !== undefined && resolvedIdx >= 0 && resolvedIdx <= 15) {
     const front =
       explicitFrontUrl ||
-      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_front.webp?v=life4`;
+      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_front.webp?v=mod7`;
     const back =
       explicitBackUrl ||
-      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_back.webp?v=life4`;
+      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_back.webp?v=mod7`;
     const side =
       explicitSideUrl ||
-      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_side.webp?v=life4`;
+      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_side.webp?v=mod7`;
     return {
       frontUrl: front,
       backUrl: back,

@@ -34,6 +34,11 @@ import { buildSynthetic3DProductFromPiece } from "@/lib/catalog/closet-look-3d-m
 import {
   DEFAULT_AVATAR_MEASUREMENTS,
 } from "@/lib/catalog/sizing";
+import {
+  certifyProductAvatarReadiness,
+  ensureProductIs360AndAvatarReady,
+  isolateProductBackgroundClient,
+} from "@/lib/three/avatar-ready-pipeline";
 import { Product } from "@/lib/types";
 
 const STEPS = [
@@ -157,7 +162,17 @@ export function UnifiedGwoNav() {
     try {
       const res = await ingestUrlToSharedCatalog(target);
       if (res?.product) {
-        setPreviewProduct(res.product);
+        const cleanImg = res.product.imageUrl
+          ? await isolateProductBackgroundClient(res.product.imageUrl)
+          : res.product.imageUrl;
+        const readyProd = ensureProductIs360AndAvatarReady({
+          ...res.product,
+          imageUrl: cleanImg,
+        });
+        if (readyProd.imageUrl && readyProd.imageUrl !== res.product.imageUrl) {
+          updateImportedProductImage(readyProd.id, readyProd.imageUrl);
+        }
+        setPreviewProduct(readyProd);
         setUrlInput("");
       }
     } finally {
@@ -169,13 +184,17 @@ export function UnifiedGwoNav() {
     const file = e.target.files?.[0];
     if (!file || !previewProduct) return;
     const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result || "");
-      if (dataUrl) {
-        updateImportedProductImage(previewProduct.id, dataUrl);
-        setPreviewProduct((prev) =>
-          prev ? { ...prev, imageUrl: dataUrl } : null
-        );
+    reader.onload = async () => {
+      const rawDataUrl = String(reader.result || "");
+      if (rawDataUrl) {
+        const isolated = await isolateProductBackgroundClient(rawDataUrl);
+        const readyProd = ensureProductIs360AndAvatarReady({
+          ...previewProduct,
+          imageUrl: isolated || rawDataUrl,
+        });
+        const cleanUrl = readyProd.imageUrl || rawDataUrl;
+        updateImportedProductImage(previewProduct.id, cleanUrl);
+        setPreviewProduct(readyProd);
       }
     };
     reader.readAsDataURL(file);
@@ -192,13 +211,17 @@ export function UnifiedGwoNav() {
         if (!blob) continue;
         e.preventDefault();
         const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = String(reader.result || "");
-          if (dataUrl) {
-            updateImportedProductImage(previewProduct.id, dataUrl);
-            setPreviewProduct((prev) =>
-              prev ? { ...prev, imageUrl: dataUrl } : null
-            );
+        reader.onload = async () => {
+          const rawDataUrl = String(reader.result || "");
+          if (rawDataUrl) {
+            const isolated = await isolateProductBackgroundClient(rawDataUrl);
+            const readyProd = ensureProductIs360AndAvatarReady({
+              ...previewProduct,
+              imageUrl: isolated || rawDataUrl,
+            });
+            const cleanUrl = readyProd.imageUrl || rawDataUrl;
+            updateImportedProductImage(previewProduct.id, cleanUrl);
+            setPreviewProduct(readyProd);
           }
         };
         reader.readAsDataURL(blob);
@@ -804,10 +827,15 @@ export function UnifiedGwoNav() {
 
                   {/* Right: Extracted Fit, Model Sizing & Avatar Match */}
                   <div className="flex-1 min-w-0 space-y-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#E7F3EE] text-[#244B3B]">
-                        {previewProduct.brand} • {previewFitReport.confidencePct}% Fit Match
-                      </span>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#E7F3EE] text-[#244B3B]">
+                          {previewProduct.brand} • {previewFitReport.confidencePct}% Fit Match
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#141518] text-[#A7D7C5]">
+                          360° • {certifyProductAvatarReadiness(previewProduct).slot.toUpperCase()} Ready ✓
+                        </span>
+                      </div>
                       <span className="text-sm font-bold text-[#141518]">
                         ${previewProduct.price}
                       </span>

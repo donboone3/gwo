@@ -22,6 +22,11 @@ import { build3DOutfitForClosetLook } from "../src/lib/catalog/closet-look-3d-ma
 import { STUDIO_LOOKS } from "../src/components/vell/vell-data";
 import { INITIAL_SEED_DB } from "../src/lib/db/seed-data";
 import { analyzeExactAvatarFit } from "../src/lib/catalog/fit-intelligence";
+import {
+  certifyProductAvatarReadiness,
+  classifyWearableSlotAndAnchors,
+} from "../src/lib/three/avatar-ready-pipeline";
+import { ALL_CERTIFIED_MODULAR_SKU_IDS } from "../src/lib/three/modular-outfit-compositor";
 
 describe("Universal 360° Front & Back Avatar + AliExpress Dropship + Endless AI Outfits", () => {
   const avatar = INITIAL_SEED_DB.profiles[0]; // 5'2" (62") • 32.25" B • 27" W • 34" H
@@ -73,7 +78,8 @@ describe("Universal 360° Front & Back Avatar + AliExpress Dropship + Endless AI
     expect(cmChart!.S).toBeDefined();
 
     const aeCatalog = buildTopLineAliExpressDropshipCatalog(2.85);
-    expect(aeCatalog.length).toBe(23);
+    expect(aeCatalog.length).toBe(36);
+    expect(STUDIO_LOOKS.length).toBe(16);
     expect(
       INITIAL_SEED_DB.products.every((p) => p.sourceType === "aliexpress_dropship")
     ).toBe(true);
@@ -82,6 +88,12 @@ describe("Universal 360° Front & Back Avatar + AliExpress Dropship + Endless AI
       expect(item.price).toBeGreaterThan(item.dropship!.wholesaleCostUsd);
       expect(item.fitMetadata?.fabricComposition).toBeTruthy();
       expect(item.fitMetadata?.descriptionSummary).toBeTruthy();
+      expect(ALL_CERTIFIED_MODULAR_SKU_IDS.has(item.id)).toBe(true);
+      const cert = certifyProductAvatarReadiness(item);
+      expect(cert.readinessPct).toBe(100);
+      expect(cert.checks.isolatedTransparentBg).toBe(true);
+      expect(cert.checks.spin360Synthesized).toBe(true);
+      expect(classifyWearableSlotAndAnchors(item).zOrder).toBeGreaterThanOrEqual(15);
     }
 
     const corset = aeCatalog.find((p) => p.id === "prod-ae-espresso-corset")!;
@@ -295,21 +307,24 @@ describe("Universal 360° Front & Back Avatar + AliExpress Dropship + Endless AI
       extraGeneratedCount: 2,
     });
 
-    expect(runwayLooks.length).toBe(12);
+    expect(runwayLooks.length).toBe(18);
     expect(runwayLooks[0].archetype).toBe("old_money_tailored");
     expect(runwayLooks[0].frontAvatarUrl).toContain("ae_outfit_");
     expect(runwayLooks[0].backAvatarUrl).toContain("_back.webp");
     expect(runwayLooks[0].pieces.length).toBeGreaterThanOrEqual(3);
     expect(runwayLooks[0].totalPriceUsd).toBeGreaterThan(120);
 
-    // Every one of the 10 signature AliExpress Runway outfits includes a bag SKU!
-    for (const outfit of runwayLooks.slice(0, 10)) {
+    // Every one of the 16 signature AliExpress Runway outfits includes a bag SKU!
+    for (const outfit of runwayLooks.slice(0, 16)) {
       expect(
         outfit.pieces.some((x) =>
           /bag|tote/i.test(x.product.title)
         )
       ).toBe(true);
     }
+    // AI Remix outfits are flagged as modular remixes so they composite seamlessly without horizontal slicing
+    expect(runwayLooks[16].isModularRemix).toBe(true);
+    expect(runwayLooks[17].isModularRemix).toBe(true);
 
     for (const prod of INITIAL_SEED_DB.products) {
       const photos = resolveLifelikeAvatarPhotos({ product: prod });

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Product } from "@/lib/types";
+import { isolateProductBackgroundClient } from "@/lib/three/avatar-ready-pipeline";
 
 interface GarmentArtworkProps {
   product: Product;
@@ -11,24 +12,48 @@ interface GarmentArtworkProps {
 export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps) {
   const [useProxyFallback, setUseProxyFallback] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
+  const [isolatedUrl, setIsolatedUrl] = useState<string | null>(null);
   const isNike = product.brand.toLowerCase() === "nike";
 
+  useEffect(() => {
+    setUseProxyFallback(false);
+    setImgFailed(false);
+    const raw = product.imageUrl;
+    if (!raw) {
+      setIsolatedUrl(null);
+      return;
+    }
+    if (raw.includes("/models/dropship/ds_") || raw.includes("bag_rgba_")) {
+      setIsolatedUrl(raw);
+      return;
+    }
+    let cancelled = false;
+    void isolateProductBackgroundClient(raw).then((clean) => {
+      if (!cancelled) setIsolatedUrl(clean);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [product.imageUrl]);
+
   if (product.imageUrl && !imgFailed) {
+    const activeRaw = isolatedUrl || product.imageUrl;
     const src =
       useProxyFallback &&
-      !product.imageUrl.includes("wsrv.nl") &&
-      !product.imageUrl.startsWith("data:")
+      !activeRaw.includes("wsrv.nl") &&
+      !activeRaw.startsWith("data:")
         ? `https://wsrv.nl/?url=${encodeURIComponent(product.imageUrl)}&w=640&output=webp`
-        : product.imageUrl;
+        : activeRaw;
 
     return (
       <div
-        className={`relative overflow-hidden bg-[#F6F7F9] flex items-center justify-center ${className}`}
+        className={`relative overflow-hidden bg-white flex items-center justify-center p-1.5 ${className}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt={product.title}
+          decoding="async"
           onError={() => {
             if (!useProxyFallback && !product.imageUrl?.includes("wsrv.nl")) {
               setUseProxyFallback(true);
