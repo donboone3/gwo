@@ -20,7 +20,7 @@
 .mv-main {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(368px, 31vw, 456px);
+  grid-template-columns: minmax(0, 1fr) clamp(396px, 34vw, 488px);
   height: calc(100svh - 64px);
   min-height: 620px;
 }
@@ -232,21 +232,21 @@
   }
   .mv-left-col {
     height: auto;
-    /* Large, commanding Runway Avatar stage on mobile (~400px tall!) */
-    grid-template-rows: auto clamp(380px, 50svh, 440px) auto;
+    /* Commanding 364px Runway Avatar stage while keeping Outfit Pieces immediately visible below! */
+    grid-template-rows: auto 364px auto;
   }
   .mv-top-bar {
-    padding: 7px 10px;
+    padding: 6px 10px;
   }
   .mv-bottom-bar {
-    padding: 8px 10px 10px;
-    gap: 8px;
+    padding: 6px 10px 8px;
+    gap: 6px 8px;
   }
   .mv-rail {
     border-left: 0;
     border-top: 1px solid rgba(20, 21, 24, 0.08);
     height: auto;
     overflow: visible;
-    padding: 12px 10px 22px;
+    padding: 10px 10px 22px;
   }
 }

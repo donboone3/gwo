@@ -28,6 +28,7 @@ import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
 import { useGwo } from "@/context/GwoAppContext";
 import { VERIFIED_LIVE_STORE_RACKS } from "@/lib/catalog/client-url-scraper";
+import { searchTopLineAliExpressFeed } from "@/lib/dropship/aliexpress-dropship";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 import { buildSynthetic3DProductFromPiece } from "@/lib/catalog/closet-look-3d-mapper";
 import {
@@ -94,7 +95,7 @@ export function UnifiedGwoNav() {
   const [manualImgUrl, setManualImgUrl] = useState("");
 
   const [storeDomainInput, setStoreDomainInput] = useState(
-    "babyboofashion-com-au.myshopify.com"
+    "aliexpress:satin"
   );
   const [pullingRack, setPullingRack] = useState(false);
   const [pulledRackItems, setPulledRackItems] = useState<Product[]>([]);
@@ -121,16 +122,26 @@ export function UnifiedGwoNav() {
     setPullingRack(true);
     setRackError(null);
     try {
+      if (
+        targetDomain.toLowerCase().startsWith("aliexpress:") ||
+        targetDomain.toLowerCase().includes("aliexpress") ||
+        !targetDomain.includes(".")
+      ) {
+        const q = targetDomain.replace(/^aliexpress:/i, "").trim();
+        const aeHits = searchTopLineAliExpressFeed({ query: q }).slice(0, 6);
+        setPulledRackItems(aeHits);
+        return;
+      }
       const items = await pullStoreRackToCatalog(targetDomain, 6);
       setPulledRackItems(items);
       if (items.length === 0) {
         setRackError(
-          "No public catalog items returned—paste an individual product link in the Paste URL tab instead."
+          "No public catalog items returned—select an AliExpress capsule above or paste a single product link."
         );
       }
     } catch {
       setRackError(
-        "This storefront restricts bulk /products.json feeds—paste a single product URL in the Paste URL tab instead."
+        "Could not fetch bulk feed—select an AliExpress capsule above or paste a single product URL."
       );
     } finally {
       setPullingRack(false);
@@ -510,7 +521,7 @@ export function UnifiedGwoNav() {
                 onClick={() => {
                   setModalTab("rack");
                   if (pulledRackItems.length === 0 && !pullingRack) {
-                    void handlePullStoreRack("babyboofashion-com-au.myshopify.com");
+                    void handlePullStoreRack("aliexpress:satin");
                   }
                 }}
                 className={`px-4 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${

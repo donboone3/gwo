@@ -410,9 +410,9 @@ export function Interactive3DAvatarStage({
         onTextureReady: triggerRepaint,
       });
       holder.add(built.root);
-      lookCenterYRef.current = built.totalHeightUnits * 0.48;
-      // Fit entire figure from hair crown to stiletto podium with clean studio breathing room
-      baseCamDistRef.current = built.totalHeightUnits * 1.96;
+      lookCenterYRef.current = built.totalHeightUnits * 0.485;
+      // Commanding full-body framing from hair crown to stiletto podium
+      baseCamDistRef.current = built.totalHeightUnits * 1.74;
       interactiveMeshesRef.current = built.interactiveMeshes;
       fitMapRef.current = built.fitByProductId;
 

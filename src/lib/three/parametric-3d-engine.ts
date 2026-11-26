@@ -963,8 +963,9 @@ function build3DHandbagAccessory(
   if (isTote) {
     // Structured Camel Turnlock Tote hanging from her right wrist/hand!
     const bodyGroup = new THREE.Group();
-    bodyGroup.position.set(handPos.x + 0.04, handPos.y - 0.56, handPos.z + 0.02);
+    bodyGroup.position.set(handPos.x + 0.05, handPos.y - 0.58, handPos.z + 0.03);
     bodyGroup.rotation.y = -0.22;
+    bodyGroup.scale.setScalar(1.14);
 
     // Trapezoid leather tote body
     const toteGeom = buildLoftedSurface(-0.34, 0.34, 16, 32, (y, u) => {
@@ -1016,6 +1017,7 @@ function build3DHandbagAccessory(
     const bodyGroup = new THREE.Group();
     bodyGroup.position.copy(bagCenter);
     bodyGroup.rotation.y = -0.26;
+    bodyGroup.scale.setScalar(1.15);
 
     if (isCrescent) {
       // Sculpted half-moon crescent hobo body
@@ -1069,8 +1071,9 @@ function build3DHandbagAccessory(
   } else {
     // Pearl Ivory Mini Top-Handle Bag held daintily in her right hand!
     const bodyGroup = new THREE.Group();
-    bodyGroup.position.set(handPos.x + 0.02, handPos.y - 0.34, handPos.z + 0.03);
+    bodyGroup.position.set(handPos.x + 0.03, handPos.y - 0.36, handPos.z + 0.04);
     bodyGroup.rotation.y = -0.25;
+    bodyGroup.scale.setScalar(1.16);
 
     const miniBox = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.3, 0.16), leatherMat);
     bodyGroup.add(miniBox);

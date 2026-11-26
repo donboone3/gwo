@@ -994,19 +994,19 @@ export function parseShopifyJsonProduct(
 
 export const VERIFIED_LIVE_STORE_RACKS = [
   {
-    label: "Babyboo Fashion",
-    domain: "babyboofashion-com-au.myshopify.com",
-    badge: "Corset & Mini Dresses",
+    label: "AliExpress Evening",
+    domain: "aliexpress:satin",
+    badge: "Corsets & Satin Dresses",
   },
   {
-    label: "Princess Polly",
-    domain: "us.princesspolly.com",
-    badge: "Petite & Going Out",
+    label: "AliExpress Tailoring",
+    domain: "aliexpress:blazer",
+    badge: "Blazers, Coats & Trousers",
   },
   {
-    label: "EDIKTED",
-    domain: "edikted.com",
-    badge: "Street & Party",
+    label: "AliExpress Bags & Heels",
+    domain: "aliexpress:leather",
+    badge: "Handbags, Belts & Boots",
   },
 ] as const;
 

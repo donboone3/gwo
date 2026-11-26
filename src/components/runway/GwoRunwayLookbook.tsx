@@ -713,9 +713,9 @@ export function GwoRunwayLookbook() {
         <div className="mv-left-col">
           {/* ==================== COMPACT 2-ROW TOP BAR ==================== */}
           <div className="mv-top-bar space-y-1.5">
-            <div className="flex flex-wrap items-center justify-between gap-1.5">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <h1 className="text-base sm:text-lg font-bold tracking-tight text-[#141518]">
+            <div className="mv-pill-scroll justify-between gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <h1 className="text-sm sm:text-lg font-bold tracking-tight text-[#141518] whitespace-nowrap">
                   3D Runway
                 </h1>
 
@@ -782,7 +782,7 @@ export function GwoRunwayLookbook() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {stageRenderMode === "lookbook" && (
                   <div className="inline-flex items-center p-0.5 rounded-full bg-white border border-black/[0.08]">
                     {(
@@ -964,14 +964,14 @@ export function GwoRunwayLookbook() {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="mv-pill-scroll gap-1.5">
               {activeOutfit && (
                 <>
                   <button
                     type="button"
                     id="gwo-runway-buy-full-outfit-btn"
                     onClick={() => handleAddOrBuyCurrentEntry(false, true)}
-                    className="px-3.5 py-2 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                    className="shrink-0 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap"
                   >
                     {browseMode === "pieces"
                       ? `Buy Piece ($${activeOutfit.totalPriceUsd})`
@@ -982,7 +982,7 @@ export function GwoRunwayLookbook() {
                     type="button"
                     id="gwo-runway-bag-full-outfit-btn"
                     onClick={() => handleAddOrBuyCurrentEntry(false, false)}
-                    className="px-3 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    className="shrink-0 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1 shadow-sm cursor-pointer whitespace-nowrap"
                   >
                     <ShoppingBag className="w-3.5 h-3.5" /> + Bag ($
                     {activeOutfit.totalPriceUsd})
@@ -992,7 +992,7 @@ export function GwoRunwayLookbook() {
                     <Link
                       href={`/?try=${encodeURIComponent(heroPiece.id)}`}
                       id="gwo-runway-try-closet-btn"
-                      className="px-3 py-2 rounded-full bg-white hover:bg-[#F4F5F7] border border-black/[0.08] text-[#244B3B] text-xs font-bold inline-flex items-center gap-1 shadow-xs"
+                      className="shrink-0 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-full bg-white hover:bg-[#F4F5F7] border border-black/[0.08] text-[#244B3B] text-xs font-bold inline-flex items-center gap-1 shadow-xs whitespace-nowrap"
                     >
                       Mix in 3D Closet →
                     </Link>
@@ -1036,14 +1036,17 @@ export function GwoRunwayLookbook() {
                   const isOwned = ownedIds.has(prod.id);
                   const is3DCard = active3DCardId === prod.id;
                   const pdpHref = `/product?id=${encodeURIComponent(prod.id)}`;
+                  const denseGrid = activeOutfit.pieces.length >= 5;
 
                   return (
                     <article
                       key={`${prod.id}-${slotIdx}`}
                       data-outfit-piece-card="true"
-                      className="rounded-2xl bg-white border border-black/[0.08] p-2.5 flex flex-col justify-between gap-2 shadow-[0_4px_14px_rgba(20,21,24,0.04)]"
+                      className={`rounded-2xl bg-white border border-black/[0.08] ${
+                        denseGrid ? "p-2 gap-1" : "p-2.5 gap-2"
+                      } flex flex-col justify-between shadow-[0_4px_14px_rgba(20,21,24,0.04)]`}
                     >
-                      <div className="space-y-1.5">
+                      <div className="space-y-1">
                         {/* Top Fit / Owned Badge + 3D Object Toggle */}
                         <div className="flex items-center justify-between gap-1">
                           <span
@@ -1076,7 +1079,11 @@ export function GwoRunwayLookbook() {
                         </div>
 
                         {/* Live Draggable 3D Product Object OR Pure Isolated Ghost-Mannequin Photo */}
-                        <div className="relative h-32 sm:h-36 rounded-xl bg-[#F4F6F9] border border-black/[0.05] overflow-hidden flex items-center justify-center">
+                        <div
+                          className={`relative ${
+                            denseGrid ? "h-24 sm:h-[82px]" : "h-28 sm:h-32"
+                          } rounded-xl bg-[#F4F6F9] border border-black/[0.05] overflow-hidden flex items-center justify-center`}
+                        >
                           {is3DCard ? (
                             <Interactive3DAvatarStage
                               mode="product"
