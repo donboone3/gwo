@@ -44,6 +44,7 @@ import {
   deriveFullBodyDimensionsFromProfile,
   formatHeightFeetInches,
 } from "@/lib/three/body-scan-analyzer";
+import { isolateProductBackgroundClient } from "@/lib/three/avatar-ready-pipeline";
 import { Worn3DPieceSpec } from "@/lib/three/parametric-3d-engine";
 import { Product } from "@/lib/types";
 
@@ -331,34 +332,28 @@ export function VellGwoStudio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allWearableById, applyPresetLook]);
 
-  // Equip or toggle a single garment/shoe/bag/belt on the 3D Dress-Up Avatar!
+  // Equip or toggle a single 3D garment/shoe/bag/belt mesh on the 3D Character!
   const equipProductPiece = useCallback(
     (prod: Product) => {
       const slot = classifyProductSlot(prod);
       setDressedSlots((prev) => {
         const next = { ...prev };
         if (slot === "dress") {
-          if (prev.dressId === prod.id) {
-            next.dressId = null;
-            next.topId = "prod-ae-espresso-corset";
-            next.bottomId = "prod-ae-champagne-trousers";
-          } else {
-            next.dressId = prod.id;
+          next.dressId = prev.dressId === prod.id ? null : prod.id;
+          if (next.dressId) {
             next.topId = null;
             next.bottomId = null;
           }
         } else if (slot === "top") {
-          next.topId = prod.id;
-          next.dressId = null;
-          if (!next.bottomId) next.bottomId = "prod-ae-champagne-trousers";
+          next.topId = prev.topId === prod.id ? null : prod.id;
+          if (next.topId) next.dressId = null;
         } else if (slot === "bottom") {
-          next.bottomId = prod.id;
-          next.dressId = null;
-          if (!next.topId) next.topId = "prod-ae-espresso-corset";
+          next.bottomId = prev.bottomId === prod.id ? null : prod.id;
+          if (next.bottomId) next.dressId = null;
         } else if (slot === "outerwear") {
           next.outerwearId = prev.outerwearId === prod.id ? null : prod.id;
         } else if (slot === "shoes") {
-          next.shoesId = prod.id;
+          next.shoesId = prev.shoesId === prod.id ? null : prod.id;
         } else if (slot === "bag") {
           next.bagId = prev.bagId === prod.id ? null : prod.id;
         } else if (slot === "belt") {
@@ -677,7 +672,10 @@ export function VellGwoStudio() {
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          setPendingUploadDataUrl(canvas.toDataURL("image/webp", 0.84));
+          const resizedUrl = canvas.toDataURL("image/webp", 0.86);
+          void isolateProductBackgroundClient(resizedUrl).then((isolated) => {
+            setPendingUploadDataUrl(isolated || resizedUrl);
+          });
         } else {
           setPendingUploadDataUrl(rawUrl);
         }
@@ -1014,7 +1012,7 @@ export function VellGwoStudio() {
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> Lifelike 360°
+                <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> 3D Character
               </button>
               <button
                 type="button"
@@ -1032,6 +1030,28 @@ export function VellGwoStudio() {
 
             <button
               type="button"
+              id="gwo-undress-base-btn"
+              onClick={() => {
+                setDressedSlots({
+                  topId: null,
+                  bottomId: null,
+                  dressId: null,
+                  outerwearId: null,
+                  shoesId: null,
+                  bagId: null,
+                  beltId: null,
+                });
+                setStageMode("3d");
+                showToast("Showing Base 3D Character — tap any 3D item to dress her!");
+              }}
+              className="px-3 py-1.5 rounded-full bg-white/95 hover:bg-[#F1F2F5] border border-black/[0.08] text-[11px] font-bold text-[#141518] inline-flex items-center gap-1 shadow-xs cursor-pointer"
+              title="Strip to base 3D Character to build an outfit from scratch"
+            >
+              Base Character
+            </button>
+
+            <button
+              type="button"
               onClick={handleSaveCustomOutfit}
               className="px-3 py-1.5 rounded-full bg-white/95 hover:bg-[#F4F8F5] border border-black/[0.08] text-[11px] font-bold text-[#244B3B] inline-flex items-center gap-1 shadow-xs cursor-pointer"
             >
@@ -1039,7 +1059,7 @@ export function VellGwoStudio() {
             </button>
           </div>
 
-          {/* Seamless NYC Loft Floor Lifelike Stage (No Card Box — Standing Directly in the Sunlit Loft!) */}
+          {/* Pure White 3D Character Dress-Up Stage */}
           <div
             className={`relative flex-1 w-full min-h-0 my-1 overflow-hidden transition-all ${
               overAvatar
@@ -1069,24 +1089,32 @@ export function VellGwoStudio() {
               />
             ) : (
               <div className="h-full w-full grid grid-cols-2 gap-2 p-2">
-                <div className="relative rounded-2xl bg-white/75 backdrop-blur-xs flex items-end justify-center overflow-hidden pt-6">
-                  <img
-                    src={H(currentLook.file, 900)}
-                    alt={`${currentLook.name} Front`}
-                    className="h-full w-full object-contain object-bottom"
+                <div className="relative rounded-2xl bg-white border border-black/[0.06] overflow-hidden">
+                  <Interactive3DAvatarStage
+                    mode="avatar"
+                    dimensions={bodyDims}
+                    wornPieces={activeWornSpecs}
+                    faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
+                    initialYawDeg={0}
+                    seamlessStage={true}
+                    showHud={false}
                   />
-                  <span className="absolute top-2 left-2 px-2.5 py-0.5 rounded-full bg-black/75 text-white text-[10px] font-bold">
-                    Front 0°
+                  <span className="pointer-events-none absolute top-2 left-2 px-2.5 py-0.5 rounded-full bg-black/75 text-white text-[10px] font-bold">
+                    3D Front 0°
                   </span>
                 </div>
-                <div className="relative rounded-2xl bg-white/75 backdrop-blur-xs flex items-end justify-center overflow-hidden pt-6">
-                  <img
-                    src={H_BACK(currentLook.file)}
-                    alt={`${currentLook.name} Back`}
-                    className="h-full w-full object-contain object-bottom"
+                <div className="relative rounded-2xl bg-white border border-black/[0.06] overflow-hidden">
+                  <Interactive3DAvatarStage
+                    mode="avatar"
+                    dimensions={bodyDims}
+                    wornPieces={activeWornSpecs}
+                    faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
+                    initialYawDeg={180}
+                    seamlessStage={true}
+                    showHud={false}
                   />
-                  <span className="absolute top-2 left-2 px-2.5 py-0.5 rounded-full bg-black/75 text-white text-[10px] font-bold">
-                    Back 180°
+                  <span className="pointer-events-none absolute top-2 left-2 px-2.5 py-0.5 rounded-full bg-black/75 text-white text-[10px] font-bold">
+                    3D Back 180°
                   </span>
                 </div>
               </div>

@@ -169,7 +169,7 @@ export function Avatar360Modal() {
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Rotate3d className="w-3.5 h-3.5" /> Lifelike 360°
+                <Rotate3d className="w-3.5 h-3.5" /> 3D Character
               </button>
               <button
                 type="button"
@@ -180,7 +180,7 @@ export function Avatar360Modal() {
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Box className="w-3.5 h-3.5" /> Garment Spin
+                <Box className="w-3.5 h-3.5" /> 3D Item Mesh
               </button>
               <button
                 type="button"
@@ -196,20 +196,20 @@ export function Avatar360Modal() {
             </div>
 
             {viewMode === "avatar3d" && (
-              <div className="h-[360px] sm:h-[420px] rounded-2xl bg-gradient-to-b from-[#EEF1F6] via-[#E6ECF4] to-[#F5F7FA] border border-black/[0.08] overflow-hidden">
+              <div className="h-[360px] sm:h-[420px] rounded-2xl bg-white border border-black/[0.08] overflow-hidden">
                 <Interactive3DAvatarStage
                   mode="avatar"
                   dimensions={bodyDims}
                   wornPieces={wornSpecs}
                   faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
-                  initialYawDeg={16}
+                  initialYawDeg={22}
                   showHud={true}
                 />
               </div>
             )}
 
             {viewMode === "product3d" && (
-              <div className="h-[360px] sm:h-[420px] rounded-2xl bg-gradient-to-b from-[#F4F6F9] to-[#E6EAF2] border border-black/[0.08] overflow-hidden">
+              <div className="h-[360px] sm:h-[420px] rounded-2xl bg-white border border-black/[0.08] overflow-hidden">
                 <Interactive3DAvatarStage
                   mode="product"
                   dimensions={bodyDims}

@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link";
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   Plus,
   RefreshCw,
   Rotate3d,
@@ -15,6 +17,7 @@ import {
 import "./runway-lookbook.css";
 import { useGwo } from "@/context/GwoAppContext";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
+import { Interactive3DAvatarStage } from "../three/Interactive3DAvatarStage";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 import { deriveStandardApparelSize } from "@/lib/catalog/sizing";
 import {
@@ -85,7 +88,9 @@ export function GwoRunwayLookbook() {
 
   const [browseMode, setBrowseMode] = useState<"outfits" | "pieces">("outfits");
   const [extraAiCount, setExtraAiCount] = useState(4);
-  const [runwayAngle, setRunwayAngle] = useState<"front" | "back">("front");
+  const [runwayYawDeg, setRunwayYawDeg] = useState<number>(0);
+  const runwayAngle: "front" | "back" =
+    runwayYawDeg >= 110 && runwayYawDeg <= 250 ? "back" : "front";
   const [activeLookIdx, setActiveLookIdx] = useState(0);
 
   // Per-outfit piece swap overrides so shoppers can swap pieces live on the Runway!
@@ -520,7 +525,10 @@ export function GwoRunwayLookbook() {
         const x = centerX - base * m.r * sc * 0.5;
         const y = H * L(KF) - base * sc;
         const bl = L(KB);
-        const op = d < -0.5 ? Math.max(0, 1 + (d + 0.5) * 2.2) : L(KO);
+        const rawOp = d < -0.5 ? Math.max(0, 1 + (d + 0.5) * 2.2) : L(KO);
+        // Smoothly hand off foreground slot (|d| < 0.45) to the live WebGL 3D Character stage!
+        const heroFade = Math.min(1, Math.max(0, (Math.abs(d) - 0.14) / 0.34));
+        const op = rawOp * heroFade;
         const f = bl > 0.25 ? `blur(${bl.toFixed(1)}px)` : "none";
         const o = op.toFixed(3);
 
@@ -583,7 +591,13 @@ export function GwoRunwayLookbook() {
     };
 
     const onDown = (e: PointerEvent) => {
-      if ((e.target as HTMLElement)?.closest("button")) return;
+      if (
+        (e.target as HTMLElement)?.closest(
+          "button, [data-runway-3d-hero='true']"
+        )
+      ) {
+        return;
+      }
       drag = true;
       moved = false;
       sx = e.clientX;
@@ -794,20 +808,44 @@ export function GwoRunwayLookbook() {
           <div className="mv-line" ref={lineRef} />
           <div className="mv-ring" ref={ringRef} />
 
-          {/* Minimal Corner Front / Back Flip Pill inside Stage (No Top Header Bar!) */}
-          <div className="absolute top-2.5 left-2.5 z-20 inline-flex items-center p-0.5 rounded-full bg-white/85 backdrop-blur-md border border-black/[0.08] shadow-xs">
+          {/* Foreground Live WebGL 3D Character Wearing Equipped 3D Garments! */}
+          {activeOutfit && (
+            <div
+              data-runway-3d-hero="true"
+              className="absolute inset-y-0 right-0 w-[62%] sm:w-[58%] z-[25]"
+              title="Drag to spin your 3D Character 360°"
+            >
+              <Interactive3DAvatarStage
+                mode="avatar"
+                dimensions={bodyDims}
+                wornPieces={activeOutfit.pieces.map((p) => ({
+                  product: p.product,
+                  selectedSize: p.recommendedSize,
+                }))}
+                faceOvalDataUrl={customAvatar?.faceOvalDataUrl || null}
+                externalYawDeg={runwayYawDeg}
+                showHud={false}
+                seamlessStage
+              />
+            </div>
+          )}
+
+          {/* Minimal Corner 3D Angle Selector Pill inside Stage (No Top Header Bar!) */}
+          <div className="absolute top-2.5 left-2.5 z-30 inline-flex items-center p-0.5 rounded-full bg-white/88 backdrop-blur-md border border-black/[0.08] shadow-xs">
             {(
               [
-                ["front", "Front 0°"],
-                ["back", "Back 180°"],
+                [0, "Front 0°"],
+                [32, "3/4 32°"],
+                [90, "Side 90°"],
+                [180, "Back 180°"],
               ] as const
-            ).map(([ang, lbl]) => (
+            ).map(([deg, lbl]) => (
               <button
-                key={ang}
+                key={deg}
                 type="button"
-                onClick={() => setRunwayAngle(ang)}
-                className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold cursor-pointer transition min-h-[24px] ${
-                  runwayAngle === ang
+                onClick={() => setRunwayYawDeg(deg)}
+                className={`px-2 py-1 rounded-full text-[10px] font-bold cursor-pointer transition min-h-[24px] ${
+                  runwayYawDeg === deg
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
@@ -817,12 +855,34 @@ export function GwoRunwayLookbook() {
             ))}
           </div>
 
-          {/* Iconic Rolling Odometer Counter in Bottom-Left Corner */}
-          <div className="mv-look" aria-live="polite">
-            <span>{browseMode === "pieces" ? "Piece" : "Outfit"}</span>
+          {/* Iconic Rolling Odometer Counter + Prev/Next Runway Stepper in Bottom-Left Corner */}
+          <div className="mv-look flex items-center gap-1.5" aria-live="polite">
+            <button
+              type="button"
+              onClick={() => {
+                const N = Math.max(1, runwayOutfits.length);
+                jumpLookRef.current?.((safeActiveIdx - 1 + N) % N);
+              }}
+              aria-label="Previous outfit"
+              className="w-5 h-5 rounded-full bg-[#F1F2F5] hover:bg-[#E2E5EC] text-[#141518] inline-flex items-center justify-center cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span>{browseMode === "pieces" ? "3D Item" : "Outfit"}</span>
             <span className="mv-win">
               <span className="mv-roll" ref={rollRef} />
             </span>
+            <button
+              type="button"
+              onClick={() => {
+                const N = Math.max(1, runwayOutfits.length);
+                jumpLookRef.current?.((safeActiveIdx + 1) % N);
+              }}
+              aria-label="Next outfit"
+              className="w-5 h-5 rounded-full bg-[#F1F2F5] hover:bg-[#E2E5EC] text-[#141518] inline-flex items-center justify-center cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </section>
 

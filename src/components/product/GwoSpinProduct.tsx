@@ -530,7 +530,7 @@ export function GwoSpinProduct() {
                   : "text-[#686D76] hover:text-[#141518]"
               }`}
             >
-              <Rotate3d className="w-3.5 h-3.5 text-[#A7D7C5]" /> Lifelike 360°
+              <Rotate3d className="w-3.5 h-3.5 text-[#A7D7C5]" /> 3D Character
             </button>
             <button
               type="button"
@@ -542,7 +542,7 @@ export function GwoSpinProduct() {
                   : "text-[#686D76] hover:text-[#141518]"
               }`}
             >
-              <Box className="w-3.5 h-3.5 text-[#A7D7C5]" /> Garment Spin
+              <Box className="w-3.5 h-3.5 text-[#A7D7C5]" /> 3D Item Mesh
             </button>
             <button
               type="button"

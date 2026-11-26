@@ -1,7 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import {
+  Box,
   Eye,
   Flame,
   Pause,
@@ -24,13 +27,17 @@ import {
 import {
   analyzeExactAvatarFit,
   AvatarExactFitReport,
-  ZoneFeel,
 } from "@/lib/catalog/fit-intelligence";
+import { classifyWearableSlotAndAnchors } from "@/lib/three/avatar-ready-pipeline";
 import {
-  composeModularOutfitToCanvas,
-  getCachedOrLoadImage,
-  preloadCoreModularLayers,
-} from "@/lib/three/modular-outfit-compositor";
+  BodyMorphUniforms,
+  createBodyMorphUniforms,
+  loadCharacterGlbInstance,
+  loadStandalone3DItemInstance,
+  loadWearable3DItemInstance,
+  preloadCore3DGlbs,
+  syncBodyMorphUniforms,
+} from "@/lib/three/glb-character-engine";
 
 export interface Interactive3DAvatarStageProps {
   mode?: "avatar" | "product";
@@ -59,38 +66,45 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
 
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
+function createFloorShadowTexture(): THREE.CanvasTexture {
+  const S = 256;
+  const cv = document.createElement("canvas");
+  cv.width = S;
+  cv.height = S;
+  const ctx = cv.getContext("2d")!;
+  const grad = ctx.createRadialGradient(S / 2, S / 2, 8, S / 2, S / 2, S / 2);
+  grad.addColorStop(0.0, "rgba(20, 22, 28, 0.24)");
+  grad.addColorStop(0.55, "rgba(20, 22, 28, 0.08)");
+  grad.addColorStop(1.0, "rgba(20, 22, 28, 0.0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, S, S);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.needsUpdate = true;
+  return tex;
 }
 
-function smoothstep(e0: number, e1: number, x: number): number {
-  const t = clamp((x - e0) / Math.max(1e-5, e1 - e0), 0, 1);
-  return t * t * (3 - 2 * t);
-}
-
-function feelColorRgba(feel: ZoneFeel, alpha = 0.34): string {
-  switch (feel) {
-    case "too_tight":
-      return `rgba(239, 68, 68, ${alpha})`;
-    case "sculpted_snug":
-      return `rgba(245, 158, 11, ${alpha})`;
-    case "tailored_ideal":
-      return `rgba(16, 185, 129, ${alpha})`;
-    case "relaxed_skim":
-      return `rgba(6, 182, 212, ${alpha})`;
-    case "oversized_roomy":
-    default:
-      return `rgba(99, 102, 241, ${alpha})`;
+function create3DTapeRing(rx: number, rz: number, y: number, hexColor: string): THREE.Line {
+  const segs = 72;
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i <= segs; i++) {
+    const a = (i / segs) * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(a) * rx, y, Math.sin(a) * rz));
   }
+  const geom = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(hexColor),
+    transparent: true,
+    opacity: 0.88,
+  });
+  return new THREE.Line(geom, mat);
 }
 
 /**
- * 100% PHOTOREALISTIC LIFELIKE 360° BODY-MORPHING AVATAR & 3D PRODUCT TURNTABLE
- * Zero wooden/plastic mannequins — renders real studio human photography with:
- * - Smooth 360° drag-to-spin (Front 0° -> 45° -> Side 90° -> 135° -> Back 180° -> 270°)
- * - Real-time exact-inch anatomical scanline warping (Bust, Waist, Hips, Shoulders, Height)
- * - Seamless multi-slot Top + Bottom + Held Handbag mix-and-match compositing
- * - 3D occluded glowing Body-Scan Tape Rings & Garment-Masked Fit Heatmap!
+ * REAL-TIME WEBGL THREE.JS 3D CHARACTER AVATAR & 3D IN-APP GARMENT ENGINE
+ * - Loads the persistent 3D Character (`avatar_character.glb`) into WebGL
+ * - Equips each individual clothing piece, shoe, belt, and bag as its OWN 3D `.glb` mesh (`items/<sku>.glb`)
+ * - Morphs the 3D Character + all equipped 3D Garments in real time on the GPU to match scanned Height, Bust, Waist & Hips
+ * - Supports continuous 0°..360° 3D orbit, raycast tap-on-3D-garment selection, 3D tape rings, and standalone 3D item spin!
  */
 export function Interactive3DAvatarStage({
   mode = "avatar",
@@ -115,30 +129,18 @@ export function Interactive3DAvatarStage({
   className = "",
 }: Interactive3DAvatarStageProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const offscreenCompRef = useRef<HTMLCanvasElement | null>(null);
-  const needsPaintRef = useRef<boolean>(true);
   const onYawChangeRef = useRef(onYawChange);
   onYawChangeRef.current = onYawChange;
   const onSelectProductRef = useRef(onSelectProduct);
   onSelectProductRef.current = onSelectProduct;
 
-  // Interactive 360° yaw, inertia velocity, 3D tilt pitch, and zoom state refs
   const yawRef = useRef<number>((initialYawDeg * Math.PI) / 180);
   const targetYawRef = useRef<number>((initialYawDeg * Math.PI) / 180);
   const velYawRef = useRef<number>(0);
-  const pitchRef = useRef<number>(0);
-  const targetPitchRef = useRef<number>(0);
+  const pitchRef = useRef<number>(0.02);
+  const targetPitchRef = useRef<number>(0.02);
   const zoomRef = useRef<number>(1.0);
   const targetZoomRef = useRef<number>(1.0);
-
-  // Remember painted bounding box for accurate click-on-garment hit testing
-  const paintedAvatarBoxRef = useRef<{
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-  }>({ x: 0, y: 0, w: 1, h: 1 });
 
   const [internalVisualMode, setInternalVisualMode] =
     useState<Render3DVisualMode>("studio");
@@ -158,49 +160,50 @@ export function Interactive3DAvatarStage({
     product: Product;
     fit?: AvatarExactFitReport;
   } | null>(null);
-  const [isStreamingLayer, setIsStreamingLayer] = useState<boolean>(false);
-  const streamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isLoading3D, setIsLoading3D] = useState<boolean>(false);
 
-  useEffect(() => {
-    preloadCoreModularLayers();
-    return () => {
-      if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
-    };
-  }, []);
+  // Persistent Three.js scene graph refs
+  const threeCtxRef = useRef<{
+    renderer: THREE.WebGLRenderer;
+    scene: THREE.Scene;
+    camera: THREE.PerspectiveCamera;
+    turntable: THREE.Group;
+    characterGroup: THREE.Group;
+    equippedGroup: THREE.Group;
+    productGroup: THREE.Group;
+    ringsGroup: THREE.Group;
+    faceDecalGroup: THREE.Group;
+    charUniforms: BodyMorphUniforms;
+    itemUniformsList: Array<{
+      uniforms: BodyMorphUniforms;
+      product: Product;
+      isRigidBag: boolean;
+    }>;
+  } | null>(null);
 
-  const markStreaming = useCallback((pending: boolean) => {
-    if (!pending) {
-      if (streamTimerRef.current) {
-        clearTimeout(streamTimerRef.current);
-        streamTimerRef.current = null;
-      }
-      setIsStreamingLayer(false);
-    } else if (!streamTimerRef.current) {
-      streamTimerRef.current = setTimeout(() => {
-        setIsStreamingLayer(true);
-      }, 140);
-    }
-  }, []);
+  const equipReqIdRef = useRef<number>(0);
 
   const setVisualMode = useCallback(
     (m: Render3DVisualMode) => {
       setInternalVisualMode(m);
       onVisualModeChange?.(m);
-      needsPaintRef.current = true;
     },
     [onVisualModeChange]
   );
+
+  useEffect(() => {
+    preloadCore3DGlbs();
+  }, []);
 
   useEffect(() => {
     if (typeof externalYawDeg === "number") {
       setAutoSpin(false);
       velYawRef.current = 0;
       targetYawRef.current = (externalYawDeg * Math.PI) / 180;
-      needsPaintRef.current = true;
     }
   }, [externalYawDeg]);
 
-  // Compute exact fit reports for all worn pieces against the customer's scanned body
+  // Fit reports per worn piece
   const fitByProductId = useMemo(() => {
     const map = new Map<string, AvatarExactFitReport>();
     const list =
@@ -226,6 +229,9 @@ export function Interactive3DAvatarStage({
     return map;
   }, [dimensions, mode, selectedSize, singleProduct, wornPieces]);
 
+  const fitByProductIdRef = useRef(fitByProductId);
+  fitByProductIdRef.current = fitByProductId;
+
   useEffect(() => {
     if (selectedProductId) {
       const found = wornPieces.find((w) => w.product.id === selectedProductId);
@@ -238,58 +244,149 @@ export function Interactive3DAvatarStage({
     }
   }, [fitByProductId, selectedProductId, wornPieces]);
 
-  // Trigger repaint whenever props change
-  useEffect(() => {
-    needsPaintRef.current = true;
-  }, [
-    activeVisualMode,
-    dimensions,
-    effectiveShowRings,
-    faceOvalDataUrl,
-    fitByProductId,
-    mode,
-    selectedSize,
-    singleProduct,
-    wornPieces,
-  ]);
+  // Partition wornPieces into unique wearable 3D slots (ONLY equipping items present in wornPieces!)
+  const slotEquippedProducts = useMemo(() => {
+    const chosen = new Map<string, Product>();
+    let hasDress = false;
+    for (const w of wornPieces) {
+      const slot = classifyWearableSlotAndAnchors(w.product).slot;
+      if (slot === "dress" && !hasDress) {
+        hasDress = true;
+        chosen.set("dress", w.product);
+      } else if ((slot === "top" || slot === "bottom") && hasDress) {
+        continue;
+      } else if (!chosen.has(slot)) {
+        chosen.set(slot, w.product);
+      }
+    }
+    if (hasDress) {
+      chosen.delete("top");
+      chosen.delete("bottom");
+    }
+    return Array.from(chosen.values());
+  }, [wornPieces]);
 
-  // Main High-DPI 60fps Photorealistic Turnaround + Body-Scan Mesh-Warp Renderer
+  const equippedSignature = useMemo(
+    () =>
+      mode === "product"
+        ? `product:${singleProduct?.id || wornPieces[0]?.product.id || "none"}:${
+            singleProduct?.imageUrl || ""
+          }`
+        : `avatar:${slotEquippedProducts
+            .map((p) => `${p.id}:${p.imageUrl || ""}`)
+            .join("|")}`,
+    [mode, singleProduct, slotEquippedProducts, wornPieces]
+  );
+
+  // 1. Mount WebGL Three.js Renderer, Studio Lighting, Floor Shadow & Persistent 3D Character!
   useEffect(() => {
     const wrapEl = wrapRef.current;
-    const cv = canvasRef.current;
-    if (!wrapEl || !cv) return;
-    const ctx = cv.getContext("2d");
-    if (!ctx) return;
+    if (!wrapEl) return;
 
-    if (!offscreenCompRef.current) {
-      offscreenCompRef.current = document.createElement("canvas");
-      offscreenCompRef.current.width = 900;
-      offscreenCompRef.current.height = 1355;
-    }
-    const compCv = offscreenCompRef.current;
-    const compCtx = compCv.getContext("2d")!;
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.display = "block";
+    renderer.domElement.style.touchAction = "pan-y";
+    wrapEl.innerHTML = "";
+    wrapEl.appendChild(renderer.domElement);
 
-    let dpr = Math.min(window.devicePixelRatio || 1, 2);
-    let viewW = 400;
-    let viewH = 560;
+    const scene = new THREE.Scene();
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = envTex;
+    scene.environmentIntensity = 0.52;
 
-    const resize = () => {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      viewW = Math.max(120, wrapEl.clientWidth);
-      viewH = Math.max(140, wrapEl.clientHeight);
-      const nextW = Math.round(viewW * dpr);
-      const nextH = Math.round(viewH * dpr);
-      if (cv.width !== nextW || cv.height !== nextH) {
-        cv.width = nextW;
-        cv.height = nextH;
-      }
-      needsPaintRef.current = true;
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xece8e2, 1.38);
+    scene.add(hemi);
+    const keyLight = new THREE.DirectionalLight(0xfffdf9, 1.42);
+    keyLight.position.set(1.8, 2.5, 2.9);
+    scene.add(keyLight);
+    const fillLight = new THREE.DirectionalLight(0xf3f6ff, 0.72);
+    fillLight.position.set(-2.0, 1.6, 1.9);
+    scene.add(fillLight);
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.62);
+    rimLight.position.set(0.0, 2.2, -2.6);
+    scene.add(rimLight);
+
+    const camera = new THREE.PerspectiveCamera(28, 1, 0.08, 25);
+
+    const turntable = new THREE.Group();
+    scene.add(turntable);
+
+    // Soft radial floor contact shadow disc
+    const shadowTex = createFloorShadowTexture();
+    const shadowPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.92, 0.68),
+      new THREE.MeshBasicMaterial({
+        map: shadowTex,
+        transparent: true,
+        depthWrite: false,
+      })
+    );
+    shadowPlane.rotation.x = -Math.PI / 2;
+    shadowPlane.position.y = 0.002;
+    scene.add(shadowPlane);
+
+    const characterGroup = new THREE.Group();
+    const equippedGroup = new THREE.Group();
+    const productGroup = new THREE.Group();
+    const ringsGroup = new THREE.Group();
+    const faceDecalGroup = new THREE.Group();
+
+    turntable.add(characterGroup);
+    turntable.add(equippedGroup);
+    turntable.add(productGroup);
+    turntable.add(ringsGroup);
+    turntable.add(faceDecalGroup);
+
+    const charUniforms = createBodyMorphUniforms();
+
+    threeCtxRef.current = {
+      renderer,
+      scene,
+      camera,
+      turntable,
+      characterGroup,
+      equippedGroup,
+      productGroup,
+      ringsGroup,
+      faceDecalGroup,
+      charUniforms,
+      itemUniformsList: [],
     };
-    resize();
-    const ro = new ResizeObserver(resize);
+
+    // Load Persistent Lifelike 3D Character (`avatar_character.glb`)
+    let disposed = false;
+    void loadCharacterGlbInstance(charUniforms).then((charMesh) => {
+      if (disposed) return;
+      characterGroup.clear();
+      characterGroup.add(charMesh);
+    });
+
+    const updateLayout = () => {
+      const w = Math.max(120, wrapEl.clientWidth);
+      const h = Math.max(140, wrapEl.clientHeight);
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    };
+    updateLayout();
+    const ro = new ResizeObserver(updateLayout);
     ro.observe(wrapEl);
 
-    // Pointer Drag (360° Spin + Inertia + Tilt) + Click-on-Garment Selection
+    // Interactive 360° Orbit, Pitch, Zoom & Raycast Garment Picking
+    const dom = renderer.domElement;
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
     let dragging = false;
     let startX = 0;
     let startY = 0;
@@ -309,7 +406,7 @@ export function Interactive3DAvatarStage({
       velYawRef.current = 0;
       startYaw = targetYawRef.current;
       startPitch = targetPitchRef.current;
-      cv.setPointerCapture(e.pointerId);
+      dom.setPointerCapture(e.pointerId);
     };
 
     const onPointerMove = (e: PointerEvent) => {
@@ -327,12 +424,11 @@ export function Interactive3DAvatarStage({
         setAutoSpin(false);
       }
       if (inertiaSpin) {
-        const instV = (stepDx * 0.014) / dtMove;
+        const instV = (stepDx * 0.015) / dtMove;
         velYawRef.current = velYawRef.current * 0.55 + clamp(instV, -9, 9) * 0.45;
       }
-      targetYawRef.current = startYaw + dx * 0.014;
+      targetYawRef.current = startYaw + dx * 0.015;
       targetPitchRef.current = clamp(startPitch + dy * 0.004, -0.22, 0.28);
-      needsPaintRef.current = true;
     };
 
     const onPointerUp = (e: PointerEvent) => {
@@ -342,64 +438,24 @@ export function Interactive3DAvatarStage({
         velYawRef.current = 0;
       }
       try {
-        cv.releasePointerCapture(e.pointerId);
+        dom.releasePointerCapture(e.pointerId);
       } catch {
         // ignore
       }
-      if (movedDist < 6 && mode === "avatar" && wornPieces.length > 0) {
-        const rect = cv.getBoundingClientRect();
-        const px = e.clientX - rect.left;
-        const py = e.clientY - rect.top;
-        const box = paintedAvatarBoxRef.current;
-        if (
-          px >= box.x &&
-          px <= box.x + box.w &&
-          py >= box.y &&
-          py <= box.y + box.h
-        ) {
-          const u = (px - box.x) / box.w;
-          const v = (py - box.y) / box.h;
 
-          const bagSpec = wornPieces.find(
-            (w) =>
-              w.product.category === "accessory" &&
-              /bag|tote|crescent|purse/i.test(w.product.title)
-          );
-          const shoeSpec = wornPieces.find((w) => w.product.category === "shoes");
-          const beltSpec = wornPieces.find(
-            (w) =>
-              w.product.category === "accessory" && /belt/i.test(w.product.title)
-          );
-          const outerSpec = wornPieces.find(
-            (w) => w.product.category === "outerwear"
-          );
-          const topOrDress = wornPieces.find(
-            (w) => w.product.category === "top" || w.product.category === "dress"
-          );
-          const botSpec = wornPieces.find(
-            (w) => w.product.category === "bottom" || w.product.category === "dress"
-          );
-
-          let picked: Worn3DPieceSpec | undefined;
-          const hitShoulderBag = u >= 0.52 && v >= 0.18 && v <= 0.52;
-          const hitHandBag = u >= 0.24 && u <= 0.44 && v >= 0.5 && v <= 0.72;
-          if (bagSpec && (hitShoulderBag || hitHandBag)) {
-            picked = bagSpec;
-          } else if (shoeSpec && v >= 0.86) {
-            picked = shoeSpec;
-          } else if (beltSpec && v >= 0.35 && v <= 0.42) {
-            picked = beltSpec;
-          } else if (v < 0.43) {
-            picked = outerSpec || topOrDress || wornPieces[0];
-          } else {
-            picked = botSpec || topOrDress || wornPieces[0];
-          }
-
-          if (picked) {
-            const fit = fitByProductId.get(picked.product.id);
-            setTappedInfo({ product: picked.product, fit });
-            onSelectProductRef.current?.(picked.product, fit);
-          }
+      // True 3D Raycast Tap-on-Garment Selection!
+      if (movedDist < 6 && equippedGroup.children.length > 0) {
+        const rect = dom.getBoundingClientRect();
+        ndc.x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+        ndc.y = -((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
+        raycaster.setFromCamera(ndc, camera);
+        const hits = raycaster.intersectObjects(equippedGroup.children, true);
+        const hitMesh = hits.find((h) => h.object.userData?.product);
+        if (hitMesh) {
+          const prod = hitMesh.object.userData.product as Product;
+          const fit = fitByProductIdRef.current.get(prod.id);
+          setTappedInfo({ product: prod, fit });
+          onSelectProductRef.current?.(prod, fit);
         }
       }
     };
@@ -412,528 +468,310 @@ export function Interactive3DAvatarStage({
           0.78,
           1.55
         );
-        needsPaintRef.current = true;
       }
     };
 
-    cv.addEventListener("pointerdown", onPointerDown);
-    cv.addEventListener("pointermove", onPointerMove);
-    cv.addEventListener("pointerup", onPointerUp);
-    cv.addEventListener("pointercancel", onPointerUp);
-    cv.addEventListener("wheel", onWheel, { passive: false });
-
-    const requestRepaint = () => {
-      needsPaintRef.current = true;
-    };
-
-    // Atomically compose 900x1355 modular RGBA layers onto offscreen compCv BEFORE touching visible canvas!
-    const composeAngleLayer = (
-      angleKind: "front" | "side" | "back",
-      mirrorSide: boolean
-    ): boolean => {
-      const productsList = wornPieces.map((w) => w.product);
-      let status = composeModularOutfitToCanvas({
-        ctx: compCtx,
-        products: productsList,
-        angle: angleKind,
-        mirrorHorizontal: mirrorSide,
-        faceOvalDataUrl,
-        onAssetReady: requestRepaint,
-      });
-
-      // Graceful instant fallback to front view while 90° side profile asset streams in
-      if (status !== "ready" && angleKind === "side") {
-        status = composeModularOutfitToCanvas({
-          ctx: compCtx,
-          products: productsList,
-          angle: "front",
-          mirrorHorizontal: mirrorSide,
-          faceOvalDataUrl: undefined,
-          onAssetReady: requestRepaint,
-        });
-      }
-
-      if (status !== "ready") {
-        return false;
-      }
-
-      // Garment-Masked Fit Heatmap Tint (keeps real photorealistic face, hair, skin & folds 100% lifelike!)
-      if (activeVisualMode === "heatmap") {
-        const primarySpec = wornPieces[0];
-        const fit = primarySpec ? fitByProductId.get(primarySpec.product.id) : undefined;
-        const bFeel = fit?.zones.find((z) => z.zone === "Bust")?.feel || "tailored_ideal";
-        const wFeel = fit?.zones.find((z) => z.zone === "Waist")?.feel || "tailored_ideal";
-        const hFeel = fit?.zones.find((z) => z.zone === "Hips")?.feel || "tailored_ideal";
-
-        compCtx.save();
-        compCtx.globalCompositeOperation = "source-atop";
-        const grad = compCtx.createLinearGradient(0, 1355 * 0.22, 0, 1355 * 0.86);
-        grad.addColorStop(0.0, "rgba(16, 185, 129, 0)");
-        grad.addColorStop(0.08, feelColorRgba(bFeel, 0.34));
-        grad.addColorStop(0.26, feelColorRgba(wFeel, 0.38));
-        grad.addColorStop(0.48, feelColorRgba(hFeel, 0.34));
-        grad.addColorStop(0.92, feelColorRgba(hFeel, 0.22));
-        grad.addColorStop(1.0, "rgba(16, 185, 129, 0)");
-        compCtx.fillStyle = grad;
-        compCtx.fillRect(900 * 0.22, 1355 * 0.22, 900 * 0.56, 1355 * 0.68);
-        compCtx.restore();
-      }
-
-      return true;
-    };
-
-    const paintProduct3D = () => {
-      const prod = singleProduct || wornPieces[0]?.product;
-      if (!prod || !prod.imageUrl) return;
-
-      // CRITICAL ZERO-FLICKER GUARD: never clear canvas until new product image is 100% decoded!
-      const im = getCachedOrLoadImage(prod.imageUrl, requestRepaint);
-      if (!im) {
-        markStreaming(true);
-        return;
-      }
-      markStreaming(false);
-
-      ctx.save();
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, viewW, viewH);
-
-      const yaw = yawRef.current;
-      const pitch = pitchRef.current;
-      const zoom = zoomRef.current;
-
-      const cosY = Math.cos(yaw);
-      const sinY = Math.sin(yaw);
-      const absCos = Math.abs(cosY);
-      const perspX = (0.28 + 0.72 * absCos) * (cosY >= 0 ? 1 : -1);
-      const perspY = 1 - Math.abs(pitch) * 0.14;
-
-      const maxBoxW = viewW * 0.76 * zoom;
-      const maxBoxH = viewH * 0.76 * zoom;
-      const imgAspect = im.naturalWidth / Math.max(1, im.naturalHeight);
-      let drawW = maxBoxW;
-      let drawH = drawW / imgAspect;
-      if (drawH > maxBoxH) {
-        drawH = maxBoxH;
-        drawW = drawH * imgAspect;
-      }
-
-      const cx = viewW / 2;
-      const cy = viewH * 0.48 + pitch * 26;
-
-      // Studio Floating Pedestal Shadow
-      const shadowGrad = ctx.createRadialGradient(
-        cx,
-        viewH * 0.88,
-        6,
-        cx,
-        viewH * 0.88,
-        drawW * 0.55
-      );
-      shadowGrad.addColorStop(0, "rgba(20, 21, 24, 0.20)");
-      shadowGrad.addColorStop(1, "rgba(20, 21, 24, 0)");
-      ctx.fillStyle = shadowGrad;
-      ctx.beginPath();
-      ctx.ellipse(
-        cx,
-        viewH * 0.88,
-        Math.max(28, drawW * 0.46 * (0.45 + 0.55 * absCos)),
-        11,
-        0,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
-
-      // 10-Layer 3D Fabric Volume Extrusion Stack + Pure Alpha-Isolated Garment Cutout!
-      const thicknessPx = 14 * Math.abs(sinY) * zoom;
-      const layers = 10;
-      for (let l = layers; l >= 0; l--) {
-        const depthOffset = (l / layers - 0.5) * thicknessPx * (sinY >= 0 ? 1 : -1);
-        ctx.save();
-        ctx.translate(cx + depthOffset, cy);
-        ctx.scale(perspX, perspY);
-        if (l > 0) {
-          ctx.filter = "brightness(0.86) contrast(1.04)";
-          ctx.globalAlpha = 0.45;
-        } else {
-          ctx.filter = "none";
-          ctx.globalAlpha = 1;
-        }
-        ctx.drawImage(im, -drawW / 2, -drawH / 2, drawW, drawH);
-        ctx.restore();
-      }
-
-      // Dynamic Sweeping Studio Rim Specular Sheen as product rotates in 3D
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.scale(Math.abs(perspX), perspY);
-      ctx.globalCompositeOperation = "source-atop";
-      const sheenX = sinY * drawW * 0.45;
-      const sheen = ctx.createLinearGradient(
-        sheenX - drawW * 0.25,
-        -drawH / 2,
-        sheenX + drawW * 0.25,
-        drawH / 2
-      );
-      sheen.addColorStop(0, "rgba(255,255,255,0)");
-      sheen.addColorStop(0.5, "rgba(255,255,255,0.16)");
-      sheen.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.fillStyle = sheen;
-      ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
-      ctx.restore();
-
-      ctx.restore();
-    };
-
-    const paintAvatar = () => {
-      const normDeg =
-        ((((yawRef.current * 180) / Math.PI) % 360) + 360) % 360;
-      const pitch = pitchRef.current;
-      const zoom = zoomRef.current;
-
-      // Determine quadrant angle for silky 360° turnaround (0° Front, 90° Right Side, 180° Back, 270° Left Side)
-      let primaryKind: "front" | "side" | "back" = "front";
-      let mirrorSide = false;
-      let foreshorten = 1.0;
-
-      if (normDeg >= 56 && normDeg < 124) {
-        primaryKind = "side";
-        mirrorSide = false;
-        const dist90 = Math.abs(normDeg - 90) / 34;
-        foreshorten = lerp(1.0, 0.9, dist90);
-      } else if (normDeg >= 124 && normDeg < 236) {
-        primaryKind = "back";
-        const dist180 = Math.abs(normDeg - 180) / 56;
-        foreshorten = lerp(1.0, 0.88, dist180);
-      } else if (normDeg >= 236 && normDeg < 304) {
-        primaryKind = "side";
-        mirrorSide = true;
-        const dist270 = Math.abs(normDeg - 270) / 34;
-        foreshorten = lerp(1.0, 0.9, dist270);
-      } else {
-        primaryKind = "front";
-        const dist0 = Math.min(normDeg, 360 - normDeg) / 56;
-        foreshorten = lerp(1.0, 0.88, dist0);
-      }
-
-      // CRITICAL ZERO-FLICKER GUARD: compose offscreen FIRST; if any layer is still downloading, keep current frame on screen!
-      const ready = composeAngleLayer(primaryKind, mirrorSide);
-      if (!ready) {
-        markStreaming(true);
-        return;
-      }
-      markStreaming(false);
-
-      ctx.save();
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, viewW, viewH);
-
-      // Compute Photorealistic Body-Scan Proportions relative to baseline 5'2" (32.25 / 27 / 34)
-      const heightScale = clamp(dimensions.heightInches / 62, 0.92, 1.10);
-      const sShoulder = clamp(dimensions.shoulderInches / 15.0, 0.88, 1.20);
-      const sBust = clamp(dimensions.bustInches / 32.25, 0.86, 1.34);
-      const sWaist = clamp(dimensions.waistInches / 27.0, 0.80, 1.34);
-      const sHips = clamp(dimensions.hipsInches / 34.0, 0.86, 1.36);
-
-      const widthWarpAtV = (v: number): number => {
-        if (v < 0.175) return 1.0; // Never distort head/face!
-        if (v < 0.215) return lerp(1.0, sShoulder, smoothstep(0.175, 0.215, v));
-        if (v < 0.285) return lerp(sShoulder, sBust, smoothstep(0.215, 0.285, v));
-        if (v < 0.37) return lerp(sBust, sWaist, smoothstep(0.285, 0.37, v));
-        if (v < 0.485) return lerp(sWaist, sHips, smoothstep(0.37, 0.485, v));
-        if (v < 0.66) return lerp(sHips, lerp(sHips, 1.0, 0.55), smoothstep(0.485, 0.66, v));
-        if (v < 0.86) return lerp(lerp(sHips, 1.0, 0.55), 1.0, smoothstep(0.66, 0.86, v));
-        return 1.0;
-      };
-
-      // Commanding Stage Framing (fills ~92% of stage height cleanly above bottom HUD!)
-      const bottomMargin = showHud ? (compactHud ? 34 : 44) : 10;
-      const topMargin = showHud ? (compactHud ? 26 : 34) : 8;
-      const availH = Math.max(120, viewH - topMargin - bottomMargin);
-      const baseH = Math.min(availH * 0.98 * heightScale, viewW * 1.42) * zoom;
-      const baseW = baseH * (900 / 1355);
-
-      const centerX = viewW / 2;
-      const bottomY = viewH - bottomMargin + pitch * 16;
-      const topY = bottomY - baseH;
-
-      paintedAvatarBoxRef.current = {
-        x: centerX - baseW / 2,
-        y: topY,
-        w: baseW,
-        h: baseH,
-      };
-
-      // 1. Floor Contact Shadow (Seamless on NYC Loft floor when `seamlessStage` is true!)
-      const podiumRx = Math.max(64, baseW * 0.42);
-      const podiumRy = Math.max(10, podiumRx * (0.15 + Math.max(0, pitch) * 0.18));
-      const podiumGrad = ctx.createRadialGradient(
-        centerX,
-        bottomY - 4,
-        8,
-        centerX,
-        bottomY - 4,
-        podiumRx * 1.15
-      );
-      podiumGrad.addColorStop(0, seamlessStage ? "rgba(24, 22, 21, 0.28)" : "rgba(25, 28, 34, 0.22)");
-      podiumGrad.addColorStop(0.75, seamlessStage ? "rgba(24, 22, 21, 0.08)" : "rgba(25, 28, 34, 0.06)");
-      podiumGrad.addColorStop(1, "rgba(25, 28, 34, 0)");
-      ctx.fillStyle = podiumGrad;
-      ctx.beginPath();
-      ctx.ellipse(centerX, bottomY - 3, podiumRx * 1.06, podiumRy, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (!seamlessStage) {
-        ctx.strokeStyle = "rgba(36, 75, 59, 0.20)";
-        ctx.lineWidth = 1.25;
-        ctx.beginPath();
-        ctx.ellipse(centerX, bottomY - 3, podiumRx * 0.88, podiumRy * 0.82, 0, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      // Helper for 3D Occluded Body-Scan Tape Rings (back half behind body, front half in front!)
-      const tapeRings = [
-        {
-          v: 0.285,
-          color: "#10B981",
-          label: `${dimensions.bustInches}" B`,
-          rxFactor: 0.21 * sBust,
-        },
-        {
-          v: 0.372,
-          color: "#244B3B",
-          label: `${dimensions.waistInches}" W`,
-          rxFactor: 0.175 * sWaist,
-        },
-        {
-          v: 0.482,
-          color: "#0EA5E9",
-          label: `${dimensions.hipsInches}" H`,
-          rxFactor: 0.235 * sHips,
-        },
-      ];
-
-      if (effectiveShowRings || activeVisualMode === "xray") {
-        // Draw BACK half of 3D tape ellipses BEFORE drawing the human cutout!
-        for (const ring of tapeRings) {
-          const ry = topY + baseH * ring.v;
-          const rx = baseW * ring.rxFactor * foreshorten;
-          ctx.save();
-          ctx.strokeStyle = ring.color;
-          ctx.globalAlpha = 0.45;
-          ctx.lineWidth = 2;
-          ctx.setLineDash([4, 3]);
-          ctx.beginPath();
-          ctx.ellipse(centerX, ry, rx, Math.max(5, rx * 0.2), 0, Math.PI, Math.PI * 2);
-          ctx.stroke();
-          ctx.restore();
-        }
-      }
-
-      // 2. Render 96-Slice Scanline-Warped Photorealistic Human Avatar!
-      const SLICES = 96;
-      const srcSliceH = 1355 / SLICES;
-      const dstSliceH = baseH / SLICES;
-
-      for (let i = 0; i < SLICES; i++) {
-        const v = (i + 0.5) / SLICES;
-        const wScale = widthWarpAtV(v) * foreshorten;
-        const dw = baseW * wScale;
-        const dx = centerX - dw / 2;
-        const dy = topY + i * dstSliceH;
-        // 0.8px overlap prevents subpixel horizontal hairlines on fractional DPRs
-        ctx.drawImage(
-          compCv,
-          0,
-          Math.max(0, i * srcSliceH - 0.4),
-          900,
-          Math.min(1355 - i * srcSliceH, srcSliceH + 0.9),
-          dx,
-          dy - 0.35,
-          dw,
-          dstSliceH + 0.75
-        );
-      }
-
-      // 3. Draw FRONT half of 3D Body-Scan Tape Ellipses + Exact Inch Callouts OVER her front!
-      if (effectiveShowRings || activeVisualMode === "xray") {
-        const primarySpec = wornPieces[0];
-        const fit = primarySpec ? fitByProductId.get(primarySpec.product.id) : undefined;
-
-        tapeRings.forEach((ring, idx) => {
-          const ry = topY + baseH * ring.v;
-          const rx = baseW * ring.rxFactor * foreshorten;
-          ctx.save();
-          ctx.strokeStyle = ring.color;
-          ctx.lineWidth = 2.4;
-          ctx.shadowColor = "rgba(255,255,255,0.7)";
-          ctx.shadowBlur = 4;
-          ctx.beginPath();
-          ctx.ellipse(centerX, ry, rx, Math.max(5, rx * 0.2), 0, 0, Math.PI);
-          ctx.stroke();
-
-          // Callout pill beside ring
-          if (!compactHud || idx === 1) {
-            const zoneName = idx === 0 ? "Bust" : idx === 1 ? "Waist" : "Hips";
-            const zInfo = fit?.zones.find((z) => z.zone === zoneName);
-            const pillTxt =
-              activeVisualMode === "xray" && zInfo
-                ? `${zoneName}: ${zInfo.easeInches >= 0 ? "+" : ""}${zInfo.easeInches.toFixed(
-                    1
-                  )}" (${zInfo.feelLabel})`
-                : ring.label;
-
-            ctx.font = "700 10px system-ui, -apple-system, sans-serif";
-            const tw = ctx.measureText(pillTxt).width;
-            const px =
-              idx % 2 === 0
-                ? Math.min(viewW - tw - 18, centerX + rx + 8)
-                : Math.max(8, centerX - rx - tw - 20);
-            const py = ry - 9;
-
-            ctx.shadowBlur = 6;
-            ctx.shadowColor = "rgba(20,21,24,0.12)";
-            ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
-            ctx.beginPath();
-            ctx.roundRect(px, py, tw + 12, 18, 9);
-            ctx.fill();
-
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = "#141518";
-            ctx.fillText(pillTxt, px + 6, py + 12.5);
-          }
-          ctx.restore();
-        });
-      }
-
-      ctx.restore();
-    };
+    dom.addEventListener("pointerdown", onPointerDown);
+    dom.addEventListener("pointermove", onPointerMove);
+    dom.addEventListener("pointerup", onPointerUp);
+    dom.addEventListener("pointercancel", onPointerUp);
+    dom.addEventListener("wheel", onWheel, { passive: false });
 
     let rafId = 0;
     let lastTime = performance.now();
     let frameTick = 0;
 
-    const loop = (now: number) => {
+    const animate = (now: number) => {
+      if (disposed) return;
       const dt = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
 
       if (autoSpinRef.current && !dragging) {
-        targetYawRef.current += dt * 0.72;
-        needsPaintRef.current = true;
+        targetYawRef.current += dt * 0.78;
       } else if (inertiaSpin && !dragging && Math.abs(velYawRef.current) > 0.02) {
         targetYawRef.current += velYawRef.current * dt;
         velYawRef.current *= Math.exp(-3.6 * dt);
-        if (Math.abs(velYawRef.current) <= 0.02) {
-          velYawRef.current = 0;
-        }
-        needsPaintRef.current = true;
+        if (Math.abs(velYawRef.current) <= 0.02) velYawRef.current = 0;
       }
 
-      const dYaw = targetYawRef.current - yawRef.current;
-      const dPitch = targetPitchRef.current - pitchRef.current;
-      const dZoom = targetZoomRef.current - zoomRef.current;
+      const damp = 1 - Math.exp(-12 * dt);
+      yawRef.current += (targetYawRef.current - yawRef.current) * damp;
+      pitchRef.current += (targetPitchRef.current - pitchRef.current) * damp;
+      zoomRef.current += (targetZoomRef.current - zoomRef.current) * damp;
 
-      if (
-        Math.abs(dYaw) > 0.0004 ||
-        Math.abs(dPitch) > 0.0004 ||
-        Math.abs(dZoom) > 0.0004
-      ) {
-        const damp = 1 - Math.exp(-12 * dt);
-        yawRef.current += dYaw * damp;
-        pitchRef.current += dPitch * damp;
-        zoomRef.current += dZoom * damp;
-        needsPaintRef.current = true;
+      // Subtle lifelike 3D character breathing poise!
+      const breath = 1.0 + Math.sin(now * 0.0021) * 0.0028;
+      turntable.rotation.y = yawRef.current;
+      turntable.rotation.x = pitchRef.current;
+      characterGroup.scale.y = breath;
+      equippedGroup.scale.y = breath;
+
+      // Frame camera cleanly for either 3D Character (`avatar`) or Standalone 3D Item (`product`)
+      const isProdMode = productGroup.visible;
+      if (isProdMode) {
+        const dist = 1.65 / zoomRef.current;
+        camera.position.set(0, 0.42, dist);
+        camera.lookAt(0, 0.40, 0);
+        shadowPlane.position.y = 0.02;
+        shadowPlane.scale.setScalar(0.68);
+      } else {
+        const hScale = charUniforms.uHeightScale.value;
+        const charTop = 1.58 * hScale;
+        const hudPadFactor = showHud ? (compactHud ? 1.12 : 1.15) : 1.04;
+        const halfFovRad = (camera.fov * Math.PI) / 360;
+        const reqDistH = ((charTop * hudPadFactor) * 0.5) / Math.tan(halfFovRad);
+        const reqDistW = (0.64 / Math.max(0.42, camera.aspect)) / Math.tan(halfFovRad);
+        const dist = Math.max(reqDistH, reqDistW) / zoomRef.current;
+        const lookY = charTop * (showHud ? 0.485 : 0.50);
+        camera.position.set(0, lookY + 0.03, dist);
+        camera.lookAt(0, lookY, 0);
+        shadowPlane.position.y = 0.002;
+        shadowPlane.scale.setScalar(1.0);
       }
 
-      if (needsPaintRef.current) {
-        if (mode === "product") {
-          paintProduct3D();
-        } else {
-          paintAvatar();
-        }
-        needsPaintRef.current = false;
+      renderer.render(scene, camera);
 
-        frameTick++;
-        if (frameTick % 3 === 0) {
-          const deg =
-            (((Math.round((yawRef.current * 180) / Math.PI) % 360) + 360) %
-              360);
-          setLiveDeg(deg);
-          onYawChangeRef.current?.(deg);
-        }
+      frameTick++;
+      if (frameTick % 4 === 0) {
+        const deg =
+          (((Math.round((yawRef.current * 180) / Math.PI) % 360) + 360) % 360);
+        setLiveDeg(deg);
+        onYawChangeRef.current?.(deg);
       }
 
-      rafId = requestAnimationFrame(loop);
+      rafId = requestAnimationFrame(animate);
     };
-    rafId = requestAnimationFrame(loop);
+    rafId = requestAnimationFrame(animate);
 
     return () => {
+      disposed = true;
       cancelAnimationFrame(rafId);
       ro.disconnect();
-      cv.removeEventListener("pointerdown", onPointerDown);
-      cv.removeEventListener("pointermove", onPointerMove);
-      cv.removeEventListener("pointerup", onPointerUp);
-      cv.removeEventListener("pointercancel", onPointerUp);
-      cv.removeEventListener("wheel", onWheel);
+      dom.removeEventListener("pointerdown", onPointerDown);
+      dom.removeEventListener("pointermove", onPointerMove);
+      dom.removeEventListener("pointerup", onPointerUp);
+      dom.removeEventListener("pointercancel", onPointerUp);
+      dom.removeEventListener("wheel", onWheel);
+      envTex.dispose();
+      pmrem.dispose();
+      shadowTex.dispose();
+      renderer.dispose();
+      threeCtxRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    activeVisualMode,
-    compactHud,
-    dimensions,
-    effectiveShowRings,
-    faceOvalDataUrl,
-    fitByProductId,
-    inertiaSpin,
-    markStreaming,
-    mode,
-    seamlessStage,
-    showHud,
-    singleProduct,
-    wornPieces,
-  ]);
+  }, [compactHud, inertiaSpin, seamlessStage, showHud]);
+
+  // 2. Equip / Swap Individual 3D `.glb` Clothing Items Atomically onto the 3D Character (or Standalone 3D Item Mode)!
+  useEffect(() => {
+    const ctx = threeCtxRef.current;
+    if (!ctx) return;
+
+    const reqId = ++equipReqIdRef.current;
+
+    if (mode === "product") {
+      ctx.characterGroup.visible = false;
+      ctx.equippedGroup.visible = false;
+      ctx.faceDecalGroup.visible = false;
+      ctx.ringsGroup.visible = false;
+      ctx.productGroup.visible = true;
+
+      const prod = singleProduct || wornPieces[0]?.product;
+      if (!prod) {
+        ctx.productGroup.clear();
+        return;
+      }
+
+      setIsLoading3D(true);
+      void loadStandalone3DItemInstance(prod)
+        .then((itemGroup) => {
+          if (equipReqIdRef.current !== reqId) return;
+          const box = new THREE.Box3().setFromObject(itemGroup);
+          const center = box.getCenter(new THREE.Vector3());
+          const size = box.getSize(new THREE.Vector3());
+          itemGroup.position.sub(center);
+          const maxDim = Math.max(size.x, size.y, size.z, 0.12);
+          const normScale = 0.68 / maxDim;
+          const holder = new THREE.Group();
+          holder.scale.setScalar(normScale);
+          holder.position.y = 0.42;
+          holder.add(itemGroup);
+
+          ctx.productGroup.clear();
+          ctx.productGroup.add(holder);
+          setIsLoading3D(false);
+        })
+        .catch(() => {
+          if (equipReqIdRef.current === reqId) setIsLoading3D(false);
+        });
+      return;
+    }
+
+    // `mode === "avatar"` — 3D Character + Equipped 3D Garment Items!
+    ctx.productGroup.visible = false;
+    ctx.characterGroup.visible = true;
+    ctx.equippedGroup.visible = true;
+    ctx.faceDecalGroup.visible = Boolean(faceOvalDataUrl);
+
+    if (slotEquippedProducts.length === 0) {
+      ctx.equippedGroup.clear();
+      ctx.itemUniformsList = [];
+      setIsLoading3D(false);
+      return;
+    }
+
+    const loadTimer = setTimeout(() => {
+      if (equipReqIdRef.current === reqId) setIsLoading3D(true);
+    }, 140);
+
+    const tasks = slotEquippedProducts.map(async (prod) => {
+      const slot = classifyWearableSlotAndAnchors(prod).slot;
+      const isRigidBag = slot === "bag";
+      const uniforms = createBodyMorphUniforms();
+      syncBodyMorphUniforms(
+        uniforms,
+        dimensions,
+        activeVisualMode,
+        true,
+        isRigidBag,
+        fitByProductIdRef.current.get(prod.id)
+      );
+      const group = await loadWearable3DItemInstance(prod, uniforms);
+      return { prod, uniforms, isRigidBag, group };
+    });
+
+    void Promise.all(tasks)
+      .then((loadedItems) => {
+        clearTimeout(loadTimer);
+        if (equipReqIdRef.current !== reqId) return;
+
+        // ATOMIC SWAP: replace all equipped 3D garment meshes in a single synchronous frame!
+        ctx.equippedGroup.clear();
+        ctx.itemUniformsList = [];
+        for (const item of loadedItems) {
+          ctx.equippedGroup.add(item.group);
+          ctx.itemUniformsList.push({
+            uniforms: item.uniforms,
+            product: item.prod,
+            isRigidBag: item.isRigidBag,
+          });
+        }
+        setIsLoading3D(false);
+      })
+      .catch(() => {
+        clearTimeout(loadTimer);
+        if (equipReqIdRef.current === reqId) setIsLoading3D(false);
+      });
+
+    return () => {
+      clearTimeout(loadTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [equippedSignature, mode]);
+
+  // 3. Sync Real-Time GPU Body-Scan Inch Morphing, Fit Heatmap & 3D Tape Rings!
+  useEffect(() => {
+    const ctx = threeCtxRef.current;
+    if (!ctx) return;
+
+    syncBodyMorphUniforms(
+      ctx.charUniforms,
+      dimensions,
+      activeVisualMode,
+      false,
+      false
+    );
+    for (const entry of ctx.itemUniformsList) {
+      syncBodyMorphUniforms(
+        entry.uniforms,
+        dimensions,
+        activeVisualMode,
+        true,
+        entry.isRigidBag,
+        fitByProductId.get(entry.product.id)
+      );
+    }
+
+    // Update real 3D WebGL Body-Scan Measurement Rings around Bust, Waist & Hips!
+    ctx.ringsGroup.clear();
+    const show3DRings =
+      mode === "avatar" && (effectiveShowRings || activeVisualMode === "xray");
+    ctx.ringsGroup.visible = show3DRings;
+    if (show3DRings) {
+      const hs = ctx.charUniforms.uHeightScale.value;
+      const bs = ctx.charUniforms.uBodyScales.value;
+      ctx.ringsGroup.add(
+        create3DTapeRing(0.098 * bs.y, 0.088 * bs.y, 1.14 * hs, "#10B981")
+      );
+      ctx.ringsGroup.add(
+        create3DTapeRing(0.084 * bs.z, 0.072 * bs.z, 0.98 * hs, "#244B3B")
+      );
+      ctx.ringsGroup.add(
+        create3DTapeRing(0.108 * bs.w, 0.094 * bs.w, 0.81 * hs, "#0EA5E9")
+      );
+    }
+  }, [activeVisualMode, dimensions, effectiveShowRings, fitByProductId, mode]);
+
+  // 4. Optional Scanned Customer Face 3D Decal Projection
+  useEffect(() => {
+    const ctx = threeCtxRef.current;
+    if (!ctx) return;
+    ctx.faceDecalGroup.clear();
+    if (!faceOvalDataUrl || mode !== "avatar") return;
+
+    const tex = new THREE.TextureLoader().load(faceOvalDataUrl);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.115, 0.135, 12, 12),
+      new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+      })
+    );
+    // Curve slightly around facial front contour
+    const pos = plane.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const px = pos.getX(i);
+      pos.setZ(i, -px * px * 2.2);
+    }
+    pos.needsUpdate = true;
+    plane.position.set(0, 1.405 * ctx.charUniforms.uHeightScale.value, 0.074);
+    ctx.faceDecalGroup.add(plane);
+  }, [dimensions.heightInches, faceOvalDataUrl, mode]);
 
   const snapAngle = (deg: number) => {
     setAutoSpin(false);
     velYawRef.current = 0;
     targetYawRef.current = (deg * Math.PI) / 180;
-    targetPitchRef.current = 0;
-    needsPaintRef.current = true;
+    targetPitchRef.current = 0.02;
   };
 
   return (
     <div
-      data-3d-engine="lifelike-360"
+      data-3d-engine="webgl-glb-character"
       data-3d-mode={mode}
-      data-worn-count={mode === "product" ? 1 : wornPieces.length}
+      data-worn-count={mode === "product" ? 1 : slotEquippedProducts.length}
       className={`relative w-full h-full select-none overflow-hidden ${className}`}
     >
-      {/* Interactive High-DPI Lifelike Canvas */}
+      {/* Interactive WebGL Three.js Viewport */}
       <div
         ref={wrapRef}
         className="w-full h-full cursor-grab active:cursor-grabbing"
-      >
-        <canvas
-          ref={canvasRef}
-          className="w-full h-full block"
-          style={{ touchAction: "pan-y" }}
-        />
-      </div>
+      />
 
-      {/* Non-blanking layer update pill if slow network takes >140ms */}
-      {isStreamingLayer && (
-        <div className="pointer-events-none absolute top-11 left-1/2 -translate-x-1/2 z-20 px-2.5 py-1 rounded-full bg-white/95 border border-black/[0.08] shadow-xs text-[10px] font-bold text-[#244B3B]">
-          Updating outfit…
+      {/* Non-blanking 3D GLB equip indicator if network takes >140ms */}
+      {isLoading3D && (
+        <div className="pointer-events-none absolute top-11 left-1/2 -translate-x-1/2 z-20 px-2.5 py-1 rounded-full bg-white/95 border border-black/[0.08] shadow-xs text-[10px] font-bold text-[#244B3B] inline-flex items-center gap-1">
+          <Box className="w-3 h-3 animate-pulse" /> Equipping 3D Item…
         </div>
       )}
 
-      {/* Top-Left Scanned Body Twin Live Badge (sm+ screens) */}
+      {/* Top-Left Scanned 3D Character Live Badge */}
       {showHud && mode === "avatar" && !compactHud && (
         <div className="pointer-events-none hidden sm:flex absolute top-2.5 left-2.5 z-10 flex-wrap items-center gap-1.5">
           <span className="px-2.5 py-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-xs text-[10.5px] font-bold text-[#141518] inline-flex items-center gap-1">
             <Ruler className="w-3 h-3 text-[#244B3B]" />
-            {formatHeightFeetInches(dimensions.heightInches)} •{" "}
+            3D Character • {formatHeightFeetInches(dimensions.heightInches)} •{" "}
             {dimensions.bustInches}&quot; B • {dimensions.waistInches}&quot; W •{" "}
             {dimensions.hipsInches}&quot; H
           </span>
@@ -943,7 +781,7 @@ export function Interactive3DAvatarStage({
         </div>
       )}
 
-      {/* Top-Right Lifelike Fit Mode Switcher (Lifelike | Fit Map | Ease X-Ray) */}
+      {/* Top-Right 3D Visual Mode Switcher */}
       {showHud && (
         <div
           className={`absolute ${
@@ -959,7 +797,7 @@ export function Interactive3DAvatarStage({
                 : "text-[#686D76] hover:text-[#141518]"
             }`}
           >
-            <Sparkles className="w-2.5 h-2.5" /> Lifelike
+            <Sparkles className="w-2.5 h-2.5" /> 3D Studio
           </button>
           {mode === "avatar" && (
             <>
@@ -971,7 +809,7 @@ export function Interactive3DAvatarStage({
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
-                title="Highlight exact garment fit zones over your lifelike avatar"
+                title="Highlight exact garment fit zones across 3D meshes"
               >
                 <Flame className="w-2.5 h-2.5 text-[#F59E0B]" /> Fit Map
               </button>
@@ -983,16 +821,16 @@ export function Interactive3DAvatarStage({
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
-                title="Show exact inch ease callouts across Bust, Waist & Hips"
+                title="Show 3D Bust / Waist / Hip measurement rings"
               >
-                <Eye className="w-2.5 h-2.5 text-[#0EA5E9]" /> Ease
+                <Eye className="w-2.5 h-2.5 text-[#0EA5E9]" /> 3D Rings
               </button>
             </>
           )}
         </div>
       )}
 
-      {/* Tapped Garment Callout Pill */}
+      {/* Tapped 3D Garment Raycast Callout Pill */}
       {showHud && tappedInfo && !compactHud && (
         <div className="absolute left-2.5 bottom-12 z-10 max-w-[260px] px-3 py-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-black/[0.09] shadow-md flex items-center justify-between gap-2">
           <div className="min-w-0">
@@ -1001,8 +839,8 @@ export function Interactive3DAvatarStage({
             </p>
             {tappedInfo.fit && (
               <p className="text-[10px] font-semibold text-[#244B3B] truncate">
-                Size {tappedInfo.fit.recommendedSize} •{" "}
-                {tappedInfo.fit.confidencePct}% Safe Fit
+                3D Item • Size {tappedInfo.fit.recommendedSize} •{" "}
+                {tappedInfo.fit.confidencePct}% Fit
               </p>
             )}
           </div>
@@ -1034,13 +872,14 @@ export function Interactive3DAvatarStage({
         </div>
       )}
 
-      {/* Bottom Interactive 360° Spin & Zoom Bar */}
+      {/* Bottom Interactive 360° 3D Orbit & Zoom Bar */}
       {showHud && (
         <div className="absolute inset-x-2 bottom-2 z-10 flex items-center justify-center">
           <div className="inline-flex flex-wrap items-center justify-center gap-1 px-2 py-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm">
             {(
               [
                 [0, "Front 0°"],
+                [35, "3/4 35°"],
                 [90, "Side 90°"],
                 [180, "Back 180°"],
               ] as const
@@ -1084,7 +923,7 @@ export function Interactive3DAvatarStage({
                     ? "bg-[#E7F3EE] text-[#1D4232]"
                     : "text-[#686D76] hover:bg-[#EAECEF]"
                 }`}
-                title="Show 3D Bust / Waist / Hip body-scan tape rings"
+                title="Show 3D Bust / Waist / Hip body-scan rings"
               >
                 <Ruler className="w-2.5 h-2.5" /> Tape
               </button>
@@ -1099,7 +938,6 @@ export function Interactive3DAvatarStage({
                       1.55,
                       targetZoomRef.current + 0.14
                     );
-                    needsPaintRef.current = true;
                   }}
                   aria-label="Zoom in"
                   className="hidden sm:inline-flex p-1 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[24px] min-h-[24px] items-center justify-center"
@@ -1113,7 +951,6 @@ export function Interactive3DAvatarStage({
                       0.78,
                       targetZoomRef.current - 0.14
                     );
-                    needsPaintRef.current = true;
                   }}
                   aria-label="Zoom out"
                   className="hidden sm:inline-flex p-1 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[24px] min-h-[24px] items-center justify-center"
@@ -1124,9 +961,8 @@ export function Interactive3DAvatarStage({
                   type="button"
                   onClick={() => {
                     targetYawRef.current = 0;
-                    targetPitchRef.current = 0;
+                    targetPitchRef.current = 0.02;
                     targetZoomRef.current = 1.0;
-                    needsPaintRef.current = true;
                   }}
                   aria-label="Reset view"
                   className="hidden sm:inline-flex p-1 rounded-full hover:bg-[#EAECEF] text-[#686D76] hover:text-[#141518] cursor-pointer min-w-[24px] min-h-[24px] items-center justify-center"

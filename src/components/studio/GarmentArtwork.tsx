@@ -3,6 +3,10 @@
 import React, { useEffect, useState } from "react";
 import { Product } from "@/lib/types";
 import { isolateProductBackgroundClient } from "@/lib/three/avatar-ready-pipeline";
+import {
+  ALL_CERTIFIED_MODULAR_SKU_IDS,
+  getInApp3DRenderedItemUrl,
+} from "@/lib/three/glb-character-engine";
 
 interface GarmentArtworkProps {
   product: Product;
@@ -10,20 +14,34 @@ interface GarmentArtworkProps {
 }
 
 export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps) {
+  const [useFallback2D, setUseFallback2D] = useState(false);
   const [useProxyFallback, setUseProxyFallback] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const [isolatedUrl, setIsolatedUrl] = useState<string | null>(null);
+  const [tilt, setTilt] = useState<{ rx: number; ry: number }>({ rx: 0, ry: 0 });
   const isNike = product.brand.toLowerCase() === "nike";
+  const isCertified3D = ALL_CERTIFIED_MODULAR_SKU_IDS.has(product.id);
 
   useEffect(() => {
+    setUseFallback2D(false);
     setUseProxyFallback(false);
     setImgFailed(false);
+
+    if (isCertified3D && !useFallback2D) {
+      setIsolatedUrl(getInApp3DRenderedItemUrl(product) || product.imageUrl || null);
+      return;
+    }
+
     const raw = product.imageUrl;
     if (!raw) {
       setIsolatedUrl(null);
       return;
     }
-    if (raw.includes("/models/dropship/ds_") || raw.includes("bag_rgba_")) {
+    if (
+      raw.includes("/models/items_3d/") ||
+      raw.includes("/models/dropship/ds_") ||
+      raw.includes("bag_rgba_")
+    ) {
       setIsolatedUrl(raw);
       return;
     }
@@ -34,19 +52,27 @@ export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps)
     return () => {
       cancelled = true;
     };
-  }, [product.imageUrl]);
+  }, [isCertified3D, product, product.id, product.imageUrl, useFallback2D]);
 
-  if (product.imageUrl && !imgFailed) {
-    const activeRaw = isolatedUrl || product.imageUrl;
+  if ((isolatedUrl || product.imageUrl) && !imgFailed) {
+    const activeRaw = isolatedUrl || product.imageUrl!;
     const src =
       useProxyFallback &&
       !activeRaw.includes("wsrv.nl") &&
       !activeRaw.startsWith("data:")
-        ? `https://wsrv.nl/?url=${encodeURIComponent(product.imageUrl)}&w=640&output=webp`
+        ? `https://wsrv.nl/?url=${encodeURIComponent(product.imageUrl!)}&w=640&output=webp`
         : activeRaw;
 
     return (
       <div
+        onPointerMove={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          const nx = (e.clientX - r.left) / Math.max(1, r.width) - 0.5;
+          const ny = (e.clientY - r.top) / Math.max(1, r.height) - 0.5;
+          setTilt({ rx: -ny * 12, ry: nx * 16 });
+        }}
+        onPointerLeave={() => setTilt({ rx: 0, ry: 0 })}
+        style={{ perspective: "560px" }}
         className={`relative overflow-hidden bg-white flex items-center justify-center p-1.5 ${className}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -55,14 +81,25 @@ export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps)
           alt={product.title}
           decoding="async"
           onError={() => {
-            if (!useProxyFallback && !product.imageUrl?.includes("wsrv.nl")) {
+            if (isCertified3D && !useFallback2D) {
+              setUseFallback2D(true);
+            } else if (!useProxyFallback && !product.imageUrl?.includes("wsrv.nl")) {
               setUseProxyFallback(true);
             } else {
               setImgFailed(true);
             }
           }}
-          className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+          style={{
+            transform: `rotateX(${tilt.rx.toFixed(1)}deg) rotateY(${tilt.ry.toFixed(
+              1
+            )}deg)`,
+            transition: tilt.rx === 0 && tilt.ry === 0 ? "transform 280ms ease-out" : "none",
+          }}
+          className="w-full h-full object-contain drop-shadow-[0_6px_12px_rgba(20,21,24,0.08)]"
         />
+        <span className="pointer-events-none absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-[#141518]/[0.06] text-[8.5px] font-extrabold tracking-wider text-[#141518]/70 uppercase">
+          3D
+        </span>
       </div>
     );
   }
