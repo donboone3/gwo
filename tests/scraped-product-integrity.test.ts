@@ -99,6 +99,24 @@ describe("Scraped Product Picture, Pricing & Details Integrity", () => {
     expect(angles[1].label).toBe("Model Back");
   });
 
+  it("prioritizes isolated flat-lay / ghost-mannequin product images ahead of model photos", () => {
+    const angles = extractProductGalleryAngles(
+      [
+        {
+          alt: "Cotton Tee On A Model",
+          url: "https://cdn.shopify.com/s/files/1/01/products/cotton-tee-model.jpg",
+        },
+        {
+          alt: "Cotton Tee Flat-Lay Ghost Mannequin",
+          url: "https://cdn.shopify.com/s/files/1/01/products/cotton-tee-flt.jpg",
+        },
+      ],
+      ["cotton", "tee"]
+    );
+    expect(angles[0].label).toBe("Flat-Lay Cut");
+    expect(angles[0].url).toContain("cotton-tee-flt.jpg");
+  });
+
   it("extracts long >320-char descriptions and construction bullet details without dropping them", () => {
     const longPdp =
       "Crafted from heavyweight non-stretch double crepe, the Cornelia Mini Dress features an architectural boned corset bodice, rounded square neckline, adjustable tapered shoulder straps, open lace-up corset back, and an asymmetrical dropped-waist cowl-pleated mini skirt that skims effortlessly over the hips while cinching the natural waist cleanly.\n• Boned corset bodice\n• Concealed back zipper\n• Fully lined in stretch satin";

@@ -310,7 +310,7 @@ const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
     brand: "Bought • Babyboo",
     price: 132,
     size: "S",
-    imageUrl: `${ASSET_BASE_CTX}/models/catalog/cornelia_2.webp`,
+    imageUrl: `${ASSET_BASE_CTX}/models/catalog/cornelia_2.webp?v=prod1`,
     avatarFrontUrl: `${ASSET_BASE_CTX}/models/signature/look_8.webp`,
     avatarBackUrl: `${ASSET_BASE_CTX}/models/signature/look_8_back.webp`,
     lookIndex: 8,

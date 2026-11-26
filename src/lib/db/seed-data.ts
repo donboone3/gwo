@@ -124,7 +124,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#181615",
       price: 75,
       currency: "USD",
-      imageUrl: `${ASSET_BASE}/models/catalog/nike_hoodie.webp`,
+      imageUrl: `${ASSET_BASE}/models/catalog/nike_hoodie.webp?v=prod1`,
       occasions: ["Coffee Run", "Campus / Class", "Weekend Trip", "Gym / Pilates"],
       vibes: ["Clean Girl Athleisure", "Streetwear Luxe"],
       availableSizes: ["XS", "S", "M", "L", "XL"],
@@ -290,7 +290,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       price: 132,
       currency: "USD",
       studioLookIndex: 8,
-      imageUrl: `${ASSET_BASE}/models/catalog/cornelia_2.webp`,
+      imageUrl: `${ASSET_BASE}/models/catalog/cornelia_2.webp?v=prod1`,
       fitMetadata: {
         descriptionSummary:
           "Structured boned crepe corset mini dress with rounded square neckline, adjustable tapered straps, lace-up back, and dropped-waist lyocell cowl-pleat overlay skirt.",
@@ -325,20 +325,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
         },
         galleryImages: [
           {
-            url: `${ASSET_BASE}/models/catalog/cornelia_2.webp`,
-            label: "Model Full Front",
-          },
-          {
-            url: `${ASSET_BASE}/models/catalog/cornelia_0.webp`,
-            label: "Corset Bodice",
-          },
-          {
-            url: `${ASSET_BASE}/models/catalog/cornelia_1.webp`,
-            label: "Lace-Up Back",
-          },
-          {
-            url: `${ASSET_BASE}/models/catalog/cornelia_3.webp`,
-            label: "3/4 Cowl Drape",
+            url: `${ASSET_BASE}/models/catalog/cornelia_2.webp?v=prod1`,
+            label: "Product Cut",
           },
         ],
       },
@@ -373,7 +361,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#141518",
       price: 231,
       currency: "USD",
-      imageUrl: `${ASSET_BASE}/models/catalog/aluma_silver_0.webp`,
+      imageUrl: `${ASSET_BASE}/models/catalog/aluma_silver_0.webp?v=prod1`,
       fitMetadata: {
         descriptionSummary:
           "Sculpted crystal-embellished halter mini dress with low plunge back and structured bodycon lining.",
@@ -401,12 +389,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
         },
         galleryImages: [
           {
-            url: `${ASSET_BASE}/models/catalog/aluma_silver_0.webp`,
-            label: "Model Front",
-          },
-          {
-            url: `${ASSET_BASE}/models/catalog/aluma_silver_1.webp`,
-            label: "Back & Detail",
+            url: `${ASSET_BASE}/models/catalog/aluma_silver_0.webp?v=prod1`,
+            label: "Product Cut",
           },
         ],
       },
@@ -439,7 +423,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#FAF8F5",
       price: 248,
       currency: "USD",
-      imageUrl: `${ASSET_BASE}/models/catalog/reformation_silk.webp`,
+      imageUrl: `${ASSET_BASE}/models/catalog/reformation_silk.webp?v=prod1`,
       fitMetadata: {
         descriptionSummary:
           "Lightweight bias-cut midi silk slip dress with a draped cowl neckline, adjustable spaghetti straps, and fluid skirt movement.",
@@ -465,8 +449,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
         },
         galleryImages: [
           {
-            url: `${ASSET_BASE}/models/catalog/reformation_silk.webp`,
-            label: "Model Front",
+            url: `${ASSET_BASE}/models/catalog/reformation_silk.webp?v=prod1`,
+            label: "Product Cut",
           },
         ],
       },
@@ -549,7 +533,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#FAF8F5",
       price: 68,
       currency: "USD",
-      imageUrl: `${ASSET_BASE}/models/catalog/aritzia_mini.webp`,
+      imageUrl: `${ASSET_BASE}/models/catalog/aritzia_mini.webp?v=prod1`,
       fitMetadata: {
         descriptionSummary:
           "Mid-rise knife-pleated micro mini skirt in structured suiting twill with built-in jersey liner shorts and concealed side zip.",
@@ -574,8 +558,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
         },
         galleryImages: [
           {
-            url: `${ASSET_BASE}/models/catalog/aritzia_mini.webp`,
-            label: "Model Front",
+            url: `${ASSET_BASE}/models/catalog/aritzia_mini.webp?v=prod1`,
+            label: "Product Cut",
           },
         ],
       },
@@ -603,7 +587,7 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
       accentHex: "#E8DFD5",
       price: 72,
       currency: "USD",
-      imageUrl: `${ASSET_BASE}/models/catalog/pp_denim.webp`,
+      imageUrl: `${ASSET_BASE}/models/catalog/pp_denim.webp?v=prod1`,
       fitMetadata: {
         descriptionSummary:
           "Relaxed low-to-mid rise vintage straight-leg jeans in structured 100% organic cotton denim with classic 5-pocket tailoring and puddle-ready full length.",
@@ -628,8 +612,8 @@ export const INITIAL_SEED_DB: LocalDatabaseSchema = {
         },
         galleryImages: [
           {
-            url: `${ASSET_BASE}/models/catalog/pp_denim.webp`,
-            label: "Model Front",
+            url: `${ASSET_BASE}/models/catalog/pp_denim.webp?v=prod1`,
+            label: "Product Cut",
           },
         ],
       },

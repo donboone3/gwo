@@ -206,14 +206,24 @@ function formatBrand(hostname: string): string {
   return map[lower] || clean.charAt(0).toUpperCase() + clean.slice(1);
 }
 
+function isProductOnlyImageSignal(alt: string, url: string): boolean {
+  const s = `${alt} ${url}`.toLowerCase();
+  if (/on[\s_-]?a?[\s_-]?model|lookbook|lifestyle|street[\s_-]?style/.test(s)) {
+    return false;
+  }
+  return /flat|-flt\b|_flt\b|laydown|packshot|ghost|mannequin|isolated|product[\s_-]?only|still[\s_-]?life|_prod\b|-prod\b|cutout|white[\s_-]?bg/.test(
+    s
+  );
+}
+
 function labelAngleFromText(alt: string, url: string, idx: number): string {
   const s = `${alt} ${url}`.toLowerCase();
-  if (/flat|-flt\b|laydown|packshot/.test(s)) return "Flat-Lay Cut";
+  if (isProductOnlyImageSignal(alt, url)) return "Flat-Lay Cut";
   if (/back view|-bk\b|_back|rear/.test(s)) return "Model Back";
   if (/side view|-sd\b|_side|profile/.test(s)) return "Model Side";
   if (/detail|close[\s-]?up|fabric|zoom/.test(s)) return "Fabric Detail";
-  if (/front view|-fr\b|_front/.test(s) || idx === 0) return "Model Front";
-  return `Model Angle ${idx + 1}`;
+  if (/front view|-fr\b|_front/.test(s) || idx === 0) return "Product Front";
+  return `Angle ${idx + 1}`;
 }
 
 /**
@@ -251,8 +261,13 @@ export function extractProductGalleryAngles(
     ) {
       score += 26;
     }
-    if (/on a model|front view|back view|image \d|product/i.test(lowerAlt)) {
-      score += 22;
+    // Strongly prioritize isolated product-only / flat-lay / ghost-mannequin shots over full-model photos!
+    if (isProductOnlyImageSignal(alt, upgraded)) {
+      score += 55;
+    } else if (/on a model|model wears|lookbook/i.test(lowerAlt)) {
+      score -= 8;
+    } else if (/front view|back view|image \d|product/i.test(lowerAlt)) {
+      score += 18;
     }
     // Penalize cross-sell tiny cards on SKIMS (w=1&h=1 or h=205) and generic CMS hero banners (contentstack/sanity)
     if (
@@ -883,14 +898,36 @@ export function parseShopifyJsonProduct(
     `${title} ${handle} ${tagsStr}`
   );
 
-  const galleryAngles: ProductGalleryAngle[] = (sp.images || [])
+  const rawImages = sp.images || [];
+  // Sort raw Shopify images so flat-lay / ghost-mannequin / product-only shots come FIRST!
+  const sortedRawImages = [...rawImages].sort((a, b) => {
+    const aProd = isProductOnlyImageSignal(
+      String(a?.alt || ""),
+      String(a?.src || "")
+    )
+      ? 1
+      : 0;
+    const bProd = isProductOnlyImageSignal(
+      String(b?.alt || ""),
+      String(b?.src || "")
+    )
+      ? 1
+      : 0;
+    return bProd - aProd;
+  });
+
+  const galleryAngles: ProductGalleryAngle[] = sortedRawImages
     .slice(0, 5)
     .map((img, idx) => {
       const safe = getSafeClothingImageUrl(String(img?.src || ""), 880);
       if (!safe) return null;
       return {
         url: safe,
-        label: labelAngleFromText(String(img?.alt || ""), String(img?.src || ""), idx),
+        label: labelAngleFromText(
+          String(img?.alt || ""),
+          String(img?.src || ""),
+          idx
+        ),
       };
     })
     .filter((g): g is ProductGalleryAngle => g !== null);

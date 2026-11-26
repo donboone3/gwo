@@ -411,7 +411,7 @@ const RAW_TOP_LINE_SUPPLIER_SEEDS: RawSupplierSeed[] = [
     ordersCount: 3840,
     qualityTier: "Top 1% Gold Boutique",
     estDeliveryDays: 6,
-    imageFile: `${ASSET_BASE}/models/dropship/ae_live_champagne_blazer_dress.webp`,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_champagne_blazer_dress.webp?v=prod1`,
     occasions: ["Party", "Date Night", "Birthday", "Cocktail"],
     vibes: ["Siren Glam", "Coquette Romantic", "Going Out"],
     descriptionSummary:
@@ -443,7 +443,7 @@ const RAW_TOP_LINE_SUPPLIER_SEEDS: RawSupplierSeed[] = [
     ordersCount: 2190,
     qualityTier: "Top 1% Gold Boutique",
     estDeliveryDays: 7,
-    imageFile: `${ASSET_BASE}/models/dropship/ae_live_camel_silk_wool_coat.webp`,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_camel_silk_wool_coat.webp?v=prod1`,
     occasions: ["Work / Chic", "Date Night", "Weekend Trip", "Coffee Run"],
     vibes: ["Old Money Tailored", "Model Off-Duty"],
     descriptionSummary:
@@ -475,7 +475,7 @@ const RAW_TOP_LINE_SUPPLIER_SEEDS: RawSupplierSeed[] = [
     ordersCount: 3110,
     qualityTier: "Top 1% Gold Boutique",
     estDeliveryDays: 5,
-    imageFile: `${ASSET_BASE}/models/dropship/ae_live_acetate_beaded_tank.webp`,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_acetate_beaded_tank.webp?v=prod1`,
     occasions: ["Work / Chic", "Brunch", "Date Night", "Coffee Run"],
     vibes: ["Old Money Tailored", "Clean Girl Athleisure", "Model Off-Duty"],
     descriptionSummary:
@@ -507,7 +507,7 @@ const RAW_TOP_LINE_SUPPLIER_SEEDS: RawSupplierSeed[] = [
     ordersCount: 1940,
     qualityTier: "AliExpress Choice Verified",
     estDeliveryDays: 6,
-    imageFile: `${ASSET_BASE}/models/dropship/ae_live_linen_cinch_cardigan.webp`,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_linen_cinch_cardigan.webp?v=prod1`,
     occasions: ["Brunch", "Coffee Run", "Weekend Trip", "Work / Chic"],
     vibes: ["Old Money Tailored", "Coquette Romantic", "Clean Girl Athleisure"],
     descriptionSummary:
@@ -538,7 +538,7 @@ const RAW_TOP_LINE_SUPPLIER_SEEDS: RawSupplierSeed[] = [
     ordersCount: 2760,
     qualityTier: "Top 1% Gold Boutique",
     estDeliveryDays: 6,
-    imageFile: `${ASSET_BASE}/models/dropship/ae_live_meotina_leather_boots.webp`,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_meotina_leather_boots.webp?v=prod1`,
     occasions: ["Date Night", "Party", "Work / Chic", "Concert"],
     vibes: ["Streetwear Luxe", "Model Off-Duty", "Siren Glam"],
     descriptionSummary:
@@ -568,7 +568,7 @@ const RAW_TOP_LINE_SUPPLIER_SEEDS: RawSupplierSeed[] = [
     ordersCount: 4120,
     qualityTier: "Top 1% Gold Boutique",
     estDeliveryDays: 6,
-    imageFile: `${ASSET_BASE}/models/dropship/ae_live_suede_nubuck_tote.webp`,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_camel_turnlock_tote.webp?v=prod1`,
     occasions: ["Work / Chic", "Brunch", "Date Night", "Coffee Run"],
     vibes: ["Old Money Tailored", "Model Off-Duty", "Coquette Romantic"],
     descriptionSummary:
