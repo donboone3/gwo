@@ -43,6 +43,9 @@ export interface Interactive3DAvatarStageProps {
   autoSpinDefault?: boolean;
   initialYawDeg?: number;
   externalYawDeg?: number;
+  seamlessStage?: boolean;
+  inertiaSpin?: boolean;
+  onYawChange?: (deg: number) => void;
   showHud?: boolean;
   compactHud?: boolean;
   selectedProductId?: string | null;
@@ -251,6 +254,9 @@ export function Interactive3DAvatarStage({
   autoSpinDefault = false,
   initialYawDeg = 0,
   externalYawDeg,
+  seamlessStage = false,
+  inertiaSpin = true,
+  onYawChange,
   showHud = true,
   compactHud = false,
   selectedProductId,
@@ -261,10 +267,15 @@ export function Interactive3DAvatarStage({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const offscreenCompRef = useRef<HTMLCanvasElement | null>(null);
   const needsPaintRef = useRef<boolean>(true);
+  const onYawChangeRef = useRef(onYawChange);
+  onYawChangeRef.current = onYawChange;
+  const onSelectProductRef = useRef(onSelectProduct);
+  onSelectProductRef.current = onSelectProduct;
 
-  // Interactive 360° yaw, 3D tilt pitch, and zoom state refs
+  // Interactive 360° yaw, inertia velocity, 3D tilt pitch, and zoom state refs
   const yawRef = useRef<number>((initialYawDeg * Math.PI) / 180);
   const targetYawRef = useRef<number>((initialYawDeg * Math.PI) / 180);
+  const velYawRef = useRef<number>(0);
   const pitchRef = useRef<number>(0);
   const targetPitchRef = useRef<number>(0);
   const zoomRef = useRef<number>(1.0);
@@ -309,6 +320,7 @@ export function Interactive3DAvatarStage({
   useEffect(() => {
     if (typeof externalYawDeg === "number") {
       setAutoSpin(false);
+      velYawRef.current = 0;
       targetYawRef.current = (externalYawDeg * Math.PI) / 180;
       needsPaintRef.current = true;
     }
@@ -397,18 +409,24 @@ export function Interactive3DAvatarStage({
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       viewW = Math.max(120, wrapEl.clientWidth);
       viewH = Math.max(140, wrapEl.clientHeight);
-      cv.width = Math.round(viewW * dpr);
-      cv.height = Math.round(viewH * dpr);
+      const nextW = Math.round(viewW * dpr);
+      const nextH = Math.round(viewH * dpr);
+      if (cv.width !== nextW || cv.height !== nextH) {
+        cv.width = nextW;
+        cv.height = nextH;
+      }
       needsPaintRef.current = true;
     };
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(wrapEl);
 
-    // Pointer Drag (360° Spin + 3D Tilt) + Click-on-Garment Selection
+    // Pointer Drag (360° Spin + Inertia + Tilt) + Click-on-Garment Selection
     let dragging = false;
     let startX = 0;
     let startY = 0;
+    let lastMoveX = 0;
+    let lastMoveTs = 0;
     let startYaw = 0;
     let startPitch = 0;
     let movedDist = 0;
@@ -418,6 +436,9 @@ export function Interactive3DAvatarStage({
       movedDist = 0;
       startX = e.clientX;
       startY = e.clientY;
+      lastMoveX = e.clientX;
+      lastMoveTs = performance.now();
+      velYawRef.current = 0;
       startYaw = targetYawRef.current;
       startPitch = targetPitchRef.current;
       cv.setPointerCapture(e.pointerId);
@@ -425,11 +446,21 @@ export function Interactive3DAvatarStage({
 
     const onPointerMove = (e: PointerEvent) => {
       if (!dragging) return;
+      const nowTs = performance.now();
+      const dtMove = Math.max(8, nowTs - lastMoveTs) / 1000;
+      const stepDx = e.clientX - lastMoveX;
+      lastMoveX = e.clientX;
+      lastMoveTs = nowTs;
+
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       movedDist = Math.hypot(dx, dy);
       if (movedDist > 4 && autoSpinRef.current) {
         setAutoSpin(false);
+      }
+      if (inertiaSpin) {
+        const instV = (stepDx * 0.014) / dtMove;
+        velYawRef.current = velYawRef.current * 0.55 + clamp(instV, -9, 9) * 0.45;
       }
       targetYawRef.current = startYaw + dx * 0.014;
       targetPitchRef.current = clamp(startPitch + dy * 0.004, -0.22, 0.28);
@@ -439,6 +470,9 @@ export function Interactive3DAvatarStage({
     const onPointerUp = (e: PointerEvent) => {
       if (!dragging) return;
       dragging = false;
+      if (performance.now() - lastMoveTs > 90) {
+        velYawRef.current = 0;
+      }
       try {
         cv.releasePointerCapture(e.pointerId);
       } catch {
@@ -494,7 +528,7 @@ export function Interactive3DAvatarStage({
           if (picked) {
             const fit = fitByProductId.get(picked.product.id);
             setTappedInfo({ product: picked.product, fit });
-            onSelectProduct?.(picked.product, fit);
+            onSelectProductRef.current?.(picked.product, fit);
           }
         }
       }
@@ -530,10 +564,7 @@ export function Interactive3DAvatarStage({
       const { topIdx, botIdx, isSinglePieceDressOrCoat, bagOverlay } = lookSpec;
 
       const urlFor = (idx: number, kind: "front" | "side" | "back") => {
-        if (kind === "side") {
-          return `${BASE}/models/runway_ai/ae_outfit_${idx}_side.webp?v=ae3`;
-        }
-        return `${BASE}/models/runway_ai/ae_outfit_${idx}_${kind}.webp?v=ae2`;
+        return `${BASE}/models/runway_ai/ae_outfit_${idx}_${kind}.webp?v=life4`;
       };
 
       let topImg = loadCachedImage(urlFor(topIdx, angleKind), requestRepaint);
@@ -773,7 +804,7 @@ export function Interactive3DAvatarStage({
       let foreshorten = 1.0;
 
       // Check if side image is already decoded for current topIdx
-      const sideTestUrl = `${BASE}/models/runway_ai/ae_outfit_${lookSpec.topIdx}_side.webp?v=ae3`;
+      const sideTestUrl = `${BASE}/models/runway_ai/ae_outfit_${lookSpec.topIdx}_side.webp?v=life4`;
       const hasSideDecoded = Boolean(
         IMG_CACHE.get(sideTestUrl)?.complete &&
           (IMG_CACHE.get(sideTestUrl)?.naturalWidth || 0) > 0
@@ -851,9 +882,9 @@ export function Interactive3DAvatarStage({
         h: baseH,
       };
 
-      // 1. Sleek 3D Studio Turntable Disc Under Her Heels
+      // 1. Floor Contact Shadow (Seamless on NYC Loft floor when `seamlessStage` is true!)
       const podiumRx = Math.max(64, baseW * 0.42);
-      const podiumRy = Math.max(10, podiumRx * (0.16 + Math.max(0, pitch) * 0.18));
+      const podiumRy = Math.max(10, podiumRx * (0.15 + Math.max(0, pitch) * 0.18));
       const podiumGrad = ctx.createRadialGradient(
         centerX,
         bottomY - 4,
@@ -862,19 +893,21 @@ export function Interactive3DAvatarStage({
         bottomY - 4,
         podiumRx * 1.15
       );
-      podiumGrad.addColorStop(0, "rgba(25, 28, 34, 0.22)");
-      podiumGrad.addColorStop(0.75, "rgba(25, 28, 34, 0.06)");
+      podiumGrad.addColorStop(0, seamlessStage ? "rgba(24, 22, 21, 0.28)" : "rgba(25, 28, 34, 0.22)");
+      podiumGrad.addColorStop(0.75, seamlessStage ? "rgba(24, 22, 21, 0.08)" : "rgba(25, 28, 34, 0.06)");
       podiumGrad.addColorStop(1, "rgba(25, 28, 34, 0)");
       ctx.fillStyle = podiumGrad;
       ctx.beginPath();
-      ctx.ellipse(centerX, bottomY - 3, podiumRx * 1.1, podiumRy, 0, 0, Math.PI * 2);
+      ctx.ellipse(centerX, bottomY - 3, podiumRx * 1.06, podiumRy, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = "rgba(36, 75, 59, 0.20)";
-      ctx.lineWidth = 1.25;
-      ctx.beginPath();
-      ctx.ellipse(centerX, bottomY - 3, podiumRx * 0.88, podiumRy * 0.82, 0, 0, Math.PI * 2);
-      ctx.stroke();
+      if (!seamlessStage) {
+        ctx.strokeStyle = "rgba(36, 75, 59, 0.20)";
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        ctx.ellipse(centerX, bottomY - 3, podiumRx * 0.88, podiumRy * 0.82, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
 
       // Helper for 3D Occluded Body-Scan Tape Rings (back half behind body, front half in front!)
       const tapeRings = [
@@ -1005,6 +1038,13 @@ export function Interactive3DAvatarStage({
       if (autoSpinRef.current && !dragging) {
         targetYawRef.current += dt * 0.72;
         needsPaintRef.current = true;
+      } else if (inertiaSpin && !dragging && Math.abs(velYawRef.current) > 0.02) {
+        targetYawRef.current += velYawRef.current * dt;
+        velYawRef.current *= Math.exp(-3.6 * dt);
+        if (Math.abs(velYawRef.current) <= 0.02) {
+          velYawRef.current = 0;
+        }
+        needsPaintRef.current = true;
       }
 
       const dYaw = targetYawRef.current - yawRef.current;
@@ -1032,11 +1072,12 @@ export function Interactive3DAvatarStage({
         needsPaintRef.current = false;
 
         frameTick++;
-        if (frameTick % 4 === 0) {
+        if (frameTick % 3 === 0) {
           const deg =
-            ((((Math.round((yawRef.current * 180) / Math.PI) % 360) + 360) %
-              360));
+            (((Math.round((yawRef.current * 180) / Math.PI) % 360) + 360) %
+              360);
           setLiveDeg(deg);
+          onYawChangeRef.current?.(deg);
         }
       }
 
@@ -1061,9 +1102,10 @@ export function Interactive3DAvatarStage({
     effectiveShowRings,
     faceOvalDataUrl,
     fitByProductId,
+    inertiaSpin,
     lookSpec,
     mode,
-    onSelectProduct,
+    seamlessStage,
     showHud,
     singleProduct,
     wornPieces,
@@ -1071,6 +1113,7 @@ export function Interactive3DAvatarStage({
 
   const snapAngle = (deg: number) => {
     setAutoSpin(false);
+    velYawRef.current = 0;
     targetYawRef.current = (deg * Math.PI) / 180;
     targetPitchRef.current = 0;
     needsPaintRef.current = true;

@@ -239,6 +239,7 @@ export function GwoSpinProduct() {
   const [externalYawDeg, setExternalYawDeg] = useState<number | undefined>(
     undefined
   );
+  const [liveSpinDeg, setLiveSpinDeg] = useState<number>(0);
 
   const [openSection, setOpenSection] = useState<string>("Fit & Description");
   const [savedToCloset, setSavedToCloset] = useState(false);
@@ -296,7 +297,7 @@ export function GwoSpinProduct() {
                 href="/"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F4F5F7] hover:bg-[#E7E9EE] text-xs font-semibold text-[#141518]"
               >
-                <ArrowLeft className="w-3.5 h-3.5" /> 3D Closet
+                <ArrowLeft className="w-3.5 h-3.5" /> Closet
               </Link>
 
               <button
@@ -515,9 +516,9 @@ export function GwoSpinProduct() {
           </div>
         </section>
 
-        {/* ==================== CENTER COLUMN: INTERACTIVE 3D BODY & 3D GARMENT STAGE ==================== */}
+        {/* ==================== CENTER COLUMN: LIFELIKE 360° TURNTABLE STAGE ==================== */}
         <div className="order-1 lg:order-2 min-w-0 h-auto lg:h-full lg:min-h-0 flex flex-col items-center justify-between gap-2">
-          {/* Top Mode Switcher: 3D On Body | 3D Garment Object | Lookbook F/B | Detail */}
+          {/* Top Mode Switcher: Lifelike 360° | Garment Spin | Front + Back | Garment Photo */}
           <div className="shrink-0 flex flex-wrap items-center justify-center gap-1 p-1 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs z-20">
             <button
               type="button"
@@ -529,7 +530,7 @@ export function GwoSpinProduct() {
                   : "text-[#686D76] hover:text-[#141518]"
               }`}
             >
-              <Rotate3d className="w-3.5 h-3.5 text-[#A7D7C5]" /> 3D Body Fit
+              <Rotate3d className="w-3.5 h-3.5 text-[#A7D7C5]" /> Lifelike 360°
             </button>
             <button
               type="button"
@@ -541,7 +542,7 @@ export function GwoSpinProduct() {
                   : "text-[#686D76] hover:text-[#141518]"
               }`}
             >
-              <Box className="w-3.5 h-3.5 text-[#A7D7C5]" /> 3D Product Object
+              <Box className="w-3.5 h-3.5 text-[#A7D7C5]" /> Garment Spin
             </button>
             <button
               type="button"
@@ -553,7 +554,7 @@ export function GwoSpinProduct() {
                   : "text-[#686D76] hover:text-[#141518]"
               }`}
             >
-              <Columns2 className="w-3.5 h-3.5" /> Lookbook F/B
+              <Columns2 className="w-3.5 h-3.5" /> Front + Back
             </button>
             <button
               type="button"
@@ -569,16 +570,19 @@ export function GwoSpinProduct() {
             </button>
           </div>
 
-          {/* MODE 1: INTERACTIVE 3D SCANNED BODY FIT */}
+          {/* MODE 1: LIFELIKE 360° INERTIA TURNTABLE ON SCANNED BODY */}
           {stageDisplayMode === "avatar3d" && (
-            <div className="w-full h-[460px] lg:flex-1 lg:min-h-0 rounded-3xl bg-gradient-to-b from-[#EEF1F6] via-[#E6ECF4] to-[#F6F8FB] border border-black/[0.08] overflow-hidden">
+            <div className="w-full h-[460px] lg:flex-1 lg:min-h-0 overflow-hidden">
               <Interactive3DAvatarStage
                 mode="avatar"
                 dimensions={bodyDims}
                 wornPieces={worn3DSpecs}
                 faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
                 externalYawDeg={externalYawDeg}
-                initialYawDeg={16}
+                initialYawDeg={0}
+                seamlessStage={true}
+                inertiaSpin={true}
+                onYawChange={setLiveSpinDeg}
                 selectedProductId={activeProduct.id}
                 onSelectProduct={(prod) => setSelectedQuickProduct(prod)}
                 showHud={true}
@@ -586,7 +590,7 @@ export function GwoSpinProduct() {
             </div>
           )}
 
-          {/* MODE 2: STANDALONE INTERACTIVE 3D PRODUCT OBJECT */}
+          {/* MODE 2: STANDALONE GARMENT 360° SPIN */}
           {stageDisplayMode === "product3d" && (
             <div className="w-full h-[460px] lg:flex-1 lg:min-h-0 rounded-3xl bg-gradient-to-b from-[#F4F6FA] to-[#E5EAF2] border border-black/[0.08] overflow-hidden">
               <Interactive3DAvatarStage
@@ -597,6 +601,8 @@ export function GwoSpinProduct() {
                 externalYawDeg={externalYawDeg}
                 autoSpinDefault={true}
                 initialYawDeg={22}
+                inertiaSpin={true}
+                onYawChange={setLiveSpinDeg}
                 showHud={true}
               />
             </div>
@@ -647,6 +653,23 @@ export function GwoSpinProduct() {
               </div>
             </div>
           )}
+
+          {/* Original Iconic 360° Turntable Degree Readout Bar (#sp-deg) */}
+          {(stageDisplayMode === "avatar3d" ||
+            stageDisplayMode === "product3d") && (
+            <div id="sp-deg" className="shrink-0">
+              <span>DRAG MODEL TO SPIN 360°</span>
+              <span className="sp-deg-bar">
+                <span
+                  className="sp-deg-dot"
+                  style={{ left: `${((liveSpinDeg % 360) / 360) * 100}%` }}
+                />
+              </span>
+              <span className="sp-deg-num">
+                {String(liveSpinDeg).padStart(3, "0")}°
+              </span>
+            </div>
+          )}
         </div>
 
         {/* ==================== RIGHT CARD: EXACT-FIT ZONE SIMULATOR & RETAIL CHECKOUT ==================== */}
@@ -656,7 +679,7 @@ export function GwoSpinProduct() {
             <div className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#141518] inline-flex items-center gap-1.5">
-                  <ScanLine className="w-3.5 h-3.5 text-[#244B3B]" /> Your 3D Scanned Body
+                  <ScanLine className="w-3.5 h-3.5 text-[#244B3B]" /> Your Scanned Body
                 </span>
                 <button
                   type="button"
@@ -690,10 +713,10 @@ export function GwoSpinProduct() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#141518]">
-                  Simulate Size on Your 3D Body
+                  Simulate Size on Your Body
                 </span>
                 <span className="text-[11px] font-semibold text-[#244B3B]">
-                  Live 3D Ease Physics
+                  Live Fit Physics
                 </span>
               </div>
 

@@ -37,9 +37,9 @@ import {
 import { Product } from "@/lib/types";
 
 const STEPS = [
-  { href: "/", match: ["/", "/closet"], label: "3D Closet & Dress-Up", shortLabel: "3D Closet" },
-  { href: "/shop", match: ["/shop", "/recommended"], label: "3D Runway", shortLabel: "Runway" },
-  { href: "/product", match: ["/product"], label: "3D Exact Fit", shortLabel: "3D Fit" },
+  { href: "/", match: ["/", "/closet"], label: "Closet & Try-On", shortLabel: "Closet" },
+  { href: "/shop", match: ["/shop", "/recommended"], label: "Runway", shortLabel: "Runway" },
+  { href: "/product", match: ["/product"], label: "360° Fit", shortLabel: "360°" },
 ];
 
 const QUICK_SAMPLE_LINKS = [
@@ -259,7 +259,7 @@ export function UnifiedGwoNav() {
               alt="My Avatar"
               className="w-6 h-6 md:w-5 md:h-5 rounded-full object-cover border border-[#244B3B]/30"
             />
-            <span className="hidden md:inline">Scan Body 3D ✓</span>
+            <span className="hidden md:inline">My Avatar ✓</span>
           </button>
 
           <button

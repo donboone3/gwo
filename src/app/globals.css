@@ -66,6 +66,44 @@ body {
   animation: gwoStrokeDraw 0.44s cubic-bezier(0.32, 0, 0.22, 1) 1.45s forwards;
 }
 
+/* Iconic Loft Closet Laser Scan-Beam Wipe */
+@keyframes gwoScanBeam {
+  0% {
+    top: 4%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.95;
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    top: 94%;
+    opacity: 0;
+  }
+}
+
+.gwo-scan-beam {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  height: 3px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 30;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(36, 75, 59, 0.7) 18%,
+    rgba(167, 215, 197, 0.98) 50%,
+    rgba(36, 75, 59, 0.7) 82%,
+    transparent 100%
+  );
+  box-shadow: 0 0 18px rgba(167, 215, 197, 0.9), 0 8px 26px rgba(36, 75, 59, 0.35);
+  animation: gwoScanBeam 0.68s cubic-bezier(0.22, 0.8, 0.25, 1) forwards;
+}
+
 /* Custom subtle scrollbars for editorial feel */
 ::-webkit-scrollbar {
   width: 6px;

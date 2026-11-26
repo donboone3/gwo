@@ -125,7 +125,7 @@ export function Avatar360Modal() {
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#E7F3EE] text-[#1D4232] text-[11px] font-bold">
-                <Rotate3d className="w-3 h-3" /> Interactive 3D Body &amp; Garment Fit
+                <Rotate3d className="w-3 h-3" /> Lifelike 360° Body &amp; Garment Fit
               </span>
               <button
                 type="button"
@@ -169,7 +169,7 @@ export function Avatar360Modal() {
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Rotate3d className="w-3.5 h-3.5" /> 3D On Your Body
+                <Rotate3d className="w-3.5 h-3.5" /> Lifelike 360°
               </button>
               <button
                 type="button"
@@ -180,7 +180,7 @@ export function Avatar360Modal() {
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Box className="w-3.5 h-3.5" /> 3D Product Object
+                <Box className="w-3.5 h-3.5" /> Garment Spin
               </button>
               <button
                 type="button"
@@ -191,7 +191,7 @@ export function Avatar360Modal() {
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Columns2 className="w-3.5 h-3.5" /> Lookbook F/B
+                <Columns2 className="w-3.5 h-3.5" /> Front + Back
               </button>
             </div>
 
@@ -254,7 +254,7 @@ export function Avatar360Modal() {
               <div className="p-3.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold">
                   <span className="text-[#141518]">
-                    Simulate Size on Your 3D Body
+                    Simulate Size on Your Body
                   </span>
                   <span className="text-[#244B3B]">
                     Best Match: Size {liveFit.recommendedSize} (

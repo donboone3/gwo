@@ -206,9 +206,9 @@ const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
     brand: "Bought • GWO × Atelier",
     price: 52,
     size: "S",
-    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_espresso_corset_top.webp`,
-    avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_front.webp?v=ae2`,
-    avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_back.webp?v=ae2`,
+    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_espresso_corset_top.webp?v=pure4`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_front.webp?v=life4`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_back.webp?v=life4`,
     lookIndex: 0,
     slot: "top",
     purchasedAt: "2026-11-18T12:00:00Z",
@@ -220,9 +220,9 @@ const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
     brand: "Bought • GWO × Atelier",
     price: 54,
     size: "S",
-    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_champagne_wide_trousers.webp`,
-    avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_front.webp?v=ae2`,
-    avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_back.webp?v=ae2`,
+    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_champagne_wide_trousers.webp?v=pure4`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_front.webp?v=life4`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_0_back.webp?v=life4`,
     lookIndex: 0,
     slot: "pants",
     purchasedAt: "2026-11-18T12:00:00Z",
@@ -234,9 +234,9 @@ const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
     brand: "Bought • GWO × Maison",
     price: 68,
     size: "S",
-    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_ivory_tweed_blazer.webp`,
-    avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_front.webp?v=ae2`,
-    avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_back.webp?v=ae2`,
+    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_ivory_tweed_blazer.webp?v=pure4`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_front.webp?v=life4`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_back.webp?v=life4`,
     lookIndex: 1,
     slot: "top",
     purchasedAt: "2026-11-20T12:00:00Z",
@@ -248,9 +248,9 @@ const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
     brand: "Bought • GWO × Maison",
     price: 39,
     size: "S",
-    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_noir_pleated_mini.webp`,
-    avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_front.webp?v=ae2`,
-    avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_back.webp?v=ae2`,
+    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_noir_pleated_mini.webp?v=pure4`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_front.webp?v=life4`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_1_back.webp?v=life4`,
     lookIndex: 1,
     slot: "pants",
     purchasedAt: "2026-11-20T12:00:00Z",
@@ -262,9 +262,9 @@ const DEFAULT_PURCHASED_CLOSET: PurchasedClosetEntry[] = [
     brand: "Bought • GWO × Soirée",
     price: 69,
     size: "S",
-    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_crimson_corset_mini.webp`,
-    avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_6_front.webp?v=ae2`,
-    avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_6_back.webp?v=ae2`,
+    imageUrl: `${ASSET_BASE_CTX}/models/dropship/ds_crimson_corset_mini.webp?v=pure4`,
+    avatarFrontUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_6_front.webp?v=life4`,
+    avatarBackUrl: `${ASSET_BASE_CTX}/models/runway_ai/ae_outfit_6_back.webp?v=life4`,
     lookIndex: 6,
     slot: "full",
     purchasedAt: "2026-11-22T12:00:00Z",
@@ -313,9 +313,9 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       brand: "GWO × Atelier",
       price: 52,
       size: "S",
-      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/dropship/ds_espresso_corset_top.webp`,
-      avatarFrontUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_front.webp?v=ae2`,
-      avatarBackUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_back.webp?v=ae2`,
+      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/dropship/ds_espresso_corset_top.webp?v=pure4`,
+      avatarFrontUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_front.webp?v=life4`,
+      avatarBackUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_back.webp?v=life4`,
       slot: "top",
     },
     {
@@ -325,9 +325,9 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       brand: "GWO × Atelier",
       price: 54,
       size: "S",
-      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/dropship/ds_champagne_wide_trousers.webp`,
-      avatarFrontUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_front.webp?v=ae2`,
-      avatarBackUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_back.webp?v=ae2`,
+      imageUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/dropship/ds_champagne_wide_trousers.webp?v=pure4`,
+      avatarFrontUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_front.webp?v=life4`,
+      avatarBackUrl: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/models/runway_ai/ae_outfit_0_back.webp?v=life4`,
       slot: "pants",
     },
   ]);
@@ -393,7 +393,18 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
       if (rawBought) {
         const parsed = JSON.parse(rawBought) as PurchasedClosetEntry[];
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setPurchasedItems(parsed);
+          const seedById = new Map(
+            INITIAL_SEED_DB.products.map((p) => [p.id, p])
+          );
+          const refreshed = parsed.map((entry) => {
+            const seedMatch = entry.productId
+              ? seedById.get(entry.productId)
+              : undefined;
+            return seedMatch
+              ? { ...entry, imageUrl: seedMatch.imageUrl }
+              : entry;
+          });
+          setPurchasedItems(refreshed);
         }
       }
       const rawUp = window.localStorage.getItem("gwo_uploaded_closet_v1");

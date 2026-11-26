@@ -41,19 +41,19 @@ export const BAG_RGBA_OVERLAY_BY_ID: Record<
   { url: string; pos: "hand" | "shoulder" }
 > = {
   "prod-ae-burgundy-crescent-bag": {
-    url: `${BASE}/models/dropship/bag_rgba_merlot.webp?v=ae2`,
+    url: `${BASE}/models/dropship/bag_rgba_merlot.webp?v=life4`,
     pos: "shoulder",
   },
   "prod-ae-camel-turnlock-tote": {
-    url: `${BASE}/models/dropship/bag_rgba_camel_tote.webp?v=ae2`,
+    url: `${BASE}/models/dropship/bag_rgba_camel_tote.webp?v=life4`,
     pos: "hand",
   },
   "prod-ae-noir-quilted-bag": {
-    url: `${BASE}/models/dropship/bag_rgba_noir_quilted.webp?v=ae2`,
+    url: `${BASE}/models/dropship/bag_rgba_noir_quilted.webp?v=life4`,
     pos: "shoulder",
   },
   "prod-ae-ivory-mini-bag": {
-    url: `${BASE}/models/dropship/bag_rgba_ivory_mini.webp?v=ae2`,
+    url: `${BASE}/models/dropship/bag_rgba_ivory_mini.webp?v=life4`,
     pos: "hand",
   },
 };
@@ -80,8 +80,8 @@ const SIGNATURE_AE_TEMPLATES: SignatureRunwayTemplate[] = [
     title: "Espresso Satin Corset & Champagne Tailored Edit",
     occasion: "Date Night",
     archetype: "siren_glam",
-    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_0_front.webp?v=ae2`,
-    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_0_back.webp?v=ae2`,
+    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_0_front.webp?v=life4`,
+    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_0_back.webp?v=life4`,
     productIds: [
       "prod-ae-espresso-corset",
       "prod-ae-champagne-trousers",
@@ -95,8 +95,8 @@ const SIGNATURE_AE_TEMPLATES: SignatureRunwayTemplate[] = [
     title: "Old-Money Ivory Bouclé & Pleated Mini Capsule",
     occasion: "Brunch / Chic",
     archetype: "old_money_tailored",
-    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_1_front.webp?v=ae2`,
-    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_1_back.webp?v=ae2`,
+    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_1_front.webp?v=life4`,
+    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_1_back.webp?v=life4`,
     productIds: [
       "prod-ae-ivory-tweed-blazer",
       "prod-ae-acetate-beaded-tank",
@@ -111,8 +111,8 @@ const SIGNATURE_AE_TEMPLATES: SignatureRunwayTemplate[] = [
     title: "Crimson Boned Corset Mini & Noir Quilted Bag Edit",
     occasion: "Party / Night Out",
     archetype: "siren_glam",
-    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_6_front.webp?v=ae2`,
-    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_6_back.webp?v=ae2`,
+    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_6_front.webp?v=life4`,
+    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_6_back.webp?v=life4`,
     productIds: [
       "prod-ae-crimson-corset-mini",
       "prod-ae-gold-strappy-heels",
@@ -125,8 +125,8 @@ const SIGNATURE_AE_TEMPLATES: SignatureRunwayTemplate[] = [
     title: "Emerald Bias-Cut Silk Midi & Merlot Crescent Edit",
     occasion: "Cocktail / Gala",
     archetype: "siren_glam",
-    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_2_front.webp?v=ae2`,
-    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_2_back.webp?v=ae2`,
+    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_2_front.webp?v=life4`,
+    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_2_back.webp?v=life4`,
     productIds: [
       "prod-ae-emerald-satin-midi",
       "prod-ae-gold-strappy-heels",
@@ -139,8 +139,8 @@ const SIGNATURE_AE_TEMPLATES: SignatureRunwayTemplate[] = [
     title: "Champagne Corset Blazer Mini & Pearl Ivory Bag",
     occasion: "Birthday / Glam",
     archetype: "coquette_romantic",
-    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_3_front.webp?v=ae2`,
-    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_3_back.webp?v=ae2`,
+    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_3_front.webp?v=life4`,
+    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_3_back.webp?v=life4`,
     productIds: [
       "prod-ae-champagne-blazer-dress",
       "prod-ae-gold-strappy-heels",
@@ -153,8 +153,8 @@ const SIGNATURE_AE_TEMPLATES: SignatureRunwayTemplate[] = [
     title: "Oversized Noir Blazer, Belted Denim & Merlot Bag",
     occasion: "City / Off-Duty",
     archetype: "model_off_duty",
-    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_7_front.webp?v=ae2`,
-    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_7_back.webp?v=ae2`,
+    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_7_front.webp?v=life4`,
+    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_7_back.webp?v=life4`,
     productIds: [
       "prod-ae-noir-tailored-blazer",
       "prod-ae-acetate-beaded-tank",
@@ -170,8 +170,8 @@ const SIGNATURE_AE_TEMPLATES: SignatureRunwayTemplate[] = [
     title: "Mulberry Silk & Camel Wool Coat Tailored Look",
     occasion: "Work / Chic",
     archetype: "old_money_tailored",
-    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_4_front.webp?v=ae2`,
-    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_4_back.webp?v=ae2`,
+    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_4_front.webp?v=life4`,
+    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_4_back.webp?v=life4`,
     productIds: [
       "prod-ae-camel-silk-wool-coat",
       "prod-ae-acetate-beaded-tank",
@@ -186,8 +186,8 @@ const SIGNATURE_AE_TEMPLATES: SignatureRunwayTemplate[] = [
     title: "Artisanal Belted Linen Cardigan & Camel Tote Edit",
     occasion: "Weekend / Coffee",
     archetype: "model_off_duty",
-    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_5_front.webp?v=ae2`,
-    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_5_back.webp?v=ae2`,
+    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_5_front.webp?v=life4`,
+    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_5_back.webp?v=life4`,
     productIds: [
       "prod-ae-linen-cinch-cardigan",
       "prod-ae-acetate-beaded-tank",
@@ -202,8 +202,8 @@ const SIGNATURE_AE_TEMPLATES: SignatureRunwayTemplate[] = [
     title: "Sage-Olive Sculpt Studio Set & Ivory Mini Bag",
     occasion: "Pilates / Matcha",
     archetype: "clean_athleisure",
-    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_8_front.webp?v=ae2`,
-    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_8_back.webp?v=ae2`,
+    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_8_front.webp?v=life4`,
+    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_8_back.webp?v=life4`,
     productIds: [
       "prod-ae-sage-zip-jacket",
       "prod-ae-sage-flare-leggings",
@@ -217,8 +217,8 @@ const SIGNATURE_AE_TEMPLATES: SignatureRunwayTemplate[] = [
     title: "Espresso Satin Corset, Vintage Denim & Quilted Bag",
     occasion: "Concert / Street",
     archetype: "streetwear_luxe",
-    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_9_front.webp?v=ae2`,
-    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_9_back.webp?v=ae2`,
+    frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_9_front.webp?v=life4`,
+    backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_9_back.webp?v=life4`,
     productIds: [
       "prod-ae-espresso-corset",
       "prod-ae-vintage-wide-denim",
@@ -432,10 +432,10 @@ export function buildAiRunwayOutfits(params: {
         aiReason: `AI auto-added onto your ${hDisplay} Runway avatar (${pieces.length} AliExpress pieces).`,
         fitHeadline: `Exact ${hDisplay} Petite Fit (${avatar.bustInches}" B • ${avatar.waistInches}" W • ${avatar.hipsInches}" H)`,
         matchScorePct: 95 - (k % 3),
-        frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${recipe.topAvatarIdx}_front.webp?v=ae2`,
-        backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${recipe.topAvatarIdx}_back.webp?v=ae2`,
-        bottomFrontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${recipe.botAvatarIdx}_front.webp?v=ae2`,
-        bottomBackAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${recipe.botAvatarIdx}_back.webp?v=ae2`,
+        frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${recipe.topAvatarIdx}_front.webp?v=life4`,
+        backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${recipe.topAvatarIdx}_back.webp?v=life4`,
+        bottomFrontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${recipe.botAvatarIdx}_front.webp?v=life4`,
+        bottomBackAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${recipe.botAvatarIdx}_back.webp?v=life4`,
         bagOverlayUrl: bagMeta?.url,
         bagOverlayPos: bagMeta?.pos,
         pieces,
@@ -518,8 +518,8 @@ export function buildSinglePieceRunwayLineup(params: {
       aiReason: `Single Piece on Your ${hDisplay} Avatar • Recommended Size ${fit.recommendedSize} (${fit.confidencePct}% Fit Match).`,
       fitHeadline: `Exact ${hDisplay} Fit • Size ${fit.recommendedSize}`,
       matchScorePct: fit.confidencePct,
-      frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${oIdx}_front.webp?v=ae2`,
-      backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${oIdx}_back.webp?v=ae2`,
+      frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${oIdx}_front.webp?v=life4`,
+      backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${oIdx}_back.webp?v=life4`,
       pieces: [
         {
           product: prod,

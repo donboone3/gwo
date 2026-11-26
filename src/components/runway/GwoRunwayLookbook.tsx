@@ -3,28 +3,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Box,
   Check,
-  ChevronLeft,
-  ChevronRight,
-  Images,
-  Instagram,
-  Layers,
   Plus,
   RefreshCw,
   Rotate3d,
-  ScanLine,
-  Shirt,
   ShoppingBag,
   Sparkles,
   Store,
-  Wand2,
   X,
 } from "lucide-react";
 import "./runway-lookbook.css";
 import { useGwo } from "@/context/GwoAppContext";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
-import { Interactive3DAvatarStage } from "../three/Interactive3DAvatarStage";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 import { deriveStandardApparelSize } from "@/lib/catalog/sizing";
 import {
@@ -34,7 +24,6 @@ import {
   buildSinglePieceRunwayLineup,
 } from "@/lib/stylist/runway-ai-outfits";
 import { buildTopLineAliExpressDropshipCatalog } from "@/lib/dropship/aliexpress-dropship";
-import { ARCHETYPE_META } from "@/lib/social/social-style-dna";
 import {
   deriveFullBodyDimensionsFromProfile,
   formatHeightFeetInches,
@@ -56,8 +45,8 @@ interface CustomRunwayOutfitSaved {
   bagOverlayPos?: "hand" | "shoulder";
 }
 
-// Larger foreground scale (`KH[1] = 0.99`, `KF[1] = 0.99`) so Runway Avatar fills stage height cleanly!
-const KX = [1.22, 0.68, 0.44, 0.29, 0.19, 0.12, 0.06];
+// Original Diagonal Depth-of-Field Runway Curves with Commanding Foreground Avatar (`KH[1] = 0.99`)
+const KX = [1.22, 0.7, 0.45, 0.3, 0.19, 0.12, 0.06];
 const KF = [1.06, 0.99, 0.87, 0.78, 0.72, 0.67, 0.62];
 const KH = [1.14, 0.99, 0.72, 0.54, 0.41, 0.31, 0.23];
 const KB = [0, 0, 1.5, 4, 8, 12, 17];
@@ -86,10 +75,8 @@ export function GwoRunwayLookbook() {
     purchasedItems,
     addToBag,
     customAvatar,
-    setAvatarModalOpen,
     setAddUrlModalOpen,
     socialDna,
-    setSocialModalOpen,
     openAvatar360,
     openDropshipCheckout,
     showToast,
@@ -110,23 +97,15 @@ export function GwoRunwayLookbook() {
     [bodyDims.bustInches, bodyDims.hipsInches, bodyDims.waistInches]
   );
 
-  const [stageRenderMode, setStageRenderMode] = useState<"3d" | "lookbook">(
-    "3d"
-  );
   const [browseMode, setBrowseMode] = useState<"outfits" | "pieces">("outfits");
-  const [vibeInput, setVibeInput] = useState("");
-  const [appliedVibe, setAppliedVibe] = useState("");
   const [extraAiCount, setExtraAiCount] = useState(4);
   const [runwayAngle, setRunwayAngle] = useState<"front" | "back">("front");
   const [activeLookIdx, setActiveLookIdx] = useState(0);
 
-  // Per-outfit piece swap overrides so shoppers can customize any AI outfit live like a dressing game!
+  // Per-outfit piece swap overrides so shoppers can swap pieces live on the Runway!
   const [swappedPieceBySlot, setSwappedPieceBySlot] = useState<
     Record<string, Product>
   >({});
-
-  // Which piece card in the right rail is currently showing live draggable 3D Product Object mode
-  const [active3DCardId, setActive3DCardId] = useState<string | null>(null);
 
   // Custom Outfit Builder Modal state
   const [buildModalOpen, setBuildModalOpen] = useState(false);
@@ -209,7 +188,7 @@ export function GwoRunwayLookbook() {
     [bodyDims]
   );
 
-  // Full Pure-AliExpress Outfits & Single Pieces Lineup
+  // Full AliExpress Outfits & Single Pieces Lineup on the Lifelike Diagonal Runway
   const runwayOutfits: AiRunwayOutfit[] = useMemo(() => {
     if (browseMode === "pieces") {
       return buildSinglePieceRunwayLineup({
@@ -223,7 +202,6 @@ export function GwoRunwayLookbook() {
       catalog: boutiqueCatalog,
       avatar: avatarStats,
       socialDna,
-      vibePrompt: appliedVibe,
       extraGeneratedCount: extraAiCount,
     });
 
@@ -253,7 +231,7 @@ export function GwoRunwayLookbook() {
           occasion: "Custom Outfit",
           archetype: socialDna.primaryArchetype,
           archetypeLabel: "Custom Built",
-          aiReason: `Custom ${pieces.length}-piece outfit styled onto your ${activeHeightStr} 3D Runway body.`,
+          aiReason: `Custom ${pieces.length}-piece outfit styled for your ${activeHeightStr} frame.`,
           fitHeadline: `Exact ${activeHeightStr} Fit`,
           matchScorePct: 98,
           frontAvatarUrl: co.frontAvatarUrl,
@@ -272,7 +250,6 @@ export function GwoRunwayLookbook() {
     return combined.map((o, idx) => ({ ...o, outfitNumber: idx + 1 }));
   }, [
     activeHeightStr,
-    appliedVibe,
     avatarStats,
     boutiqueCatalog,
     browseMode,
@@ -281,7 +258,7 @@ export function GwoRunwayLookbook() {
     socialDna,
   ]);
 
-  // Endless AI Auto-Styling expansion near tail
+  // Endless AI Auto-Styling as user scrolls through Runway looks
   const autoExpandCooldownRef = useRef(false);
   useEffect(() => {
     if (browseMode !== "outfits") return;
@@ -305,7 +282,6 @@ export function GwoRunwayLookbook() {
       : 0;
   const rawActiveOutfit = runwayOutfits[safeActiveIdx] || runwayOutfits[0];
 
-  // Apply any live dressing-game swaps onto the active Runway outfit!
   const activeOutfit = useMemo(() => {
     if (!rawActiveOutfit) return rawActiveOutfit;
     const pieces = rawActiveOutfit.pieces.map((p, slotIdx) => {
@@ -327,43 +303,66 @@ export function GwoRunwayLookbook() {
     };
   }, [avatarStats, rawActiveOutfit, swappedPieceBySlot]);
 
-  // Default hero piece card to live 3D Object view on desktop (`> 820px`) when switching outfits
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth > 820 && activeOutfit?.pieces[0]) {
-      setActive3DCardId(activeOutfit.pieces[0].product.id);
-    } else {
-      setActive3DCardId(null);
-    }
-  }, [activeOutfit?.id, activeOutfit?.pieces]);
-
-  // Diagonal Lookbook Stage Engine (active when user toggles `Lookbook Lineup`)
+  // Refs for Original Iconic Diagonal Multi-Model Runway Engine
   const stageRef = useRef<HTMLElement | null>(null);
   const lineRef = useRef<HTMLDivElement | null>(null);
+  const ringRef = useRef<HTMLDivElement | null>(null);
+  const rollRef = useRef<HTMLSpanElement | null>(null);
+  const modelTopImgElsRef = useRef<Array<HTMLImageElement | null>>([]);
+  const modelBotImgElsRef = useRef<Array<HTMLImageElement | null>>([]);
+  const faceImgElsRef = useRef<Array<HTMLImageElement | null>>([]);
   const jumpLookRef = useRef<((lookIndex: number) => void) | null>(null);
   const currentPosRef = useRef(0);
 
-  const selectOutfitIndex = useCallback(
-    (idx: number) => {
-      if (runwayOutfits.length === 0) return;
-      const wrapped =
-        ((idx % runwayOutfits.length) + runwayOutfits.length) %
-        runwayOutfits.length;
-      setActiveLookIdx(wrapped);
-      currentPosRef.current = wrapped;
-      jumpLookRef.current?.(wrapped);
-    },
-    [runwayOutfits.length]
-  );
-
+  // Flip all diagonal runway models seamlessly between Front 0° and Back 180°
   useEffect(() => {
-    if (stageRenderMode !== "lookbook") return;
+    modelTopImgElsRef.current.forEach((imgEl, i) => {
+      const outfit = runwayOutfits[i];
+      if (!imgEl || !outfit) return;
+      imgEl.src =
+        runwayAngle === "back" ? outfit.backAvatarUrl : outfit.frontAvatarUrl;
+    });
+    modelBotImgElsRef.current.forEach((botEl, i) => {
+      const outfit = runwayOutfits[i];
+      if (!botEl || !outfit) return;
+      const botSrc =
+        runwayAngle === "back"
+          ? outfit.bottomBackAvatarUrl
+          : outfit.bottomFrontAvatarUrl;
+      if (botSrc) botEl.src = botSrc;
+    });
+    faceImgElsRef.current.forEach((faceEl) => {
+      if (!faceEl) return;
+      if (customAvatar?.faceOvalDataUrl && runwayAngle === "front") {
+        faceEl.src = customAvatar.faceOvalDataUrl;
+        faceEl.style.display = "block";
+      } else {
+        faceEl.style.display = "none";
+      }
+    });
+  }, [customAvatar, runwayAngle, runwayOutfits]);
+
+  // Iconic Diagonal Depth-of-Field Multi-Model Lifelike Runway Physics (Original Prompt Properties!)
+  useEffect(() => {
     const stage = stageRef.current;
     const line = lineRef.current;
-    if (!stage || !line) return;
+    const ring = ringRef.current;
+    const roll = rollRef.current;
+    if (!stage || !line || !ring || !roll) return;
 
     line.innerHTML = "";
+    roll.innerHTML = "";
+
     const N = runwayOutfits.length;
     if (N === 0) return;
+
+    const calm = window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+    const createdTopImgs: Array<HTMLImageElement | null> = [];
+    const createdBotImgs: Array<HTMLImageElement | null> = [];
+    const createdFaceImgs: Array<HTMLImageElement | null> = [];
+
+    // Body-scan proportion subtle width factor so scanned curves reflect gently on the lifelike figure
+    const hipRatio = clamp(bodyDims.hipsInches / 34.0, 0.9, 1.16);
 
     const people = runwayOutfits.map((outfit, i) => {
       const e = document.createElement("div");
@@ -381,6 +380,9 @@ export function GwoRunwayLookbook() {
         botImg.alt = "";
         botImg.decoding = "async";
         e.append(botImg);
+        createdBotImgs.push(botImg);
+      } else {
+        createdBotImgs.push(null);
       }
 
       const img = document.createElement("img");
@@ -390,40 +392,64 @@ export function GwoRunwayLookbook() {
       img.alt = outfit.title;
       img.decoding = "async";
       e.append(img);
+      createdTopImgs.push(img);
 
-      // Render held RGBA Bag Overlay whenever AI/Custom look carries an extra bag!
       if (outfit.bagOverlayUrl) {
         const bagImg = document.createElement("img");
         bagImg.className = "mv-bag-overlay";
         bagImg.src = outfit.bagOverlayUrl;
         bagImg.alt = "Held boutique bag";
         const isShoulder = outfit.bagOverlayPos === "shoulder";
-        bagImg.style.left = isShoulder ? "55%" : "58%";
-        bagImg.style.top = isShoulder ? "28%" : "44%";
-        bagImg.style.width = "22%";
+        bagImg.style.left = isShoulder ? "54.5%" : "57.5%";
+        bagImg.style.top = isShoulder ? "25.5%" : "43.5%";
+        bagImg.style.width = isShoulder ? "16.5%" : "19.5%";
         e.append(bagImg);
       }
 
+      const faceImg = document.createElement("img");
+      faceImg.className = "mv-face-oval";
+      faceImg.alt = "";
       if (customAvatar?.faceOvalDataUrl && runwayAngle === "front") {
-        const faceImg = document.createElement("img");
-        faceImg.className = "mv-face-oval";
         faceImg.src = customAvatar.faceOvalDataUrl;
-        faceImg.alt = "";
-        e.append(faceImg);
+        faceImg.style.display = "block";
+      } else {
+        faceImg.style.display = "none";
       }
+      e.append(faceImg);
+      createdFaceImgs.push(faceImg);
 
       line.append(e);
-      return { e, r: 900 / 1355, f: "", o: "", cx: 0, sc: 1, vis: true };
+      return {
+        e,
+        r: (900 / 1355) * hipRatio,
+        f: "",
+        o: "",
+        cx: 0,
+        sc: 1,
+        vis: true,
+      };
     });
+
+    modelTopImgElsRef.current = createdTopImgs;
+    modelBotImgElsRef.current = createdBotImgs;
+    faceImgElsRef.current = createdFaceImgs;
+
+    for (let i = 0; i <= N; i++) {
+      const b = document.createElement("b");
+      const num = 1 + (i % N);
+      b.textContent = num < 10 ? `0${num}` : String(num);
+      roll.append(b);
+    }
 
     let W = 0;
     let H = 0;
     let base = 0;
+    let mobile = false;
     let dirty = true;
-    let p = clamp(activeLookIdx, 0, Math.max(0, N - 1));
+    let p = clamp(currentPosRef.current, 0, Math.max(0, N - 1));
     let target = p;
     let last = 0;
-    let lastReported = Math.round(wrap(p, N)) % N;
+    let lastReportedIdx = Math.round(wrap(p, N)) % N;
 
     jumpLookRef.current = (lookIndex: number) => {
       const currMod = wrap(Math.round(target), N);
@@ -435,7 +461,8 @@ export function GwoRunwayLookbook() {
     const size = () => {
       W = stage.clientWidth;
       H = stage.clientHeight;
-      base = H * 0.98;
+      base = H * 0.97;
+      mobile = window.innerWidth <= 820;
       people.forEach((m) => {
         m.e.style.width = `${base * m.r}px`;
         m.e.style.height = `${base}px`;
@@ -446,8 +473,8 @@ export function GwoRunwayLookbook() {
     const paint = () => {
       currentPosRef.current = p;
       const roundedIdx = Math.round(wrap(p, N)) % N;
-      if (roundedIdx !== lastReported) {
-        lastReported = roundedIdx;
+      if (roundedIdx !== lastReportedIdx) {
+        lastReportedIdx = roundedIdx;
         setActiveLookIdx(roundedIdx);
       }
 
@@ -471,6 +498,7 @@ export function GwoRunwayLookbook() {
         m.cx = centerX;
         m.sc = sc;
         m.vis = op > 0.12;
+
         m.e.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(
           1
         )}px,0) scale(${sc.toFixed(4)})`;
@@ -484,38 +512,123 @@ export function GwoRunwayLookbook() {
           m.e.style.opacity = o;
         }
       });
+
+      const r = wrap(p, N);
+      const rollH = mobile ? 24 : 30;
+      roll.style.transform = `translate3d(0,${(
+        -(r > N - 1 ? r : Math.round(r)) * rollH
+      ).toFixed(1)}px,0)`;
       dirty = false;
     };
 
+    let mx = 0;
+    let my = 0;
+    let cx = 0;
+    let cy = 0;
     let drag = false;
     let sx = 0;
+    let sy = 0;
     let s0 = 0;
     let moved = false;
 
+    const onEnter = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      const r = stage.getBoundingClientRect();
+      cx = mx = e.clientX - r.left;
+      cy = my = e.clientY - r.top;
+      ring.style.transform = `translate3d(${cx}px,${cy}px,0)`;
+      ring.classList.add("show");
+    };
+
+    const onLeave = () => ring.classList.remove("show", "drag");
+
+    const onMove = (e: PointerEvent) => {
+      const r = stage.getBoundingClientRect();
+      mx = e.clientX - r.left;
+      my = e.clientY - r.top;
+      if (!drag) return;
+      const dx = e.clientX - sx;
+      const dy = e.clientY - sy;
+      if (Math.hypot(dx, dy) > 6) moved = true;
+      target = s0 + dx / Math.max(200, W * 0.34);
+    };
+
     const onDown = (e: PointerEvent) => {
+      if ((e.target as HTMLElement)?.closest("button")) return;
       drag = true;
       moved = false;
       sx = e.clientX;
+      sy = e.clientY;
       s0 = target;
+      ring.classList.add("drag");
       stage.setPointerCapture(e.pointerId);
     };
-    const onMove = (e: PointerEvent) => {
-      if (!drag) return;
-      const dx = e.clientX - sx;
-      if (Math.abs(dx) > 6) moved = true;
-      target = s0 + dx / Math.max(200, W * 0.34);
-    };
-    const onUp = () => {
+
+    const onRelease = (e: PointerEvent) => {
       if (!drag) return;
       drag = false;
-      target = moved ? Math.round(target) : Math.round(target) + 1;
+      ring.classList.remove("drag");
+      if (!moved) {
+        const rect = stage.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        let tappedIdx = -1;
+        let bestDist = Infinity;
+        people.forEach((m, idx) => {
+          if (!m.vis) return;
+          const dist = Math.abs(clickX - m.cx);
+          if (dist < base * 0.2 * m.sc && dist < bestDist) {
+            bestDist = dist;
+            tappedIdx = idx;
+          }
+        });
+        const d =
+          tappedIdx >= 0 ? wrap(tappedIdx - Math.round(target), N) : 0;
+        target = Math.round(target) + (d && d < N - 1 ? d : 1);
+      } else {
+        target = Math.round(target);
+      }
     };
 
-    stage.addEventListener("pointerdown", onDown);
+    let wheelAcc = 0;
+    let wheelT: ReturnType<typeof setTimeout> | null = null;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const d =
+        Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      wheelAcc += d * (e.deltaMode === 1 ? 32 : 1);
+      if (Math.abs(wheelAcc) > 55) {
+        target = Math.round(target) + Math.sign(wheelAcc);
+        wheelAcc = 0;
+      }
+      if (wheelT) clearTimeout(wheelT);
+      wheelT = setTimeout(() => {
+        wheelAcc = 0;
+      }, 160);
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.tagName === "INPUT") return;
+      const step =
+        e.key === "ArrowRight" || e.key === "ArrowDown"
+          ? 1
+          : e.key === "ArrowLeft" || e.key === "ArrowUp"
+          ? -1
+          : 0;
+      if (step) {
+        e.preventDefault();
+        target = Math.round(target) + step;
+      }
+    };
+
+    stage.addEventListener("pointerenter", onEnter);
+    stage.addEventListener("pointerleave", onLeave);
     stage.addEventListener("pointermove", onMove);
-    stage.addEventListener("pointerup", onUp);
-    stage.addEventListener("pointercancel", onUp);
+    stage.addEventListener("pointerdown", onDown);
+    stage.addEventListener("pointerup", onRelease);
+    stage.addEventListener("pointercancel", onRelease);
+    stage.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("resize", size);
+    window.addEventListener("keydown", onKeyDown);
 
     let rafId = 0;
     const frame = (now: number) => {
@@ -523,13 +636,20 @@ export function GwoRunwayLookbook() {
       last = now;
       const diff = target - p;
       if (Math.abs(diff) > 0.0004) {
-        p += diff * (1 - Math.pow(0.0012, dt / 1000));
+        p = calm ? target : p + diff * (1 - Math.pow(0.0012, dt / 1000));
         dirty = true;
       } else if (p !== target) {
         p = target;
         dirty = true;
       }
       if (dirty) paint();
+      if (Math.abs(mx - cx) > 0.25 || Math.abs(my - cy) > 0.25) {
+        cx += (mx - cx) * 0.35;
+        cy += (my - cy) * 0.35;
+        ring.style.transform = `translate3d(${cx.toFixed(1)}px,${cy.toFixed(
+          1
+        )}px,0)`;
+      }
       rafId = requestAnimationFrame(frame);
     };
 
@@ -539,16 +659,20 @@ export function GwoRunwayLookbook() {
 
     return () => {
       cancelAnimationFrame(rafId);
-      stage.removeEventListener("pointerdown", onDown);
+      if (wheelT) clearTimeout(wheelT);
+      stage.removeEventListener("pointerenter", onEnter);
+      stage.removeEventListener("pointerleave", onLeave);
       stage.removeEventListener("pointermove", onMove);
-      stage.removeEventListener("pointerup", onUp);
-      stage.removeEventListener("pointercancel", onUp);
+      stage.removeEventListener("pointerdown", onDown);
+      stage.removeEventListener("pointerup", onRelease);
+      stage.removeEventListener("pointercancel", onRelease);
+      stage.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", size);
+      window.removeEventListener("keydown", onKeyDown);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customAvatar, runwayAngle, runwayOutfits, stageRenderMode]);
+  }, [bodyDims.hipsInches, runwayOutfits]);
 
-  // Swap an individual piece right inside the active Runway outfit (Dressing Game on Runway!)
   const handleSwapPieceInOutfit = useCallback(
     (slotIdx: number, currentProduct: Product) => {
       if (!rawActiveOutfit) return;
@@ -557,7 +681,7 @@ export function GwoRunwayLookbook() {
           const curIsBelt = /belt/i.test(currentProduct.title);
           return (
             p.category === "accessory" &&
-            (/belt/i.test(p.title) === curIsBelt) &&
+            /belt/i.test(p.title) === curIsBelt &&
             p.id !== currentProduct.id
           );
         }
@@ -573,20 +697,15 @@ export function GwoRunwayLookbook() {
         sameCategoryPool[(curPoolIdx + 1) % sameCategoryPool.length];
       const swapKey = `${rawActiveOutfit.id}:${slotIdx}`;
       setSwappedPieceBySlot((prev) => ({ ...prev, [swapKey]: nextProd }));
-      showToast(`Swapped in "${nextProd.title}" on your 3D Runway Avatar!`);
+      showToast(`Swapped in "${nextProd.title}"!`);
     },
     [boutiqueCatalog, rawActiveOutfit, showToast]
   );
 
   const handleAddOrBuyCurrentEntry = useCallback(
-    (onlyMissingFromCloset: boolean, openCheckoutImmediately: boolean) => {
+    (openCheckoutImmediately: boolean) => {
       if (!activeOutfit) return;
-      const targetPieces = onlyMissingFromCloset
-        ? activeOutfit.pieces.filter((p) => !ownedIds.has(p.product.id))
-        : activeOutfit.pieces;
-      const list =
-        targetPieces.length > 0 ? targetPieces : activeOutfit.pieces;
-      list.forEach((p) => {
+      activeOutfit.pieces.forEach((p) => {
         addToBag({
           productId: p.product.id,
           title: p.product.title,
@@ -603,27 +722,12 @@ export function GwoRunwayLookbook() {
         openDropshipCheckout("checkout");
       } else {
         showToast(
-          `Added ${list.length} ${list.length === 1 ? "piece" : "pieces"} to Bag!`
+          `Added all ${activeOutfit.pieces.length} pieces of "${activeOutfit.title}" to Bag!`
         );
       }
     },
-    [activeOutfit, addToBag, openDropshipCheckout, ownedIds, recSize, showToast]
+    [activeOutfit, addToBag, openDropshipCheckout, recSize, showToast]
   );
-
-  const handleApplyAiPrompt = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    setBrowseMode("outfits");
-    if (!vibeInput.trim()) {
-      const targetIdx = runwayOutfits.length;
-      setExtraAiCount((prev) => prev + 2);
-      showToast("AI Stylist created fresh outfits on your 3D Runway Avatar!");
-      setTimeout(() => selectOutfitIndex(targetIdx), 60);
-      return;
-    }
-    setAppliedVibe(vibeInput.trim());
-    selectOutfitIndex(0);
-    showToast(`AI Runway styled outfits around "${vibeInput.trim()}"!`);
-  };
 
   const handleCreateCustomRunwayOutfit = () => {
     if (selectedCustomIds.length === 0) return;
@@ -662,7 +766,9 @@ export function GwoRunwayLookbook() {
         botAvatarIdx = 8;
     }
 
-    const selectedBagId = selectedCustomIds.find((id) => id in BAG_RGBA_OVERLAY_BY_ID);
+    const selectedBagId = selectedCustomIds.find(
+      (id) => id in BAG_RGBA_OVERLAY_BY_ID
+    );
     const bagOverlay =
       selectedBagId && UPPER_LOOK_HELD_BAG[topAvatarIdx] !== selectedBagId
         ? BAG_RGBA_OVERLAY_BY_ID[selectedBagId]
@@ -675,15 +781,15 @@ export function GwoRunwayLookbook() {
       id: `custom-runway-${Date.now()}`,
       title,
       productIds: selectedCustomIds,
-      frontAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_${topAvatarIdx}_front.webp?v=ae2`,
-      backAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_${topAvatarIdx}_back.webp?v=ae2`,
+      frontAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_${topAvatarIdx}_front.webp?v=life4`,
+      backAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_${topAvatarIdx}_back.webp?v=life4`,
       bottomFrontAvatarUrl:
         botAvatarIdx !== topAvatarIdx
-          ? `${BASE_PATH}/models/runway_ai/ae_outfit_${botAvatarIdx}_front.webp?v=ae2`
+          ? `${BASE_PATH}/models/runway_ai/ae_outfit_${botAvatarIdx}_front.webp?v=life4`
           : undefined,
       bottomBackAvatarUrl:
         botAvatarIdx !== topAvatarIdx
-          ? `${BASE_PATH}/models/runway_ai/ae_outfit_${botAvatarIdx}_back.webp?v=ae2`
+          ? `${BASE_PATH}/models/runway_ai/ae_outfit_${botAvatarIdx}_back.webp?v=life4`
           : undefined,
       bagOverlayUrl: bagOverlay?.url,
       bagOverlayPos: bagOverlay?.pos,
@@ -692,362 +798,172 @@ export function GwoRunwayLookbook() {
     setBrowseMode("outfits");
     setBuildModalOpen(false);
     setCustomTitle("");
-    selectOutfitIndex(0);
-    showToast(`Added "${title}" onto your 3D Runway!`);
+    currentPosRef.current = 0;
+    setActiveLookIdx(0);
+    setTimeout(() => jumpLookRef.current?.(0), 40);
+    showToast(`Added "${title}" onto your Runway!`);
   };
-
-  const heroPiece = activeOutfit?.pieces[0]?.product;
-  const worn3DPieces = useMemo(
-    () =>
-      (activeOutfit?.pieces || []).map((p) => ({
-        product: p.product,
-        selectedSize: p.recommendedSize,
-        isOwnedInCloset: ownedIds.has(p.product.id),
-      })),
-    [activeOutfit?.pieces, ownedIds]
-  );
 
   return (
     <div className="mv-page">
       <main className="mv-main">
-        <div className="mv-left-col">
-          {/* ==================== COMPACT 2-ROW TOP BAR ==================== */}
-          <div className="mv-top-bar space-y-1.5">
-            <div className="mv-pill-scroll justify-between gap-2">
-              <div className="flex items-center gap-1.5 shrink-0">
-                <h1 className="text-sm sm:text-lg font-bold tracking-tight text-[#141518] whitespace-nowrap">
-                  3D Runway
-                </h1>
+        {/* ==================== HALF 1 (50% SCREEN): UNOBSTRUCTED LIFELIKE DIAGONAL RUNWAY STAGE ==================== */}
+        <section
+          className="mv-stage"
+          ref={stageRef}
+          aria-label="Slide Runway to shop outfits on your lifelike avatar"
+          tabIndex={0}
+        >
+          <div className="mv-line" ref={lineRef} />
+          <div className="mv-ring" ref={ringRef} />
 
-                {/* 3D Interactive Stage vs Diagonal Lookbook Lineup */}
-                <div className="inline-flex items-center p-0.5 rounded-full bg-[#F1F2F5] border border-black/[0.07]">
-                  <button
-                    type="button"
-                    id="gwo-runway-view-3d"
-                    onClick={() => setStageRenderMode("3d")}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition min-h-[26px] ${
-                      stageRenderMode === "3d"
-                        ? "bg-[#141518] text-white"
-                        : "text-[#686D76] hover:text-[#141518]"
-                    }`}
-                  >
-                    <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> 360° Lifelike
-                  </button>
-                  <button
-                    type="button"
-                    id="gwo-runway-view-lookbook"
-                    onClick={() => setStageRenderMode("lookbook")}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition min-h-[26px] ${
-                      stageRenderMode === "lookbook"
-                        ? "bg-[#141518] text-white"
-                        : "text-[#686D76] hover:text-[#141518]"
-                    }`}
-                  >
-                    <Images className="w-3 h-3" /> Runway Lineup
-                  </button>
+          {/* Minimal Corner Front / Back Flip Pill inside Stage (No Top Header Bar!) */}
+          <div className="absolute top-2.5 left-2.5 z-20 inline-flex items-center p-0.5 rounded-full bg-white/85 backdrop-blur-md border border-black/[0.08] shadow-xs">
+            {(
+              [
+                ["front", "Front 0°"],
+                ["back", "Back 180°"],
+              ] as const
+            ).map(([ang, lbl]) => (
+              <button
+                key={ang}
+                type="button"
+                onClick={() => setRunwayAngle(ang)}
+                className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold cursor-pointer transition min-h-[24px] ${
+                  runwayAngle === ang
+                    ? "bg-[#141518] text-white"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+
+          {/* Iconic Rolling Odometer Counter in Bottom-Left Corner */}
+          <div className="mv-look" aria-live="polite">
+            <span>{browseMode === "pieces" ? "Piece" : "Outfit"}</span>
+            <span className="mv-win">
+              <span className="mv-roll" ref={rollRef} />
+            </span>
+          </div>
+        </section>
+
+        {/* ==================== HALF 2 (50% SCREEN): ALL CLOTHES IN THIS OUTFIT ==================== */}
+        <aside
+          className="mv-rail"
+          aria-label="Clothes in this Runway outfit"
+        >
+          {activeOutfit && (
+            <>
+              {/* Clean Outfit Summary & Full-Outfit Buy Row at Top of Clothes Half */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-black/[0.08] shrink-0">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h1 className="text-xs sm:text-sm font-extrabold text-[#141518] truncate">
+                      {activeOutfit.title}
+                    </h1>
+                  </div>
+                  <p className="text-[10.5px] font-semibold text-[#244B3B] truncate">
+                    {browseMode === "pieces"
+                      ? `Single Piece • Calibrated for ${activeHeightStr} (Size ${recSize})`
+                      : `${activeOutfit.pieces.length} Pieces • Calibrated for ${activeHeightStr} (Size ${recSize})`}
+                  </p>
                 </div>
 
-                {/* Full Outfits vs Single Pieces */}
-                <div className="inline-flex items-center p-0.5 rounded-full bg-[#F1F2F5] border border-black/[0.07]">
-                  <button
-                    type="button"
-                    id="gwo-runway-mode-outfits"
-                    onClick={() => {
-                      setBrowseMode("outfits");
-                      selectOutfitIndex(0);
-                    }}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition min-h-[26px] ${
-                      browseMode === "outfits"
-                        ? "bg-[#244B3B] text-white"
-                        : "text-[#686D76] hover:text-[#141518]"
-                    }`}
-                  >
-                    <Layers className="w-3 h-3" /> Outfits
-                  </button>
-                  <button
-                    type="button"
-                    id="gwo-runway-mode-pieces"
-                    onClick={() => {
-                      setBrowseMode("pieces");
-                      selectOutfitIndex(0);
-                    }}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition min-h-[26px] ${
-                      browseMode === "pieces"
-                        ? "bg-[#244B3B] text-white"
-                        : "text-[#686D76] hover:text-[#141518]"
-                    }`}
-                  >
-                    <Shirt className="w-3 h-3" /> Pieces
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 shrink-0">
-                {stageRenderMode === "lookbook" && (
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                   <div className="inline-flex items-center p-0.5 rounded-full bg-white border border-black/[0.08]">
                     {(
                       [
-                        ["front", "Front 0°"],
-                        ["back", "Back 180°"],
+                        ["outfits", "Outfits"],
+                        ["pieces", "Pieces"],
                       ] as const
-                    ).map(([ang, lbl]) => (
+                    ).map(([modeKey, lbl]) => (
                       <button
-                        key={ang}
+                        key={modeKey}
                         type="button"
-                        onClick={() => setRunwayAngle(ang)}
-                        className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold cursor-pointer min-h-[26px] ${
-                          runwayAngle === ang
+                        onClick={() => {
+                          setBrowseMode(modeKey);
+                          currentPosRef.current = 0;
+                          setActiveLookIdx(0);
+                          setTimeout(() => jumpLookRef.current?.(0), 30);
+                        }}
+                        className={`px-2 py-1 rounded-full text-[10px] font-bold cursor-pointer transition min-h-[24px] ${
+                          browseMode === modeKey
                             ? "bg-[#141518] text-white"
-                            : "text-[#686D76]"
+                            : "text-[#686D76] hover:text-[#141518]"
                         }`}
                       >
                         {lbl}
                       </button>
                     ))}
                   </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setAvatarModalOpen(true)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#E7F3EE] hover:bg-[#D5EAE0] border border-[#C5DFD0] text-[11px] font-bold text-[#1D4232] cursor-pointer min-h-[28px]"
-                >
-                  <ScanLine className="w-3 h-3" />
-                  <span>
-                    Body Scan ({activeHeightStr} • {recSize})
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  id="gwo-runway-social-dna-btn"
-                  onClick={() => setSocialModalOpen(true)}
-                  className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FDEEF4] hover:bg-[#FADCE8] border border-[#F5C5D8] text-[11px] font-bold text-[#9D174D] cursor-pointer min-h-[28px]"
-                >
-                  <Instagram className="w-3 h-3" />
-                  <span>
-                    {ARCHETYPE_META[socialDna.primaryArchetype].shortTag}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  id="gwo-runway-add-ai-outfit-btn"
-                  onClick={() => {
-                    setBrowseMode("outfits");
-                    const jumpIdx = runwayOutfits.length;
-                    setExtraAiCount((prev) => prev + 1);
-                    showToast("AI built a new outfit on your 3D Runway!");
-                    setTimeout(() => selectOutfitIndex(jumpIdx), 60);
-                  }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#244B3B] hover:bg-[#1D3E30] text-white text-[11px] font-bold cursor-pointer min-h-[28px]"
-                >
-                  <Sparkles className="w-3 h-3" /> + AI Outfit
-                </button>
-
-                <button
-                  type="button"
-                  id="gwo-runway-build-outfit-btn"
-                  onClick={() => setBuildModalOpen(true)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[11px] font-bold cursor-pointer min-h-[28px]"
-                >
-                  <Plus className="w-3 h-3" /> Build Outfit
-                </button>
-              </div>
-            </div>
-
-            {/* Row 2: Single-Line Horizontal Scroll Outfit Strip + AI Prompt */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="mv-pill-scroll flex-1 min-w-0">
-                {runwayOutfits.slice(0, 12).map((outfit, idx) => {
-                  const active = safeActiveIdx === idx;
-                  const numStr = idx + 1 < 10 ? `0${idx + 1}` : String(idx + 1);
-                  return (
-                    <button
-                      key={outfit.id}
-                      type="button"
-                      onClick={() => selectOutfitIndex(idx)}
-                      className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold transition cursor-pointer min-h-[26px] ${
-                        active
-                          ? "bg-[#141518] text-white shadow-xs"
-                          : "bg-white hover:bg-[#F4F5F7] text-[#686D76] hover:text-[#141518] border border-black/[0.07]"
-                      }`}
-                    >
-                      {numStr} • {outfit.occasion}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <form
-                onSubmit={handleApplyAiPrompt}
-                className="hidden xl:flex items-center gap-1.5 shrink-0"
-              >
-                <input
-                  type="text"
-                  value={vibeInput}
-                  onChange={(e) => setVibeInput(e.target.value)}
-                  placeholder="Ask AI for an occasion (e.g., rooftop dinner)..."
-                  className="w-56 px-3 py-1 rounded-full bg-white border border-black/10 text-[11px] text-[#141518] focus:outline-none focus:border-[#141518]"
-                />
-                <button
-                  type="submit"
-                  className="px-2.5 py-1 rounded-full bg-[#EBF3EE] hover:bg-[#DCECE3] border border-[#C5DFD0] text-[#1D4232] text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer min-h-[26px]"
-                >
-                  <Wand2 className="w-3 h-3" /> Style
-                </button>
-              </form>
-            </div>
-          </div>
-
-          {/* ==================== COMMANDING 3D OR LOOKBOOK RUNWAY STAGE ==================== */}
-          <section
-            className="mv-stage"
-            ref={stageRef}
-            aria-label="Interactive 3D Runway Avatar Stage"
-          >
-            {stageRenderMode === "3d" ? (
-              <div className="relative w-full h-full">
-                <Interactive3DAvatarStage
-                  mode="avatar"
-                  dimensions={bodyDims}
-                  wornPieces={worn3DPieces}
-                  faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
-                  externalYawDeg={runwayAngle === "back" ? 180 : undefined}
-                  initialYawDeg={16}
-                  onSelectProduct={(prod) => setActive3DCardId(prod.id)}
-                  showHud={true}
-                />
-
-                {/* Flanking Prev / Next Runway Outfit Stepper Buttons */}
-                <button
-                  type="button"
-                  onClick={() => selectOutfitIndex(safeActiveIdx - 1)}
-                  aria-label="Previous Runway Outfit"
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white/92 hover:bg-white border border-black/[0.09] shadow-md flex items-center justify-center text-[#141518] cursor-pointer transition"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectOutfitIndex(safeActiveIdx + 1)}
-                  aria-label="Next Runway Outfit"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white/92 hover:bg-white border border-black/[0.09] shadow-md flex items-center justify-center text-[#141518] cursor-pointer transition"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="mv-line" ref={lineRef} />
-            )}
-          </section>
-
-          {/* ==================== BOTTOM FULL-OUTFIT CHECKOUT DOCK ==================== */}
-          <div className="mv-bottom-bar">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="px-2.5 py-1 rounded-xl bg-[#141518] text-white text-sm font-extrabold shrink-0">
-                {browseMode === "pieces" ? "Piece" : "Outfit"}{" "}
-                {safeActiveIdx + 1 < 10
-                  ? `0${safeActiveIdx + 1}`
-                  : safeActiveIdx + 1}
-              </span>
-              {activeOutfit && (
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-bold text-[#141518] truncate max-w-[230px] sm:max-w-[380px]">
-                    {activeOutfit.title}
-                  </p>
-                  <p className="text-[10.5px] font-semibold text-[#244B3B] truncate max-w-[230px] sm:max-w-[400px]">
-                    {activeOutfit.pieces.length} Pieces Included •{" "}
-                    {activeOutfit.aiReason}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="mv-pill-scroll gap-1.5">
-              {activeOutfit && (
-                <>
                   <button
                     type="button"
                     id="gwo-runway-buy-full-outfit-btn"
-                    onClick={() => handleAddOrBuyCurrentEntry(false, true)}
-                    className="shrink-0 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap"
+                    onClick={() => handleAddOrBuyCurrentEntry(true)}
+                    className="px-3 py-1.5 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-xs cursor-pointer min-h-[28px]"
                   >
                     {browseMode === "pieces"
                       ? `Buy Piece ($${activeOutfit.totalPriceUsd})`
-                      : `Buy Full Outfit ($${activeOutfit.totalPriceUsd})`}
+                      : `Buy Outfit ($${activeOutfit.totalPriceUsd})`}
                   </button>
-
                   <button
                     type="button"
                     id="gwo-runway-bag-full-outfit-btn"
-                    onClick={() => handleAddOrBuyCurrentEntry(false, false)}
-                    className="shrink-0 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold inline-flex items-center gap-1 shadow-sm cursor-pointer whitespace-nowrap"
+                    onClick={() => handleAddOrBuyCurrentEntry(false)}
+                    className="px-2.5 py-1.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer min-h-[28px]"
                   >
-                    <ShoppingBag className="w-3.5 h-3.5" /> + Bag ($
-                    {activeOutfit.totalPriceUsd})
+                    <ShoppingBag className="w-3 h-3" />{" "}
+                    {browseMode === "pieces" ? "+ Bag" : "+ Set"}
                   </button>
-
-                  {heroPiece && (
-                    <Link
-                      href={`/?try=${encodeURIComponent(heroPiece.id)}`}
-                      id="gwo-runway-try-closet-btn"
-                      className="shrink-0 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-full bg-white hover:bg-[#F4F5F7] border border-black/[0.08] text-[#244B3B] text-xs font-bold inline-flex items-center gap-1 shadow-xs whitespace-nowrap"
-                    >
-                      Mix in 3D Closet →
-                    </Link>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ==================== RIGHT / BOTTOM FULL-VISIBILITY OUTFIT PIECES GRID ==================== */}
-        <aside
-          className="mv-rail"
-          aria-label="All products in this Runway outfit"
-        >
-          {activeOutfit && (
-            <>
-              <div className="flex items-center justify-between gap-2 pb-1 border-b border-black/[0.07] shrink-0">
-                <div>
-                  <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#141518]">
-                    {browseMode === "pieces"
-                      ? "Active Runway Piece"
-                      : `All ${activeOutfit.pieces.length} Pieces in Outfit #${
-                          safeActiveIdx + 1 < 10
-                            ? `0${safeActiveIdx + 1}`
-                            : safeActiveIdx + 1
-                        }`}
-                  </h2>
-                  <p className="text-[10.5px] font-semibold text-[#244B3B]">
-                    Tap 3D on any item to spin the garment object, Swap, or Buy single piece
-                  </p>
+                  <button
+                    type="button"
+                    id="gwo-runway-add-ai-outfit-btn"
+                    onClick={() => {
+                      setBrowseMode("outfits");
+                      const jumpIdx = runwayOutfits.length;
+                      setExtraAiCount((prev) => prev + 1);
+                      showToast("AI styled a fresh outfit onto your Runway!");
+                      setTimeout(() => jumpLookRef.current?.(jumpIdx), 60);
+                    }}
+                    className="p-1.5 rounded-full bg-[#E7F3EE] hover:bg-[#D5EAE0] text-[#1D4232] cursor-pointer min-w-[28px] min-h-[28px] inline-flex items-center justify-center"
+                    title="Generate new AI outfit on Runway"
+                    aria-label="Generate new AI outfit"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    id="gwo-runway-build-outfit-btn"
+                    onClick={() => setBuildModalOpen(true)}
+                    className="p-1.5 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[#141518] cursor-pointer min-w-[28px] min-h-[28px] inline-flex items-center justify-center"
+                    title="Build custom outfit"
+                    aria-label="Build custom outfit"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <span className="px-2.5 py-1 rounded-full bg-[#141518] text-white text-[11px] font-bold shrink-0">
-                  ${activeOutfit.totalPriceUsd} Set
-                </span>
               </div>
 
-              <div className="mv-pieces-grid">
+              {/* All Pieces Grid */}
+              <div
+                className={`mv-pieces-grid ${
+                  activeOutfit.pieces.length >= 5 ? "dense-six" : ""
+                }`}
+              >
                 {activeOutfit.pieces.map((spec, slotIdx) => {
                   const prod = spec.product;
                   const isOwned = ownedIds.has(prod.id);
-                  const is3DCard = active3DCardId === prod.id;
                   const pdpHref = `/product?id=${encodeURIComponent(prod.id)}`;
-                  const denseGrid = activeOutfit.pieces.length >= 5;
 
                   return (
                     <article
                       key={`${prod.id}-${slotIdx}`}
                       data-outfit-piece-card="true"
-                      className={`rounded-2xl bg-white border border-black/[0.08] ${
-                        denseGrid ? "p-2 gap-1" : "p-2.5 gap-2"
-                      } flex flex-col justify-between shadow-[0_4px_14px_rgba(20,21,24,0.04)]`}
+                      className="rounded-2xl bg-white border border-black/[0.07] p-2.5 flex flex-col justify-between gap-1.5 shadow-[0_2px_10px_rgba(20,21,24,0.04)]"
                     >
-                      <div className="space-y-1">
-                        {/* Top Fit / Owned Badge + 3D Object Toggle */}
+                      <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-1">
                           <span
                             className={`px-2 py-0.5 rounded-full text-[9.5px] font-extrabold uppercase tracking-wide truncate ${
@@ -1064,45 +980,33 @@ export function GwoRunwayLookbook() {
                           <button
                             type="button"
                             onClick={() =>
-                              setActive3DCardId(is3DCard ? null : prod.id)
+                              openAvatar360({
+                                title: `${prod.brand} — ${prod.title}`,
+                                primaryProduct: prod,
+                                companionProducts: activeOutfit.pieces
+                                  .map((x) => x.product)
+                                  .filter((x) => x.id !== prod.id),
+                                avatarFrontUrl: activeOutfit.frontAvatarUrl,
+                                avatarBackUrl: activeOutfit.backAvatarUrl,
+                              })
                             }
-                            className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold inline-flex items-center gap-0.5 cursor-pointer transition min-h-[22px] shrink-0 ${
-                              is3DCard
-                                ? "bg-[#141518] text-white"
-                                : "bg-[#F1F2F5] text-[#141518] hover:bg-[#E2E5EC]"
-                            }`}
-                            title="Toggle interactive 3D product object spin"
+                            className="px-2 py-0.5 rounded-full bg-[#F1F2F5] hover:bg-[#E2E5EC] text-[#141518] text-[9.5px] font-bold inline-flex items-center gap-0.5 cursor-pointer min-h-[22px] shrink-0"
+                            title="Spin 360° Front, Side & Back"
                           >
-                            <Box className="w-2.5 h-2.5" />
-                            {is3DCard ? "Photo" : "3D"}
+                            <Rotate3d className="w-2.5 h-2.5 text-[#244B3B]" /> 360°
                           </button>
                         </div>
 
-                        {/* Live Draggable 3D Product Object OR Pure Isolated Ghost-Mannequin Photo */}
-                        <div
-                          className={`relative ${
-                            denseGrid ? "h-24 sm:h-[82px]" : "h-28 sm:h-32"
-                          } rounded-xl bg-[#F4F6F9] border border-black/[0.05] overflow-hidden flex items-center justify-center`}
+                        <Link
+                          href={pdpHref}
+                          className="relative h-28 sm:h-32 rounded-xl bg-[#F4F6F9] border border-black/[0.04] overflow-hidden flex items-center justify-center block"
                         >
-                          {is3DCard ? (
-                            <Interactive3DAvatarStage
-                              mode="product"
-                              dimensions={bodyDims}
-                              singleProduct={prod}
-                              selectedSize={spec.recommendedSize}
-                              autoSpinDefault={true}
-                              showHud={false}
-                              compactHud={true}
-                            />
-                          ) : (
-                            <GarmentArtwork
-                              product={prod}
-                              className="w-full h-full"
-                            />
-                          )}
-                        </div>
+                          <GarmentArtwork
+                            product={prod}
+                            className="w-full h-full"
+                          />
+                        </Link>
 
-                        {/* Title & Retail Price */}
                         <div className="min-w-0">
                           <Link
                             href={pdpHref}
@@ -1116,81 +1020,55 @@ export function GwoRunwayLookbook() {
                         </div>
                       </div>
 
-                      {/* Unclipped Action Pills */}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              addToBag({
-                                productId: prod.id,
-                                title: prod.title,
-                                brand: prod.brand,
-                                price: prod.price,
-                                size: spec.recommendedSize || recSize,
-                                imageUrl: prod.imageUrl,
-                                avatarFrontUrl: activeOutfit.frontAvatarUrl,
-                                avatarBackUrl: activeOutfit.backAvatarUrl,
-                                storeUrl: prod.canonicalUrl,
-                              });
-                              openDropshipCheckout("checkout");
-                            }}
-                            className="flex-1 py-1.5 px-2 rounded-full bg-[#FDECEB] hover:bg-[#F9DAD7] text-[#9E2A22] text-[10.5px] font-bold cursor-pointer min-h-[26px]"
-                          >
-                            Buy (${prod.price})
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              addToBag({
-                                productId: prod.id,
-                                title: prod.title,
-                                brand: prod.brand,
-                                price: prod.price,
-                                size: spec.recommendedSize || recSize,
-                                imageUrl: prod.imageUrl,
-                                avatarFrontUrl: activeOutfit.frontAvatarUrl,
-                                avatarBackUrl: activeOutfit.backAvatarUrl,
-                                storeUrl: prod.canonicalUrl,
-                              })
-                            }
-                            className="py-1.5 px-2.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[10.5px] font-bold cursor-pointer min-h-[26px]"
-                          >
-                            + Bag
-                          </button>
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          {browseMode === "outfits" && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleSwapPieceInOutfit(slotIdx, prod)
-                              }
-                              className="flex-1 py-1 px-2 rounded-full bg-[#F1F2F5] hover:bg-[#E4E7EE] text-[#141518] text-[10px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer min-h-[24px]"
-                              title="Swap this piece on the 3D Runway Avatar"
-                            >
-                              <RefreshCw className="w-2.5 h-2.5" /> Swap
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openAvatar360({
-                                title: `${prod.brand} — ${prod.title}`,
-                                primaryProduct: prod,
-                                companionProducts: activeOutfit.pieces
-                                  .map((x) => x.product)
-                                  .filter((x) => x.id !== prod.id),
-                                avatarFrontUrl: activeOutfit.frontAvatarUrl,
-                                avatarBackUrl: activeOutfit.backAvatarUrl,
-                              })
-                            }
-                            className="flex-1 py-1 px-2 rounded-full bg-[#E7F3EE] hover:bg-[#D5EAE0] text-[#1D4232] text-[10px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer min-h-[24px]"
-                          >
-                            <Rotate3d className="w-2.5 h-2.5" /> 3D Fit
-                          </button>
-                        </div>
+                      <div className="flex items-center gap-1 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addToBag({
+                              productId: prod.id,
+                              title: prod.title,
+                              brand: prod.brand,
+                              price: prod.price,
+                              size: spec.recommendedSize || recSize,
+                              imageUrl: prod.imageUrl,
+                              avatarFrontUrl: activeOutfit.frontAvatarUrl,
+                              avatarBackUrl: activeOutfit.backAvatarUrl,
+                              storeUrl: prod.canonicalUrl,
+                            });
+                            openDropshipCheckout("checkout");
+                          }}
+                          className="flex-1 py-1.5 px-2 rounded-full bg-[#FDECEB] hover:bg-[#F9DAD7] text-[#9E2A22] text-[10.5px] font-bold cursor-pointer min-h-[26px]"
+                        >
+                          Buy (${prod.price})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            addToBag({
+                              productId: prod.id,
+                              title: prod.title,
+                              brand: prod.brand,
+                              price: prod.price,
+                              size: spec.recommendedSize || recSize,
+                              imageUrl: prod.imageUrl,
+                              avatarFrontUrl: activeOutfit.frontAvatarUrl,
+                              avatarBackUrl: activeOutfit.backAvatarUrl,
+                              storeUrl: prod.canonicalUrl,
+                            })
+                          }
+                          className="py-1.5 px-2.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[10.5px] font-bold cursor-pointer min-h-[26px]"
+                        >
+                          + Bag
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSwapPieceInOutfit(slotIdx, prod)}
+                          className="p-1.5 rounded-full bg-[#F1F2F5] hover:bg-[#E4E7EE] text-[#141518] cursor-pointer min-w-[26px] min-h-[26px] inline-flex items-center justify-center"
+                          title="Swap piece"
+                          aria-label={`Swap ${prod.title}`}
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                        </button>
                       </div>
                     </article>
                   );
@@ -1201,7 +1079,7 @@ export function GwoRunwayLookbook() {
         </aside>
       </main>
 
-      {/* ==================== BUILD CUSTOM OUTFIT ON 3D RUNWAY MODAL ==================== */}
+      {/* ==================== BUILD CUSTOM OUTFIT MODAL ==================== */}
       {buildModalOpen && (
         <div
           className="fixed inset-0 z-[130] bg-black/45 backdrop-blur-xs flex items-center justify-center p-4"
@@ -1214,10 +1092,10 @@ export function GwoRunwayLookbook() {
             <div className="flex items-start justify-between gap-3 shrink-0">
               <div>
                 <h3 className="text-lg font-bold text-[#141518]">
-                  Build Custom 3D Outfit for Your Runway
+                  Build Custom Runway Outfit
                 </h3>
                 <p className="text-xs text-[#686D76] mt-0.5">
-                  Select boutique clothes, shoes, belts, and handbags below to dress your 3D Runway Twin.
+                  Select boutique pieces below to add a custom outfit onto your Runway avatar.
                 </p>
               </div>
               <div className="flex items-center gap-1.5">
@@ -1245,7 +1123,7 @@ export function GwoRunwayLookbook() {
               type="text"
               value={customTitle}
               onChange={(e) => setCustomTitle(e.target.value)}
-              placeholder="Outfit Name (e.g., My Friday Cocktail Look)"
+              placeholder="Outfit Name (e.g., Friday Cocktail Edit)"
               className="w-full px-4 py-2 rounded-full bg-[#F4F5F7] border border-black/10 text-xs text-[#141518] shrink-0"
             />
 
@@ -1300,7 +1178,7 @@ export function GwoRunwayLookbook() {
                 onClick={handleCreateCustomRunwayOutfit}
                 className="px-5 py-2.5 rounded-full bg-[#141518] hover:bg-[#27292E] disabled:opacity-40 text-white text-xs font-bold cursor-pointer"
               >
-                Add Outfit to 3D Runway →
+                Add Outfit to Runway →
               </button>
             </div>
           </div>

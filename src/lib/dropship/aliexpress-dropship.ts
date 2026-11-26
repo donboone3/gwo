@@ -874,6 +874,10 @@ export function buildTopLineAliExpressDropshipCatalog(
     );
     const supplierUrl = `https://www.aliexpress.com/item/${seed.aliexpressItemId}.html`;
 
+    const versionedImage = seed.imageFile.includes("?")
+      ? seed.imageFile.replace(/\?.*$/, "?v=pure4")
+      : `${seed.imageFile}?v=pure4`;
+
     return {
       id: seed.id,
       canonicalUrl: supplierUrl,
@@ -887,7 +891,7 @@ export function buildTopLineAliExpressDropshipCatalog(
       accentHex: seed.accentHex,
       price: econ.retailPriceUsd,
       currency: "USD",
-      imageUrl: seed.imageFile,
+      imageUrl: versionedImage,
       fitMetadata: {
         descriptionSummary: seed.descriptionSummary,
         fitNotes: seed.fitNotes,
@@ -907,7 +911,7 @@ export function buildTopLineAliExpressDropshipCatalog(
           waistInches: 24.4,
           hipsInches: 34.6,
         },
-        galleryImages: [{ url: seed.imageFile, label: "Studio Cut" }],
+        galleryImages: [{ url: versionedImage, label: "Studio Cut" }],
       },
       dropship: {
         supplierPlatform: "aliexpress",

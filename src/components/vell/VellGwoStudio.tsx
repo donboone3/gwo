@@ -140,6 +140,18 @@ export function VellGwoStudio() {
   } = useGwo();
 
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const backdropRef = useRef<HTMLDivElement | null>(null);
+  const centerStageRef = useRef<HTMLDivElement | null>(null);
+  const dragPillRef = useRef<HTMLDivElement | null>(null);
+
+  // Laser Scan-Beam Sweep & Drag-to-Wear (Original Loft Closet Properties!)
+  const [scanPulseKey, setScanPulseKey] = useState(0);
+  const [dragProduct, setDragProduct] = useState<Product | null>(null);
+  const [overAvatar, setOverAvatar] = useState(false);
+
+  const triggerScanBeam = useCallback(() => {
+    setScanPulseKey((k) => k + 1);
+  }, []);
 
   // Full store catalog (always immediately available even before async state hydration)
   const storeCatalog = useMemo(() => {
@@ -281,7 +293,7 @@ export function VellGwoStudio() {
     }
   }, []);
 
-  // Equip an entire preset StudioLook onto the 3D Avatar
+  // Equip an entire preset StudioLook onto the Lifelike Avatar
   const applyPresetLook = useCallback(
     (idx: number) => {
       const normalized =
@@ -293,8 +305,9 @@ export function VellGwoStudio() {
         (id): id is string => Boolean(id)
       );
       setDressedSlots(slotsFromProductIds(ids, allWearableById));
+      triggerScanBeam();
     },
-    [allWearableById]
+    [allWearableById, triggerScanBeam]
   );
 
   // Deep-link `/?try=<productId>` from Runway or URL importer
@@ -355,8 +368,9 @@ export function VellGwoStudio() {
       });
       setSelectedPieceId(prod.id);
       setStageMode("3d");
+      triggerScanBeam();
     },
-    []
+    [triggerScanBeam]
   );
 
   // If user imports a store link via "+ Link", put it right onto her 3D Avatar!
@@ -477,8 +491,9 @@ export function VellGwoStudio() {
     setDressedSlots(pick.slots);
     setStageMode("3d");
     setAiSuggestionNote(pick.note);
+    triggerScanBeam();
     showToast("AI paired your Closet clothes with 1 new Store piece!");
-  }, [hybridCycleIdx, showToast, socialDna.primaryArchetype]);
+  }, [hybridCycleIdx, showToast, socialDna.primaryArchetype, triggerScanBeam]);
 
   // 2) AI DAILY CLOSET STYLIST: $0 Outfit built 100% from Owned Closet Pieces!
   const handleAiOwnedClosetToday = useCallback(() => {
@@ -513,8 +528,9 @@ export function VellGwoStudio() {
     setDressedSlots(pick.slots);
     setStageMode("3d");
     setAiSuggestionNote(pick.note);
+    triggerScanBeam();
     showToast("AI styled today's outfit from your Owned Closet!");
-  }, [hybridCycleIdx, showToast]);
+  }, [hybridCycleIdx, showToast, triggerScanBeam]);
 
   // 3) AI FULL NEW STORE OUTFIT SPINNER
   const handleSpinFullStoreOutfit = useCallback(() => {
@@ -691,8 +707,96 @@ export function VellGwoStudio() {
 
   const currentLook = STUDIO_LOOKS[lookIdx] || STUDIO_LOOKS[0];
 
+  // Pointer Parallax on Sunlit NYC Loft Studio Backdrop (Original Prompt Property!)
+  const handleLoftPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.pointerType === "mouse" && backdropRef.current) {
+        const nx = e.clientX / Math.max(1, window.innerWidth) - 0.5;
+        const ny = e.clientY / Math.max(1, window.innerHeight) - 0.5;
+        backdropRef.current.style.transform = `translate3d(${(
+          -nx * 14
+        ).toFixed(1)}px, ${(-ny * 9).toFixed(1)}px, 0) scale(1.035)`;
+      }
+      if (dragProduct && dragPillRef.current) {
+        dragPillRef.current.style.transform = `translate3d(${e.clientX + 12}px, ${
+          e.clientY - 18
+        }px, 0)`;
+        if (centerStageRef.current) {
+          const r = centerStageRef.current.getBoundingClientRect();
+          const inside =
+            e.clientX >= r.left &&
+            e.clientX <= r.right &&
+            e.clientY >= r.top &&
+            e.clientY <= r.bottom;
+          setOverAvatar(inside);
+        }
+      }
+    },
+    [dragProduct]
+  );
+
+  // Pointer Drag-and-Drop Any Wardrobe Piece Directly Onto the Lifelike Avatar!
+  const handlePiecePointerDown = useCallback(
+    (e: React.PointerEvent, prod: Product) => {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      if ((e.target as HTMLElement)?.closest("button")) return;
+      const sx = e.clientX;
+      const sy = e.clientY;
+      let started = false;
+
+      const onMove = (ev: PointerEvent) => {
+        if (!started && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) {
+          started = true;
+          setDragProduct(prod);
+        }
+        if (started && dragPillRef.current) {
+          dragPillRef.current.style.transform = `translate3d(${
+            ev.clientX + 12
+          }px, ${ev.clientY - 18}px, 0)`;
+          if (centerStageRef.current) {
+            const r = centerStageRef.current.getBoundingClientRect();
+            setOverAvatar(
+              ev.clientX >= r.left &&
+                ev.clientX <= r.right &&
+                ev.clientY >= r.top &&
+                ev.clientY <= r.bottom
+            );
+          }
+        }
+      };
+
+      const onUp = (ev: PointerEvent) => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        if (started) {
+          if (centerStageRef.current) {
+            const r = centerStageRef.current.getBoundingClientRect();
+            const droppedOnAvatar =
+              ev.clientX >= r.left &&
+              ev.clientX <= r.right &&
+              ev.clientY >= r.top &&
+              ev.clientY <= r.bottom;
+            if (droppedOnAvatar) {
+              equipProductPiece(prod);
+              showToast(`Dressed ${prod.title} onto your Avatar!`);
+            }
+          }
+          setDragProduct(null);
+          setOverAvatar(false);
+        }
+      };
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [equipProductPiece, showToast]
+  );
+
   return (
-    <div className="relative min-h-[calc(100svh-64px)] lg:h-[calc(100svh-64px)] w-full overflow-x-hidden lg:overflow-hidden select-none bg-[#E7EAEF]">
+    <div
+      onPointerMove={handleLoftPointerMove}
+      className="relative min-h-[calc(100svh-64px)] lg:h-[calc(100svh-64px)] w-full overflow-x-hidden lg:overflow-hidden select-none bg-[#E7EAEF]"
+    >
       <input
         ref={uploadInputRef}
         type="file"
@@ -701,12 +805,26 @@ export function VellGwoStudio() {
         onChange={handleSelectUploadFile}
       />
 
-      {/* Daylight Loft Studio Backdrop */}
+      {/* Floating Drag-to-Wear Garment Pill */}
+      {dragProduct && (
+        <div
+          ref={dragPillRef}
+          className="fixed left-0 top-0 z-[150] pointer-events-none px-3 py-1.5 rounded-full bg-[#141518] text-white text-xs font-bold shadow-xl flex items-center gap-2"
+        >
+          <span>Drop on Avatar: {dragProduct.title}</span>
+        </div>
+      )}
+
+      {/* Daylight NYC Loft Studio Backdrop with Pointer Parallax */}
       <div
-        className="absolute inset-[-2%] bg-cover bg-center pointer-events-none opacity-85"
-        style={{ backgroundImage: `url("${LOFT_BG_URL}")` }}
+        ref={backdropRef}
+        className="absolute inset-[-3%] bg-cover bg-center pointer-events-none opacity-92 transition-transform duration-150 ease-out"
+        style={{
+          backgroundImage: `url("${LOFT_BG_URL}")`,
+          transform: "scale(1.035)",
+        }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-white/35 via-white/10 to-black/15 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-black/15 pointer-events-none" />
 
       {/* 3-ZONE INTERACTIVE 3D DRESS-UP STUDIO */}
       <div className="relative z-10 min-h-[calc(100svh-64px)] lg:h-full max-w-[1560px] mx-auto px-3 sm:px-5 py-3 sm:py-3.5 flex flex-col lg:flex-row items-stretch justify-between gap-3.5">
@@ -871,8 +989,11 @@ export function VellGwoStudio() {
           </button>
         </aside>
 
-        {/* ==================== CENTER STAGE: INTERACTIVE 3D DRESS-UP AVATAR ==================== */}
-        <div className="relative shrink-0 h-[500px] lg:shrink lg:flex-1 min-w-0 flex flex-col items-center justify-between lg:h-full lg:min-h-0">
+        {/* ==================== CENTER STAGE: SEAMLESS LOFT LIFELIKE AVATAR ==================== */}
+        <div
+          ref={centerStageRef}
+          className="relative shrink-0 h-[500px] lg:shrink lg:flex-1 min-w-0 flex flex-col items-center justify-between lg:h-full lg:min-h-0"
+        >
           {/* Top Stage Bar */}
           <div className="shrink-0 z-20 flex flex-wrap items-center justify-center gap-1.5">
             <button
@@ -882,7 +1003,7 @@ export function VellGwoStudio() {
             >
               <ScanLine className="w-3.5 h-3.5 text-[#244B3B]" />
               <span>
-                Scan Body 3D ({formatHeightFeetInches(bodyDims.heightInches)} • Size{" "}
+                Body Scan ({formatHeightFeetInches(bodyDims.heightInches)} • Size{" "}
                 {recSize})
               </span>
             </button>
@@ -898,7 +1019,7 @@ export function VellGwoStudio() {
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> Interactive 3D Body
+                <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> Lifelike 360°
               </button>
               <button
                 type="button"
@@ -910,7 +1031,7 @@ export function VellGwoStudio() {
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Columns2 className="w-3 h-3" /> Lookbook F/B
+                <Columns2 className="w-3 h-3" /> Front + Back
               </button>
             </div>
 
@@ -923,15 +1044,27 @@ export function VellGwoStudio() {
             </button>
           </div>
 
-          {/* Live 3D Dress-Up Viewport (Drag 360°, Tilt, Zoom, Tap Any Garment on Her Body!) */}
-          <div className="relative flex-1 w-full min-h-0 my-1.5 rounded-3xl bg-white/55 backdrop-blur-[2px] border border-white/70 shadow-inner overflow-hidden">
+          {/* Seamless NYC Loft Floor Lifelike Stage (No Card Box — Standing Directly in the Sunlit Loft!) */}
+          <div
+            className={`relative flex-1 w-full min-h-0 my-1 overflow-hidden transition-all ${
+              overAvatar
+                ? "rounded-3xl ring-2 ring-[#244B3B] bg-[#244B3B]/10"
+                : ""
+            }`}
+          >
+            {scanPulseKey > 0 && (
+              <div key={scanPulseKey} className="gwo-scan-beam" />
+            )}
+
             {stageMode === "3d" ? (
               <Interactive3DAvatarStage
                 mode="avatar"
                 dimensions={bodyDims}
                 wornPieces={activeWornSpecs}
                 faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
-                initialYawDeg={14}
+                initialYawDeg={0}
+                seamlessStage={true}
+                inertiaSpin={true}
                 selectedProductId={selectedPieceId}
                 onSelectProduct={(prod) => {
                   setSelectedPieceId(prod.id);
@@ -940,8 +1073,8 @@ export function VellGwoStudio() {
                 showHud={true}
               />
             ) : (
-              <div className="h-full w-full grid grid-cols-2 gap-2 p-3">
-                <div className="relative rounded-2xl bg-white/85 flex items-end justify-center overflow-hidden pt-6">
+              <div className="h-full w-full grid grid-cols-2 gap-2 p-2">
+                <div className="relative rounded-2xl bg-white/75 backdrop-blur-xs flex items-end justify-center overflow-hidden pt-6">
                   <img
                     src={H(currentLook.file, 900)}
                     alt={`${currentLook.name} Front`}
@@ -951,7 +1084,7 @@ export function VellGwoStudio() {
                     Front 0°
                   </span>
                 </div>
-                <div className="relative rounded-2xl bg-white/85 flex items-end justify-center overflow-hidden pt-6">
+                <div className="relative rounded-2xl bg-white/75 backdrop-blur-xs flex items-end justify-center overflow-hidden pt-6">
                   <img
                     src={H_BACK(currentLook.file)}
                     alt={`${currentLook.name} Back`}
@@ -1018,10 +1151,10 @@ export function VellGwoStudio() {
             <div className="flex items-center justify-between gap-2">
               <div>
                 <h1 className="text-base font-bold text-[#141518]">
-                  3D Dress-Up &amp; Closet Studio
+                  Closet &amp; Dress-Up Studio
                 </h1>
                 <p className="text-[11px] text-[#686D76]">
-                  Mix your owned clothes with new store pieces in 3D
+                  Tap or drag any piece onto your lifelike avatar
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
@@ -1295,6 +1428,7 @@ export function VellGwoStudio() {
                   return (
                     <div
                       key={prod.id}
+                      onPointerDown={(ev) => handlePiecePointerDown(ev, prod)}
                       onClick={() => equipProductPiece(prod)}
                       className={`group relative rounded-2xl p-2 border transition cursor-pointer flex flex-col justify-between ${
                         isWorn
@@ -1346,9 +1480,9 @@ export function VellGwoStudio() {
                             });
                           }}
                           className="flex-1 py-1 px-2 rounded-full bg-[#F1F2F5] hover:bg-[#E2E5EC] text-[10px] font-bold text-[#141518] inline-flex items-center justify-center gap-1 cursor-pointer min-h-[24px]"
-                          title="Inspect standalone 3D garment object & exact fit"
+                          title="Inspect lifelike 360° fit on your body"
                         >
-                          <Box className="w-2.5 h-2.5 text-[#244B3B]" /> 3D Object
+                          <Rotate3d className="w-2.5 h-2.5 text-[#244B3B]" /> 360° Fit
                         </button>
                         {!isOwned && (
                           <button
