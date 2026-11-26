@@ -56,7 +56,7 @@ describe("Shared URL Catalog Ingestion & 3-Day Refresh", () => {
 
   it("returns shared_cache_hit inside 3 days and refreshes after 72 hours", async () => {
     const seededUrl =
-      "https://www.nike.com/t/cortez-womens-shoes-vintage-sail?utm_medium=social";
+      "https://www.aliexpress.com/item/1005013901284750.html?utm_medium=social";
     const hit = await ingestProductUrlToSharedCatalog(seededUrl, "maya");
     expect(hit.status).toBe("shared_cache_hit");
 

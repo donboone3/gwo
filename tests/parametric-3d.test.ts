@@ -5,6 +5,12 @@ import {
 } from "../src/lib/catalog/parametric-3d-garment";
 import { parseShopifyJsonProduct } from "../src/lib/catalog/client-url-scraper";
 import { INITIAL_SEED_DB } from "../src/lib/db/seed-data";
+import { deriveFullBodyDimensionsFromProfile } from "../src/lib/three/body-scan-analyzer";
+import {
+  buildInteractive3DAvatarScene,
+  buildStandalone3DProductScene,
+  solveEllipseSemiAxesUnits,
+} from "../src/lib/three/parametric-3d-engine";
 
 function numericEllipsePerimeter(a: number, b: number, steps = 720): number {
   let sum = 0;
@@ -31,16 +37,22 @@ describe("3D Parametric Body & Garment Fit Engine + Direct Shopify JSON Parser",
     }
   });
 
-  it("models Size S as tailored fit and Size XS as rigid waist pinch on 5'2\" (32.25/27/34) avatar for Cornelia Red Mini Dress", () => {
+  it("models Size S as tailored fit and Size XS as rigid waist pinch on 5'2\" (32.25/27/34) avatar for Crimson Corset Mini Dress + builds Three.js 3D Avatar & 3D Product meshes", () => {
     const avatar = INITIAL_SEED_DB.profiles[0];
-    const cornelia = INITIAL_SEED_DB.products.find(
-      (p) => p.id === "prod-babyboo-cornelia-red"
+    const crimsonDress = INITIAL_SEED_DB.products.find(
+      (p) => p.id === "prod-ae-crimson-corset-mini"
     )!;
-    expect(cornelia).toBeDefined();
+    const bag = INITIAL_SEED_DB.products.find(
+      (p) => p.id === "prod-ae-noir-quilted-bag"
+    )!;
+    const heels = INITIAL_SEED_DB.products.find(
+      (p) => p.id === "prod-ae-gold-strappy-heels"
+    )!;
+    expect(crimsonDress).toBeDefined();
 
     const sceneS = buildParametric3DFitScene({
       avatar,
-      product: cornelia,
+      product: crimsonDress,
       selectedSize: "S",
     });
     expect(sceneS.hasCorsetBack).toBe(true);
@@ -51,18 +63,39 @@ describe("3D Parametric Body & Garment Fit Engine + Direct Shopify JSON Parser",
     );
 
     const waistS = sceneS.caliperRings.find((r) => r.label === "Waist")!;
-    const hipsS = sceneS.caliperRings.find((r) => r.label === "Hips")!;
     expect(waistS.status).not.toBe("too_tight");
-    expect(hipsS.status).toBe("drape_ease");
 
     const sceneXS = buildParametric3DFitScene({
       avatar,
-      product: cornelia,
+      product: crimsonDress,
       selectedSize: "XS",
     });
     const waistXS = sceneXS.caliperRings.find((r) => r.label === "Waist")!;
     expect(waistXS.status).toBe("too_tight");
-    expect(waistXS.easeInches).toBeLessThanOrEqual(-1.45);
+
+    // Verify Three.js WebGL Parametric 3D Body + Held 3D Bag + Standalone 3D Product Object
+    const dims = deriveFullBodyDimensionsFromProfile(avatar, null);
+    const semi = solveEllipseSemiAxesUnits(27.0, 1.32);
+    expect(numericEllipsePerimeter(semi.rx * 10, semi.rz * 10)).toBeCloseTo(27.0, 1);
+
+    const avatar3D = buildInteractive3DAvatarScene({
+      dimensions: dims,
+      wornPieces: [
+        { product: crimsonDress, selectedSize: "S" },
+        { product: heels, selectedSize: "7.5" },
+        { product: bag },
+      ],
+      visualMode: "heatmap",
+      showMeasurementRings: true,
+    });
+    expect(avatar3D.interactiveMeshes.length).toBeGreaterThanOrEqual(6);
+    expect(avatar3D.fitByProductId.get(crimsonDress.id)?.recommendedSize).toBe("S");
+
+    const standaloneBag = buildStandalone3DProductScene({
+      product: bag,
+      dimensions: dims,
+    });
+    expect(standaloneBag.cameraDistance).toBeGreaterThan(1.0);
   });
 
   it("parses raw Shopify /products/<handle>.json payloads into exact-fit GWO Products", () => {

@@ -135,8 +135,11 @@ export interface UserProfile {
   hairStyle: "waves-espresso" | "sleek-bun-blonde" | "curls-warm" | "straight-auburn";
   heightInches: number;
   bustInches: number;
+  underbustInches?: number;
   waistInches: number;
   hipsInches: number;
+  shoulderInches?: number;
+  inseamInches?: number;
   shoeSize: string;
   pinterestVibe: string;
   isClosetPublic: boolean;

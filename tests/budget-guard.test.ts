@@ -38,7 +38,7 @@ describe("GWO $100/mo Compute Guardrail & Render Cache", () => {
     // Adding a piece to her public closet rewards +3 bonus free try-ons
     const { bonusGranted } = await addClosetItemAndGrantBonus({
       userId: "user-mila",
-      productId: "prod-nike-cortez",
+      productId: "prod-ae-cloud-platform-sneakers",
       purchasedSize: "7.5",
       fitRating: "true_to_size",
       reviewNote: "Clean daily sneaker",
@@ -87,7 +87,7 @@ describe("GWO $100/mo Compute Guardrail & Render Cache", () => {
   });
 
   it("serves repeat outfit try-ons from SHA-256 cache at $0.00 cost and 0 credit burn", async () => {
-    const combo = ["prod-nike-chill-tank", "prod-nike-zenvy-leggings"];
+    const combo = ["prod-ae-acetate-beaded-tank", "prod-ae-sage-flare-leggings"];
 
     const first = await executeVirtualTryOn({
       username: "mila",

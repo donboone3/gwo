@@ -18,9 +18,9 @@ describe("Commission-Safe Affiliate & Friend Attribution Builder", () => {
     }
   });
 
-  it("injects web-checkout flag and friend referral code on Nike links", async () => {
-    const cortez = (await getProductById("prod-nike-cortez"))!;
-    const link = buildCommissionSafeUrl(cortez, "MAYA-GWO");
+  it("injects web-checkout flag and friend referral code on boutique store links", async () => {
+    const sneakers = (await getProductById("prod-ae-cloud-platform-sneakers"))!;
+    const link = buildCommissionSafeUrl(sneakers, "MAYA-GWO");
 
     expect(link.destinationUrl).toContain("gwo_web=1");
     expect(link.destinationUrl).toContain("gwo_ref=MAYA-GWO");
@@ -29,8 +29,8 @@ describe("Commission-Safe Affiliate & Friend Attribution Builder", () => {
 
   it("wraps links automatically through Skimlinks when SKIMLINKS_PUBLISHER_ID is set", async () => {
     process.env.SKIMLINKS_PUBLISHER_ID = "99999X12345";
-    const cortez = (await getProductById("prod-nike-cortez"))!;
-    const link = buildCommissionSafeUrl(cortez, "CHLOE-GWO");
+    const sneakers = (await getProductById("prod-ae-cloud-platform-sneakers"))!;
+    const link = buildCommissionSafeUrl(sneakers, "CHLOE-GWO");
 
     expect(link.network).toBe("skimlinks");
     expect(link.destinationUrl).toContain("go.redirectingat.com");

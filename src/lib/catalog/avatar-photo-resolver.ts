@@ -25,11 +25,20 @@ const PRODUCT_TO_RUNWAY_OUTFIT_IDX: Record<string, number> = {
   "prod-ae-linen-cinch-cardigan": 5,
   "prod-ae-acetate-beaded-tank": 5,
   "prod-ae-noir-slingbacks": 5,
+  "prod-ae-crimson-corset-mini": 6,
+  "prod-ae-noir-quilted-bag": 6,
+  "prod-ae-noir-tailored-blazer": 7,
+  "prod-ae-vintage-wide-denim": 7,
+  "prod-ae-gold-sculpted-belt": 7,
+  "prod-ae-sage-zip-jacket": 8,
+  "prod-ae-sage-flare-leggings": 8,
+  "prod-ae-cloud-platform-sneakers": 8,
+  "prod-ae-ivory-mini-bag": 8,
 };
 
 /**
  * Resolves 100% photorealistic lifelike Front (0°), Back (180°), Side (90°), and Spin avatar images
- * for ANY Closet outfit, Runway outfit, or individual garment—never returning low-poly wireframes.
+ * across all 10 AliExpress Boutique Outfits and 23 AliExpress SKUs—never returning low-poly wireframes.
  */
 export function resolveLifelikeAvatarPhotos(params: {
   product?: Product | null;
@@ -48,100 +57,34 @@ export function resolveLifelikeAvatarPhotos(params: {
     explicitSideUrl,
   } = params;
 
-  // 1. Puffer 8-angle photorealistic studio spin set
-  if (product?.id === "studio-contour-puffer") {
-    const frames = Array.from(
-      { length: 8 },
-      (_, i) => `${BASE}/models/signature/spin_${i}.webp`
-    );
-    return {
-      frontUrl: frames[0],
-      sideUrl: frames[2],
-      backUrl: frames[4],
-      spinFrames: frames,
-      outfitLabel: product.title,
-    };
-  }
-
-  // 2. Explicit Runway AI Outfit index (0..5)
-  const mappedAeIdx =
+  // 1. Explicit lookIndex (0..9 -> AliExpress Outfits 0..9)
+  const resolvedIdx =
     runwayOutfitIndex ??
+    lookIndex ??
+    product?.studioLookIndex ??
     (product?.id ? PRODUCT_TO_RUNWAY_OUTFIT_IDX[product.id] : undefined);
 
-  if (mappedAeIdx !== undefined && mappedAeIdx >= 0 && mappedAeIdx <= 5) {
+  if (resolvedIdx !== undefined && resolvedIdx >= 0 && resolvedIdx <= 9) {
     const front =
-      explicitFrontUrl || `${BASE}/models/runway_ai/ae_outfit_${mappedAeIdx}_front.webp`;
+      explicitFrontUrl ||
+      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_front.webp?v=ae2`;
     const back =
-      explicitBackUrl || `${BASE}/models/runway_ai/ae_outfit_${mappedAeIdx}_back.webp`;
+      explicitBackUrl ||
+      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_back.webp?v=ae2`;
     const side = explicitSideUrl || front;
     return {
       frontUrl: front,
       backUrl: back,
       sideUrl: side,
-      spinFrames: [front, side, back, side],
-      outfitLabel: product?.title || `AI Runway Look #0${mappedAeIdx + 1}`,
+      spinFrames: [front, front, side, back, back, back, side, front],
+      outfitLabel: product?.title || `Boutique Outfit #0${resolvedIdx + 1}`,
     };
   }
 
-  // 3. Cornelia Red Mini Dress or Closet Look 8 (has Front, Side 90°, AND Back 180°!)
-  const resolvedLookIdx = lookIndex ?? product?.studioLookIndex;
-  if (
-    product?.id === "prod-babyboo-cornelia-red" ||
-    resolvedLookIdx === 8
-  ) {
-    const front = explicitFrontUrl || `${BASE}/models/signature/look_8.webp`;
-    const back = explicitBackUrl || `${BASE}/models/signature/look_8_back.webp`;
-    const side = explicitSideUrl || `${BASE}/models/signature/look_8_side.webp`;
-    return {
-      frontUrl: front,
-      backUrl: back,
-      sideUrl: side,
-      spinFrames: [front, side, back, side],
-      outfitLabel: product?.title || "Cornelia Red Mini Dress",
-    };
-  }
-
-  // 4. Closet Signature Looks 0..7 & AI Runway Looks 9..14
-  if (
-    resolvedLookIdx !== undefined &&
-    resolvedLookIdx >= 9 &&
-    resolvedLookIdx <= 14
-  ) {
-    const aeIdx = resolvedLookIdx - 9;
-    const front =
-      explicitFrontUrl || `${BASE}/models/runway_ai/ae_outfit_${aeIdx}_front.webp`;
-    const back =
-      explicitBackUrl || `${BASE}/models/runway_ai/ae_outfit_${aeIdx}_back.webp`;
-    return {
-      frontUrl: front,
-      backUrl: back,
-      sideUrl: explicitSideUrl || front,
-      spinFrames: [front, front, back, front],
-      outfitLabel: product?.title || `AI Runway Outfit #0${aeIdx + 1}`,
-    };
-  }
-
-  if (
-    resolvedLookIdx !== undefined &&
-    resolvedLookIdx >= 0 &&
-    resolvedLookIdx <= 7
-  ) {
-    const front =
-      explicitFrontUrl || `${BASE}/models/signature/look_${resolvedLookIdx}.webp`;
-    const back =
-      explicitBackUrl || `${BASE}/models/signature/look_${resolvedLookIdx}_back.webp`;
-    return {
-      frontUrl: front,
-      backUrl: back,
-      sideUrl: explicitSideUrl || front,
-      spinFrames: [front, front, back, front],
-      outfitLabel: product?.title || `Closet Outfit #0${resolvedLookIdx + 1}`,
-    };
-  }
-
-  // 5. Explicit overrides (e.g. from Cart or Runway item)
+  // 2. Explicit overrides
   if (explicitFrontUrl) {
-    const back = explicitBackUrl || `${BASE}/models/signature/look_0_back.webp`;
+    const back =
+      explicitBackUrl || `${BASE}/models/runway_ai/ae_outfit_0_back.webp?v=ae2`;
     return {
       frontUrl: explicitFrontUrl,
       backUrl: back,
@@ -151,110 +94,28 @@ export function resolveLifelikeAvatarPhotos(params: {
     };
   }
 
-  // 6. Intelligent category & color match to our lifelike 5'2" studio avatar photos
+  // 3. Category & color match fallback onto our 10 AliExpress lifelike avatar renders
   const text = `${product?.title || ""} ${product?.colorName || ""} ${
     product?.category || ""
   } ${product?.silhouette || ""}`.toLowerCase();
 
-  if (product?.category === "dress") {
-    if (/red|crimson|burgundy|merlot/.test(text)) {
-      return {
-        frontUrl: `${BASE}/models/signature/look_8.webp`,
-        backUrl: `${BASE}/models/signature/look_8_back.webp`,
-        sideUrl: `${BASE}/models/signature/look_8_side.webp`,
-        spinFrames: [
-          `${BASE}/models/signature/look_8.webp`,
-          `${BASE}/models/signature/look_8_side.webp`,
-          `${BASE}/models/signature/look_8_back.webp`,
-        ],
-        outfitLabel: product.title,
-      };
-    }
-    if (/emerald|green|sage|midi|slip/.test(text)) {
-      return {
-        frontUrl: `${BASE}/models/runway_ai/ae_outfit_2_front.webp`,
-        backUrl: `${BASE}/models/runway_ai/ae_outfit_2_back.webp`,
-        sideUrl: `${BASE}/models/runway_ai/ae_outfit_2_front.webp`,
-        spinFrames: [
-          `${BASE}/models/runway_ai/ae_outfit_2_front.webp`,
-          `${BASE}/models/runway_ai/ae_outfit_2_back.webp`,
-        ],
-        outfitLabel: product.title,
-      };
-    }
-    return {
-      frontUrl: `${BASE}/models/runway_ai/ae_outfit_3_front.webp`,
-      backUrl: `${BASE}/models/runway_ai/ae_outfit_3_back.webp`,
-      sideUrl: `${BASE}/models/runway_ai/ae_outfit_3_front.webp`,
-      spinFrames: [
-        `${BASE}/models/runway_ai/ae_outfit_3_front.webp`,
-        `${BASE}/models/runway_ai/ae_outfit_3_back.webp`,
-      ],
-      outfitLabel: product.title,
-    };
-  }
+  let fallbackIdx = 0;
+  if (/red|crimson|scarlet/.test(text)) fallbackIdx = 6;
+  else if (/emerald|green|slip|midi/.test(text)) fallbackIdx = 2;
+  else if (/champagne|blush|blazer dress/.test(text)) fallbackIdx = 3;
+  else if (/sage|active|legging|yoga|sneaker/.test(text)) fallbackIdx = 8;
+  else if (/denim|jean|indigo/.test(text)) fallbackIdx = 7;
+  else if (/camel|coat|wool/.test(text)) fallbackIdx = 4;
+  else if (/linen|cardigan|oat/.test(text)) fallbackIdx = 5;
+  else if (/ivory|tweed|boucle|pleat/.test(text)) fallbackIdx = 1;
 
-  if (product?.category === "outerwear") {
-    if (/coat|camel|wool|trench/.test(text)) {
-      return {
-        frontUrl: `${BASE}/models/runway_ai/ae_outfit_4_front.webp`,
-        backUrl: `${BASE}/models/runway_ai/ae_outfit_4_back.webp`,
-        sideUrl: `${BASE}/models/runway_ai/ae_outfit_4_front.webp`,
-        spinFrames: [
-          `${BASE}/models/runway_ai/ae_outfit_4_front.webp`,
-          `${BASE}/models/runway_ai/ae_outfit_4_back.webp`,
-        ],
-        outfitLabel: product.title,
-      };
-    }
-    if (/blazer|tweed|ivory/.test(text)) {
-      return {
-        frontUrl: `${BASE}/models/runway_ai/ae_outfit_1_front.webp`,
-        backUrl: `${BASE}/models/runway_ai/ae_outfit_1_back.webp`,
-        sideUrl: `${BASE}/models/runway_ai/ae_outfit_1_front.webp`,
-        spinFrames: [
-          `${BASE}/models/runway_ai/ae_outfit_1_front.webp`,
-          `${BASE}/models/runway_ai/ae_outfit_1_back.webp`,
-        ],
-        outfitLabel: product.title,
-      };
-    }
-  }
-
-  if (/legging|athletic|sport|lilac/.test(text)) {
-    return {
-      frontUrl: `${BASE}/models/signature/look_3.webp`,
-      backUrl: `${BASE}/models/signature/look_3_back.webp`,
-      sideUrl: `${BASE}/models/signature/look_3.webp`,
-      spinFrames: [
-        `${BASE}/models/signature/look_3.webp`,
-        `${BASE}/models/signature/look_3_back.webp`,
-      ],
-      outfitLabel: product?.title || "Athletic Fit",
-    };
-  }
-
-  if (/cargo|bomber/.test(text)) {
-    return {
-      frontUrl: `${BASE}/models/signature/look_7.webp`,
-      backUrl: `${BASE}/models/signature/look_7_back.webp`,
-      sideUrl: `${BASE}/models/signature/look_7.webp`,
-      spinFrames: [
-        `${BASE}/models/signature/look_7.webp`,
-        `${BASE}/models/signature/look_7_back.webp`,
-      ],
-      outfitLabel: product?.title || "Street Fit",
-    };
-  }
-
+  const front = `${BASE}/models/runway_ai/ae_outfit_${fallbackIdx}_front.webp?v=ae2`;
+  const back = `${BASE}/models/runway_ai/ae_outfit_${fallbackIdx}_back.webp?v=ae2`;
   return {
-    frontUrl: `${BASE}/models/runway_ai/ae_outfit_0_front.webp`,
-    backUrl: `${BASE}/models/runway_ai/ae_outfit_0_back.webp`,
-    sideUrl: `${BASE}/models/runway_ai/ae_outfit_0_front.webp`,
-    spinFrames: [
-      `${BASE}/models/runway_ai/ae_outfit_0_front.webp`,
-      `${BASE}/models/runway_ai/ae_outfit_0_back.webp`,
-    ],
-    outfitLabel: product?.title || "Studio Fit",
+    frontUrl: front,
+    backUrl: back,
+    sideUrl: front,
+    spinFrames: [front, front, back, front],
+    outfitLabel: product?.title || "GWO Boutique Look",
   };
 }

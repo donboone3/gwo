@@ -36,23 +36,23 @@ import {
 import { Product } from "@/lib/types";
 
 const STEPS = [
-  { href: "/", match: ["/", "/closet"], label: "Closet & Try-On", shortLabel: "Closet" },
-  { href: "/shop", match: ["/shop", "/recommended"], label: "For You Runway", shortLabel: "Runway" },
-  { href: "/product", match: ["/product"], label: "360° Fit", shortLabel: "360°" },
+  { href: "/", match: ["/", "/closet"], label: "3D Closet & Dress-Up", shortLabel: "3D Closet" },
+  { href: "/shop", match: ["/shop", "/recommended"], label: "3D Runway", shortLabel: "Runway" },
+  { href: "/product", match: ["/product"], label: "3D Exact Fit", shortLabel: "3D Fit" },
 ];
 
 const QUICK_SAMPLE_LINKS = [
   {
-    label: "Babyboo Cornelia Red",
-    url: "https://babyboofashion-com-au.myshopify.com/products/cornelia-mini-dress-red",
+    label: "AliExpress Espresso Corset",
+    url: "https://www.aliexpress.com/item/1005012677693131.html",
   },
   {
-    label: "Babyboo Aluma Silver",
-    url: "https://babyboofashion-com-au.myshopify.com/products/aluma-mini-dress-silver",
+    label: "AliExpress Ivory Tweed Blazer",
+    url: "https://www.aliexpress.com/item/1005010695803178.html",
   },
   {
-    label: "Princess Polly Rack",
-    url: "https://us.princesspolly.com/products/pacifica-relaxed-straight-leg-jeans",
+    label: "AliExpress 18k Gold Belt",
+    url: "https://www.aliexpress.com/item/1005013901284750.html",
   },
 ];
 
@@ -248,7 +248,7 @@ export function UnifiedGwoNav() {
               alt="My Avatar"
               className="w-6 h-6 md:w-5 md:h-5 rounded-full object-cover border border-[#244B3B]/30"
             />
-            <span className="hidden md:inline">My Avatar ✓</span>
+            <span className="hidden md:inline">Scan Body 3D ✓</span>
           </button>
 
           <button

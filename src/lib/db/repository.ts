@@ -32,34 +32,46 @@ export function getSupabaseServerClient(): SupabaseClient | null {
 }
 
 export function readLocalDb(): LocalDatabaseSchema {
-  if (process.env.VITEST && memoryFallback) {
+  if (process.env.VITEST) {
+    if (!memoryFallback) memoryFallback = cloneSeed();
     return memoryFallback;
   }
   try {
     if (fs.existsSync(LOCAL_DB_PATH)) {
       const raw = fs.readFileSync(LOCAL_DB_PATH, "utf-8");
       const parsed = JSON.parse(raw) as LocalDatabaseSchema;
-      // Sync localized WebP asset paths & new seed products onto persisted local DB
+      // Sync localized WebP asset paths & pure AliExpress seed catalog onto persisted local DB
       const seedById = new Map(INITIAL_SEED_DB.products.map((p) => [p.id, p]));
+      parsed.products = parsed.products
+        .filter(
+          (p) =>
+            seedById.has(p.id) ||
+            (p.sourceType !== "affiliate_feed" &&
+              p.id !== "prod-babyboo-cornelia-red")
+        )
+        .map((p) => {
+          const seedMatch = seedById.get(p.id);
+          if (!seedMatch) return p;
+          return {
+            ...p,
+            imageUrl: seedMatch.imageUrl,
+            studioLookIndex: seedMatch.studioLookIndex ?? p.studioLookIndex,
+            fitMetadata: seedMatch.fitMetadata ?? p.fitMetadata,
+            sizeChartInches: seedMatch.sizeChartInches ?? p.sizeChartInches,
+            sourceType: seedMatch.sourceType ?? p.sourceType,
+            dropship: seedMatch.dropship ?? p.dropship,
+          };
+        });
       const existingIds = new Set(parsed.products.map((p) => p.id));
-      parsed.products = parsed.products.map((p) => {
-        const seedMatch = seedById.get(p.id);
-        if (!seedMatch) return p;
-        return {
-          ...p,
-          imageUrl: seedMatch.imageUrl,
-          studioLookIndex: seedMatch.studioLookIndex ?? p.studioLookIndex,
-          fitMetadata: seedMatch.fitMetadata ?? p.fitMetadata,
-          sizeChartInches: seedMatch.sizeChartInches ?? p.sizeChartInches,
-          sourceType: seedMatch.sourceType ?? p.sourceType,
-          dropship: seedMatch.dropship ?? p.dropship,
-        };
-      });
       for (const sp of INITIAL_SEED_DB.products) {
         if (!existingIds.has(sp.id)) {
           parsed.products.push(sp);
+          existingIds.add(sp.id);
         }
       }
+      parsed.closetItems = INITIAL_SEED_DB.closetItems.filter((ci) =>
+        existingIds.has(ci.productId)
+      );
       return parsed;
     }
     if (!fs.existsSync(DATA_DIR)) {

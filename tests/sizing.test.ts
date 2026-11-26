@@ -34,15 +34,15 @@ describe("Exact Profile Sizing & Body-Twin Friend Engine", () => {
     const mila = await getActiveUser("mila");
     const friendFeed = await getPublicFriendClosetFeed(mila.id);
 
-    // Maya (98% twin) marked Nike Oversized Phoenix Hoodie as runs_large (bought XS)
-    const hoodie = (await getProductById("prod-nike-phoenix-hoodie"))!;
-    const hoodieRec = recommendSizeForUser(mila, hoodie, friendFeed);
-    expect(hoodieRec.recommendedSize).toBe("XS");
-    expect(hoodieRec.bodyTwin?.friend.username).toBe("maya");
+    // Maya (98% twin) marked Noir Double-Breasted Tailored Blazer as runs_large (bought XS)
+    const blazer = (await getProductById("prod-ae-noir-tailored-blazer"))!;
+    const blazerRec = recommendSizeForUser(mila, blazer, friendFeed);
+    expect(blazerRec.recommendedSize).toBe("XS");
+    expect(blazerRec.bodyTwin?.friend.username).toBe("maya");
 
-    // Maya marked SKIMS Cotton Jersey Baby Tee as runs_small (sized up to M)
-    const skimsTee = (await getProductById("prod-skims-tee"))!;
-    const teeRec = recommendSizeForUser(mila, skimsTee, friendFeed);
-    expect(teeRec.recommendedSize).toBe("M");
+    // Maya marked Ribbed Lyocell-Acetate Tank as runs_small (sized up to M)
+    const tank = (await getProductById("prod-ae-acetate-beaded-tank"))!;
+    const tankRec = recommendSizeForUser(mila, tank, friendFeed);
+    expect(tankRec.recommendedSize).toBe("M");
   });
 });

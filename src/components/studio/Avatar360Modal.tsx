@@ -4,28 +4,38 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  Box,
   Check,
   Columns2,
   Rotate3d,
   Ruler,
+  ScanLine,
   ShoppingBag,
   X,
 } from "lucide-react";
 import { useGwo } from "@/context/GwoAppContext";
-import { GarmentArtwork } from "./GarmentArtwork";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 import { resolveLifelikeAvatarPhotos } from "@/lib/catalog/avatar-photo-resolver";
-import { DEFAULT_AVATAR_MEASUREMENTS } from "@/lib/catalog/sizing";
+import {
+  deriveFullBodyDimensionsFromProfile,
+  formatHeightFeetInches,
+} from "@/lib/three/body-scan-analyzer";
+import { Interactive3DAvatarStage } from "../three/Interactive3DAvatarStage";
 
 export function Avatar360Modal() {
-  const { avatar360Target, closeAvatar360, user, addToBag } = useGwo();
+  const {
+    avatar360Target,
+    closeAvatar360,
+    user,
+    customAvatar,
+    setAvatarModalOpen,
+    addToBag,
+  } = useGwo();
 
-  const activeHeight =
-    user?.heightInches ?? DEFAULT_AVATAR_MEASUREMENTS.heightInches;
-  const activeBust = user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches;
-  const activeWaist =
-    user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches;
-  const activeHips = user?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches;
+  const bodyDims = useMemo(
+    () => deriveFullBodyDimensionsFromProfile(user, customAvatar),
+    [customAvatar, user]
+  );
 
   const primaryProduct = avatar360Target?.primaryProduct || null;
 
@@ -33,63 +43,43 @@ export function Avatar360Modal() {
     if (!primaryProduct) return null;
     return analyzeExactAvatarFit(
       {
-        heightInches: activeHeight,
-        bustInches: activeBust,
-        waistInches: activeWaist,
-        hipsInches: activeHips,
-        shoeSize: user?.shoeSize || "7.5",
+        heightInches: bodyDims.heightInches,
+        bustInches: bodyDims.bustInches,
+        waistInches: bodyDims.waistInches,
+        hipsInches: bodyDims.hipsInches,
+        shoeSize: bodyDims.shoeSize,
       },
       primaryProduct
     );
-  }, [
-    activeBust,
-    activeHeight,
-    activeHips,
-    activeWaist,
-    primaryProduct,
-    user?.shoeSize,
-  ]);
+  }, [bodyDims, primaryProduct]);
 
   const [selectedSize, setSelectedSize] = useState<string>("S");
-  const [angleView, setAngleView] = useState<"split" | "front" | "back">(
-    "split"
+  const [viewMode, setViewMode] = useState<"avatar3d" | "product3d" | "photos">(
+    "avatar3d"
   );
+  const [justAdded, setJustAdded] = useState(false);
 
   useEffect(() => {
     if (baseFit?.recommendedSize) {
       setSelectedSize(baseFit.recommendedSize);
     }
-    if (avatar360Target?.initialAngleMode === "front") setAngleView("front");
-    else if (avatar360Target?.initialAngleMode === "back") setAngleView("back");
-    else setAngleView("split");
-  }, [
-    avatar360Target?.initialAngleMode,
-    baseFit?.recommendedSize,
-    primaryProduct?.id,
-  ]);
+    setViewMode("avatar3d");
+  }, [baseFit?.recommendedSize, primaryProduct?.id]);
 
   const liveFit = useMemo(() => {
     if (!primaryProduct) return null;
     return analyzeExactAvatarFit(
       {
-        heightInches: activeHeight,
-        bustInches: activeBust,
-        waistInches: activeWaist,
-        hipsInches: activeHips,
-        shoeSize: user?.shoeSize || "7.5",
+        heightInches: bodyDims.heightInches,
+        bustInches: bodyDims.bustInches,
+        waistInches: bodyDims.waistInches,
+        hipsInches: bodyDims.hipsInches,
+        shoeSize: bodyDims.shoeSize,
       },
       primaryProduct,
       selectedSize
     );
-  }, [
-    activeBust,
-    activeHeight,
-    activeHips,
-    activeWaist,
-    primaryProduct,
-    selectedSize,
-    user?.shoeSize,
-  ]);
+  }, [bodyDims, primaryProduct, selectedSize]);
 
   const photoSet = useMemo(() => {
     if (!primaryProduct) return null;
@@ -116,279 +106,272 @@ export function Avatar360Modal() {
       ? primaryProduct.availableSizes.slice(0, 5)
       : ["XS", "S", "M", "L"];
 
+  const wornSpecs = allItems.map((p, idx) => ({
+    product: p,
+    selectedSize: idx === 0 ? selectedSize : undefined,
+  }));
+
   return (
     <div
-      id="gwo-avatar-360-modal"
-      className="fixed inset-0 z-[140] bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5"
+      className="fixed inset-0 z-[135] bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
       onClick={closeAvatar360}
     >
       <div
-        className="w-full max-w-4xl max-h-[92svh] rounded-3xl bg-white shadow-2xl border border-black/[0.08] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-4xl rounded-3xl bg-white shadow-2xl border border-black/[0.08] overflow-hidden max-h-[92svh] flex flex-col"
       >
-        {/* Clean Customer Header (Lifelike Avatar Pictures + Exact Measurements) */}
-        <div className="shrink-0 px-5 py-3.5 border-b border-black/[0.07] flex items-center justify-between gap-3">
-          <div className="min-w-0">
+        {/* Header */}
+        <div className="px-5 py-3.5 border-b border-black/[0.07] flex items-start justify-between gap-3 shrink-0">
+          <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#E7F3EE] text-[#1D4232] text-[10.5px] font-bold">
-                <Rotate3d className="w-3 h-3" /> 360° Avatar Fit Preview
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#E7F3EE] text-[#1D4232] text-[11px] font-bold">
+                <Rotate3d className="w-3 h-3" /> Interactive 3D Body &amp; Garment Fit
               </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#F4F5F7] text-[#141518] text-[10.5px] font-semibold">
-                <Ruler className="w-3 h-3 text-[#244B3B]" />{" "}
-                {Math.floor(activeHeight / 12)}&apos;{Math.round(activeHeight % 12)}&quot; •{" "}
-                {activeBust}&quot; B • {activeWaist}&quot; W • {activeHips}&quot; H
-              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  closeAvatar360();
+                  setAvatarModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#F1F2F5] hover:bg-[#E3E6EC] text-[#141518] text-[11px] font-bold cursor-pointer"
+              >
+                <ScanLine className="w-3 h-3 text-[#244B3B]" />
+                {formatHeightFeetInches(bodyDims.heightInches)} •{" "}
+                {bodyDims.bustInches}&quot; B • {bodyDims.waistInches}&quot; W •{" "}
+                {bodyDims.hipsInches}&quot; H (Edit Scan)
+              </button>
             </div>
-            <h3 className="text-base sm:text-lg font-bold text-[#141518] truncate mt-1">
+            <h3 className="text-base sm:text-lg font-bold text-[#141518]">
               {avatar360Target.title}
             </h3>
           </div>
 
           <button
             type="button"
-            id="gwo-avatar-360-close-btn"
             onClick={closeAvatar360}
-            aria-label="Close 360° Avatar Viewer"
-            className="p-2 rounded-full hover:bg-[#F1F2F5] text-[#686D76] cursor-pointer shrink-0"
+            className="p-2 rounded-full hover:bg-[#F1F2F5] text-[#686D76] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Body: Left = Lifelike Front & Back Avatar Photos | Right = Exact Measurements & Size to Buy */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-[1.25fr_1fr] gap-4">
-          {/* Left: Lifelike Studio Avatar Pictures Only */}
-          <div className="rounded-2xl bg-[#F7F8FA] border border-black/[0.06] p-3 flex flex-col justify-between gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="inline-flex items-center p-1 rounded-full bg-white border border-black/[0.07]">
-                <button
-                  type="button"
-                  onClick={() => setAngleView("split")}
-                  className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition ${
-                    angleView === "split"
-                      ? "bg-[#141518] text-white"
-                      : "text-[#686D76] hover:text-[#141518]"
-                  }`}
-                >
-                  <Columns2 className="w-3 h-3" /> Front + Back
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAngleView("front")}
-                  className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer transition ${
-                    angleView === "front"
-                      ? "bg-[#141518] text-white"
-                      : "text-[#686D76] hover:text-[#141518]"
-                  }`}
-                >
-                  Front 0°
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAngleView("back")}
-                  className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer transition ${
-                    angleView === "back"
-                      ? "bg-[#141518] text-white"
-                      : "text-[#686D76] hover:text-[#141518]"
-                  }`}
-                >
-                  Back 180°
-                </button>
-              </div>
-
-              <span className="px-2.5 py-1 rounded-full bg-[#E7F3EE] text-[#1D4232] text-[11px] font-bold">
-                Recommended: Size {baseFit?.recommendedSize}
-              </span>
+        {/* Content */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-4">
+          {/* Left: Interactive 3D Avatar / 3D Standalone Garment Object / Studio Photos */}
+          <div className="flex flex-col gap-2.5">
+            <div className="inline-flex items-center gap-1 p-1 rounded-full bg-[#F1F2F5] border border-black/[0.06] self-start">
+              <button
+                type="button"
+                onClick={() => setViewMode("avatar3d")}
+                className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                  viewMode === "avatar3d"
+                    ? "bg-[#141518] text-white"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+              >
+                <Rotate3d className="w-3.5 h-3.5" /> 3D On Your Body
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("product3d")}
+                className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                  viewMode === "product3d"
+                    ? "bg-[#141518] text-white"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+              >
+                <Box className="w-3.5 h-3.5" /> 3D Product Object
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("photos")}
+                className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                  viewMode === "photos"
+                    ? "bg-[#141518] text-white"
+                    : "text-[#686D76] hover:text-[#141518]"
+                }`}
+              >
+                <Columns2 className="w-3.5 h-3.5" /> Lookbook F/B
+              </button>
             </div>
 
-            {angleView === "split" ? (
-              <div className="grid grid-cols-2 gap-2.5 h-[360px] sm:h-[420px]">
-                <div className="rounded-2xl bg-white border border-black/[0.06] overflow-hidden flex flex-col">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-center py-1 bg-[#F4F5F7] text-[#5C6068]">
-                    Front View (0°)
-                  </span>
-                  <img
-                    src={photoSet.frontUrl}
-                    alt={`${primaryProduct.title} Front Avatar`}
-                    className="w-full flex-1 min-h-0 object-contain bg-white"
-                  />
-                </div>
-                <div className="rounded-2xl bg-white border border-black/[0.06] overflow-hidden flex flex-col">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-center py-1 bg-[#F4F5F7] text-[#5C6068]">
-                    Back View (180°)
-                  </span>
-                  <img
-                    src={photoSet.backUrl}
-                    alt={`${primaryProduct.title} Back Avatar`}
-                    className="w-full flex-1 min-h-0 object-contain bg-white"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="h-[360px] sm:h-[420px] rounded-2xl bg-white border border-black/[0.06] overflow-hidden flex items-center justify-center">
-                <img
-                  src={angleView === "front" ? photoSet.frontUrl : photoSet.backUrl}
-                  alt={primaryProduct.title}
-                  className="w-full h-full object-contain"
+            {viewMode === "avatar3d" && (
+              <div className="h-[360px] sm:h-[420px] rounded-2xl bg-gradient-to-b from-[#EEF1F6] via-[#E6ECF4] to-[#F5F7FA] border border-black/[0.08] overflow-hidden">
+                <Interactive3DAvatarStage
+                  mode="avatar"
+                  dimensions={bodyDims}
+                  wornPieces={wornSpecs}
+                  faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
+                  initialYawDeg={16}
+                  showHud={true}
                 />
               </div>
             )}
 
-            <p className="text-[11px] text-[#5C6068] text-center">
-              Lifelike 5&apos;2&quot; avatar preview •{" "}
-              <strong className="text-[#141518]">
-                {liveFit.lengthComparison.proportionNote}
-              </strong>
-            </p>
+            {viewMode === "product3d" && (
+              <div className="h-[360px] sm:h-[420px] rounded-2xl bg-gradient-to-b from-[#F4F6F9] to-[#E6EAF2] border border-black/[0.08] overflow-hidden">
+                <Interactive3DAvatarStage
+                  mode="product"
+                  dimensions={bodyDims}
+                  singleProduct={primaryProduct}
+                  selectedSize={selectedSize}
+                  autoSpinDefault={true}
+                  initialYawDeg={24}
+                  showHud={true}
+                />
+              </div>
+            )}
+
+            {viewMode === "photos" && (
+              <div className="h-[360px] sm:h-[420px] rounded-2xl bg-[#F4F6F9] border border-black/[0.08] p-2.5 grid grid-cols-2 gap-2">
+                <div className="relative rounded-xl bg-white overflow-hidden flex items-end justify-center pt-6">
+                  <img
+                    src={photoSet.frontUrl}
+                    alt="Front 0°"
+                    className="h-full w-full object-contain object-bottom"
+                  />
+                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/75 text-white text-[10px] font-bold">
+                    Front 0°
+                  </span>
+                </div>
+                <div className="relative rounded-xl bg-white overflow-hidden flex items-end justify-center pt-6">
+                  <img
+                    src={photoSet.backUrl}
+                    alt="Back 180°"
+                    className="h-full w-full object-contain object-bottom"
+                  />
+                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/75 text-white text-[10px] font-bold">
+                    Back 180°
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Right: Where It Fits, Where It Doesn't & Which Size to Buy */}
+          {/* Right: Exact-Fit Simulator & Checkout */}
           <div className="flex flex-col justify-between gap-3">
             <div className="space-y-3">
-              <div className="p-3.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#141518]">
-                    Test Sizes on Your Body
+              <div className="p-3.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-[#141518]">
+                    Simulate Size on Your 3D Body
                   </span>
-                  <span className="text-[11px] font-bold text-[#244B3B]">
-                    Buy Size {baseFit?.recommendedSize} ({baseFit?.confidencePct}% Fit)
+                  <span className="text-[#244B3B]">
+                    Best Match: Size {liveFit.recommendedSize} (
+                    {liveFit.confidencePct}%)
                   </span>
                 </div>
 
                 <div className="grid grid-cols-4 gap-1.5">
-                  {sizesToPick.map((sz) => {
-                    const active = selectedSize === sz;
-                    const isBest = baseFit?.recommendedSize === sz;
-                    return (
-                      <button
-                        key={sz}
-                        type="button"
-                        onClick={() => setSelectedSize(sz)}
-                        className={`py-2 px-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                          active
-                            ? "bg-[#141518] text-white border-[#141518]"
-                            : "bg-white hover:bg-[#ECEEF2] text-[#141518] border-black/10"
-                        }`}
-                      >
-                        {sz}
-                        {isBest ? " ★" : ""}
-                      </button>
-                    );
-                  })}
+                  {sizesToPick.map((sz) => (
+                    <button
+                      key={sz}
+                      type="button"
+                      onClick={() => setSelectedSize(sz)}
+                      className={`py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                        selectedSize === sz
+                          ? "bg-[#141518] text-white border-[#141518]"
+                          : "bg-white text-[#141518] border-black/10 hover:bg-[#EAECEF]"
+                      }`}
+                    >
+                      {sz}
+                    </button>
+                  ))}
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-white border border-[#CBE2D4] space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#1D4232] flex items-center gap-1">
-                      <Check className="w-3.5 h-3.5" /> Exact Fit Verdict (Size {selectedSize})
-                    </span>
-                    <span className="text-xs font-extrabold text-[#141518]">
-                      ${primaryProduct.price}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#4E5A54] leading-snug">
+                <div className="p-3 rounded-xl bg-white border border-black/[0.06] space-y-1">
+                  <p className="text-xs font-bold text-[#141518] flex items-center gap-1">
+                    <Ruler className="w-3.5 h-3.5 text-[#244B3B]" />{" "}
                     {liveFit.headlineVerdict}
                   </p>
+                  <p className="text-[11px] text-[#5C6068] leading-relaxed">
+                    {liveFit.fabricSummary}
+                  </p>
                 </div>
-
-                {/* Zone-by-Zone Breakdown: Where It Fits vs Where It Doesn't */}
-                {liveFit.zones.length > 0 && (
-                  <div className="space-y-1.5">
-                    <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#686D76]">
-                      Measurement Breakdown (Your Body vs. Size {selectedSize})
-                    </span>
-                    {liveFit.zones.map((z) => {
-                      const isWarn = z.feel === "too_tight";
-                      return (
-                        <div
-                          key={z.zone}
-                          className={`p-2 rounded-xl border text-[11px] flex items-center justify-between gap-2 ${
-                            isWarn
-                              ? "bg-[#FDECEB] border-[#F5C6C2] text-[#9E2A22]"
-                              : "bg-white border-black/[0.06] text-[#141518]"
-                          }`}
-                        >
-                          <div>
-                            <strong>{z.zone}:</strong> You {z.avatarInches}&quot; vs Item{" "}
-                            {z.garmentRange}
-                          </div>
-                          <span className="font-bold shrink-0">{z.feelLabel}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
 
-              {/* Included Pieces */}
+              {/* Zone Breakdown */}
               <div className="space-y-1.5">
-                {allItems.slice(0, 3).map((item) => (
+                {liveFit.zones.map((z) => (
                   <div
-                    key={item.id}
-                    className="p-2 rounded-xl bg-[#F7F8FA] border border-black/[0.06] flex items-center gap-2.5"
+                    key={z.zone}
+                    className="px-3 py-2 rounded-xl bg-[#FAFBFD] border border-black/[0.06] flex items-center justify-between gap-2 text-xs"
                   >
-                    <div className="w-10 h-12 rounded-lg overflow-hidden bg-white border border-black/[0.06] shrink-0">
-                      <GarmentArtwork product={item} className="w-full h-full" />
+                    <div>
+                      <span className="font-bold text-[#141518]">{z.zone}:</span>{" "}
+                      <span className="text-[#686D76]">
+                        You {z.avatarInches}&quot; vs Garment {z.garmentRange}
+                      </span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-[#141518] truncate">
-                        {item.title}
-                      </p>
-                      <p className="text-[11px] text-[#686D76]">
-                        ${item.price} • {item.fitMetadata?.fabricComposition || "Tailored"}
-                      </p>
-                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-[#E7F3EE] text-[#1D4232] text-[10.5px] font-bold shrink-0">
+                      {z.feelLabel}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="space-y-2 pt-2 border-t border-black/[0.07]">
-              <button
-                type="button"
-                onClick={() => {
-                  for (const item of allItems) {
-                    const itemFit = analyzeExactAvatarFit(
-                      {
-                        heightInches: activeHeight,
-                        bustInches: activeBust,
-                        waistInches: activeWaist,
-                        hipsInches: activeHips,
-                        shoeSize: user?.shoeSize || "7.5",
-                      },
-                      item
-                    );
-                    const sz =
-                      item.id === primaryProduct.id
-                        ? selectedSize
-                        : itemFit.recommendedSize;
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setJustAdded(true);
+                    setTimeout(() => setJustAdded(false), 1400);
                     addToBag({
-                      productId: item.id,
-                      title: item.title,
-                      brand: item.brand,
-                      price: item.price,
-                      size: sz,
-                      imageUrl: item.imageUrl,
+                      productId: primaryProduct.id,
+                      title: primaryProduct.title,
+                      brand: primaryProduct.brand,
+                      price: primaryProduct.price,
+                      size: selectedSize,
+                      imageUrl: primaryProduct.imageUrl,
                       avatarFrontUrl: photoSet.frontUrl,
                       avatarBackUrl: photoSet.backUrl,
                     });
-                  }
-                  closeAvatar360();
-                }}
-                className="w-full py-3 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer transition"
-              >
-                <ShoppingBag className="w-3.5 h-3.5" />
-                {allItems.length > 1
-                  ? `Add Full Outfit to Cart ($${totalLookPrice})`
-                  : `Add Size ${selectedSize} to Cart ($${primaryProduct.price})`}
-              </button>
+                  }}
+                  className="flex-1 py-2.5 px-4 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {justAdded ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" /> Added Size {selectedSize}!
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag className="w-3.5 h-3.5" /> + Bag Piece ($
+                      {primaryProduct.price})
+                    </>
+                  )}
+                </button>
+
+                {companionProducts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      allItems.forEach((p) =>
+                        addToBag({
+                          productId: p.id,
+                          title: p.title,
+                          brand: p.brand,
+                          price: p.price,
+                          size: selectedSize,
+                          imageUrl: p.imageUrl,
+                        })
+                      );
+                      closeAvatar360();
+                    }}
+                    className="py-2.5 px-4 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-xs font-bold cursor-pointer"
+                  >
+                    + Full Outfit (${totalLookPrice})
+                  </button>
+                )}
+              </div>
 
               <Link
                 href={`/product?id=${encodeURIComponent(primaryProduct.id)}`}
                 onClick={closeAvatar360}
-                className="w-full py-2.5 rounded-full bg-[#F1F2F5] hover:bg-[#E5E7EC] text-[#141518] text-xs font-bold inline-flex items-center justify-center gap-1.5 transition"
+                className="w-full py-2 rounded-full bg-[#F4F5F7] hover:bg-[#E7E9EF] text-xs font-bold text-[#141518] inline-flex items-center justify-center gap-1"
               >
-                Open Full 360° Try-On View <ArrowRight className="w-3.5 h-3.5" />
+                Open Full 3D Fit Studio <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
           </div>

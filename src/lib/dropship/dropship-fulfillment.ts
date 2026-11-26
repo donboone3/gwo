@@ -35,7 +35,7 @@ export interface DropshipFulfillmentOrder {
   createdAt: string;
 }
 
-const ORDERS_STORAGE_KEY = "gwo_dropship_orders_v1";
+const ORDERS_STORAGE_KEY = "gwo_dropship_orders_v2";
 
 function mapUsShoeToEuTag(usSize: string): string {
   const table: Record<string, string> = {
