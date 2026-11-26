@@ -156,9 +156,72 @@ export interface EndlessBatchRequest {
   batchSize?: number;
   occasionFilter?: string; // "all" | "Date Night" | "Party" | "Work / Chic" | "Coffee Run"
   sourceFilter?: "all" | "aliexpress_dropship";
+  customVibePrompt?: string;
   maxBudget?: number;
   ownedProductIds?: string[];
   seenSignatures?: Set<string>;
+}
+
+const STOPWORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "in",
+  "on",
+  "at",
+  "to",
+  "my",
+  "me",
+  "a",
+  "an",
+  "of",
+  "look",
+  "outfit",
+]);
+
+function expandPromptSynonyms(rawPrompt: string): string[] {
+  const lower = rawPrompt.toLowerCase();
+  const baseTokens = lower
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !STOPWORDS.has(w));
+
+  const expanded = new Set<string>(baseTokens);
+  if (/red|crimson|cherry|scarlet|miami|birthday/.test(lower)) {
+    ["crimson", "red", "merlot", "burgundy", "party", "birthday", "mini"].forEach((t) =>
+      expanded.add(t)
+    );
+  }
+  if (/gold|champagne|glam|rooftop|cocktail/.test(lower)) {
+    ["champagne", "14k", "gold", "satin", "stiletto", "corset", "cocktail"].forEach(
+      (t) => expanded.add(t)
+    );
+  }
+  if (/paris|old\s*money|brunch|quiet|tailored|chic|work/.test(lower)) {
+    [
+      "ivory",
+      "tweed",
+      "blazer",
+      "trousers",
+      "camel",
+      "silk",
+      "linen",
+      "slingback",
+      "brunch",
+    ].forEach((t) => expanded.add(t));
+  }
+  if (/soho|leather|boot|edgy|noir|night|street/.test(lower)) {
+    ["leather", "boots", "noir", "pleat", "mini-skirt", "obsidian", "corset"].forEach(
+      (t) => expanded.add(t)
+    );
+  }
+  if (/pilates|clean|matcha|gym|coffee|morning|casual/.test(lower)) {
+    ["leggings", "fleece", "hoodie", "sneakers", "cortez", "tank", "athletic"].forEach(
+      (t) => expanded.add(t)
+    );
+  }
+  return Array.from(expanded);
 }
 
 /**
@@ -177,9 +240,14 @@ export function generateEndlessOutfitBatch(
     batchSize = 6,
     occasionFilter = "all",
     sourceFilter = "all",
+    customVibePrompt = "",
     maxBudget = 650,
     ownedProductIds = [],
   } = req;
+
+  const promptKeywords = customVibePrompt.trim()
+    ? expandPromptSynonyms(customVibePrompt)
+    : [];
 
   const ownedSet = new Set(ownedProductIds);
   const likedProdSet = new Set(socialDna.likedProductIds);
@@ -334,14 +402,41 @@ export function generateEndlessOutfitBatch(
     const allPhotographedBonus = cand.items.every((i) => Boolean(i.imageUrl))
       ? 18
       : 0;
+
+    // Natural-Language AI Vibe Collaborator Prompt Bonus
+    let vibePromptBonus = 0;
+    if (promptKeywords.length > 0) {
+      const candHay = cand.items
+        .map(
+          (it) =>
+            `${it.title} ${it.colorName} ${it.category} ${it.silhouette} ${it.vibes.join(
+              " "
+            )} ${it.occasions.join(" ")} ${it.fitMetadata?.fabricComposition || ""}`
+        )
+        .join(" ")
+        .toLowerCase();
+      for (const kw of promptKeywords) {
+        if (candHay.includes(kw)) {
+          vibePromptBonus += 16;
+        }
+      }
+    }
+
     const unclampedScore =
       archWeight * 0.52 +
       harmony * 0.32 +
       paletteBonus +
       glamAlignment * 0.4 +
-      allPhotographedBonus;
+      allPhotographedBonus +
+      vibePromptBonus;
 
-    const rawMatch = Math.min(99, Math.max(76, Math.round(unclampedScore)));
+    const rawMatch = Math.min(
+      99,
+      Math.max(
+        76,
+        Math.round(unclampedScore - vibePromptBonus * 0.72)
+      )
+    );
 
     const sig = cand.items
       .map((i) => i.id)
@@ -432,10 +527,12 @@ export function generateEndlessOutfitBatch(
         .toFixed(2)
     );
 
-    const moodPrefix =
-      EDITORIAL_MOOD_PREFIXES[
-        (seqNum - 1) % EDITORIAL_MOOD_PREFIXES.length
-      ].trim();
+    const cleanPrompt = customVibePrompt.trim();
+    const moodPrefix = cleanPrompt
+      ? cleanPrompt.slice(0, 26).replace(/\b\w/g, (c) => c.toUpperCase())
+      : EDITORIAL_MOOD_PREFIXES[
+          (seqNum - 1) % EDITORIAL_MOOD_PREFIXES.length
+        ].trim();
     const archLabel = ARCHETYPE_META[entry.arch].shortTag;
     const socialHandle = socialDna.instagramHandle || "Your Socials";
 
@@ -462,9 +559,13 @@ export function generateEndlessOutfitBatch(
       dropshipPieceCount: dropshipItems.length,
       totalWholesaleCostUsd,
       totalStoreProfitUsd,
-      stylistRationale: `Curated for ${socialHandle} (${entry.dnaMatchPct}% ${archLabel} DNA): pairs ${items[0]?.title} with ${
-        items[1]?.title || "studio accents"
-      } (${entry.harmony}% color harmony).`,
+      stylistRationale: cleanPrompt
+        ? `Styled for "${cleanPrompt}" × ${socialHandle} (${entry.dnaMatchPct}% ${archLabel} DNA): pairs ${items[0]?.title} with ${
+            items[1]?.title || "studio accents"
+          } (${entry.harmony}% color harmony).`
+        : `Curated for ${socialHandle} (${entry.dnaMatchPct}% ${archLabel} DNA): pairs ${items[0]?.title} with ${
+            items[1]?.title || "studio accents"
+          } (${entry.harmony}% color harmony).`,
     };
   });
 }

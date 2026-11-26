@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import { NextRequest, NextResponse } from "next/server";
 import {
   ALIEXPRESS_CALIBRATED_US_CHART,
@@ -6,10 +8,14 @@ import {
   calculateDropshipEconomics,
   DEFAULT_CN_SIZE_TAG_MAP,
   extractAliExpressItemId,
+  parseScrapedAliExpressSearchHits,
+  RawAliExpressSearchHit,
   searchTopLineAliExpressFeed,
 } from "@/lib/dropship/aliexpress-dropship";
 import { upsertSharedProduct } from "@/lib/db/repository";
 import { Product } from "@/lib/types";
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Signs an official AliExpress Open Platform (IOP) API request with HMAC-SHA256
@@ -28,6 +34,145 @@ function signAliExpressOpenPlatformParams(
     .toUpperCase();
 }
 
+async function execFirecrawlSearchJson(
+  args: string[]
+): Promise<Record<string, unknown> | null> {
+  try {
+    const isWin = process.platform === "win32";
+    const cmd = isWin ? "cmd.exe" : "firecrawl";
+    const fullArgs = isWin ? ["/d", "/s", "/c", "firecrawl", ...args] : args;
+    const { stdout } = await execFileAsync(cmd, fullArgs, {
+      timeout: 9500,
+      maxBuffer: 4 * 1024 * 1024,
+      env: { ...process.env, FIRECRAWL_NO_SEARCH_FEEDBACK: "1" },
+    });
+    const jsonStart = stdout.indexOf("{");
+    if (jsonStart === -1) return null;
+    return JSON.parse(stdout.slice(jsonStart)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Queries public AliExpress item index + AliExpress CDN (`aliexpress-media.com/kf/...`) via Firecrawl
+ * without ever attempting to solve or bypass any item-page CAPTCHA!
+ */
+async function discoverLiveAliExpressHits(
+  searchQuery: string,
+  limit = 8
+): Promise<RawAliExpressSearchHit[]> {
+  const hits: RawAliExpressSearchHit[] = [];
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+
+  if (apiKey) {
+    try {
+      const [webRes, imgRes] = await Promise.all([
+        fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({ query: searchQuery, limit }),
+          signal: AbortSignal.timeout(8500),
+        }),
+        fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            query: searchQuery,
+            limit,
+            sources: ["images"],
+          }),
+          signal: AbortSignal.timeout(8500),
+        }),
+      ]);
+
+      if (webRes.ok) {
+        const wJson = await webRes.json();
+        const webArr = (wJson?.data?.web || wJson?.data || []) as Array<
+          Record<string, unknown>
+        >;
+        for (const w of webArr) {
+          hits.push({
+            url: String(w.url || ""),
+            title: String(w.title || ""),
+            description: String(w.description || w.markdown || ""),
+          });
+        }
+      }
+      if (imgRes.ok) {
+        const iJson = await imgRes.json();
+        const imgArr = (iJson?.data?.images || []) as Array<
+          Record<string, unknown>
+        >;
+        for (const im of imgArr) {
+          hits.push({
+            url: String(im.url || ""),
+            title: String(im.title || ""),
+            imageUrl: String(im.imageUrl || ""),
+          });
+        }
+      }
+      if (hits.length > 0) return hits;
+    } catch {
+      // Fall through to authenticated Firecrawl CLI
+    }
+  }
+
+  // Authenticated Firecrawl CLI path (web + images in parallel)
+  const [webCli, imgCli] = await Promise.all([
+    execFirecrawlSearchJson([
+      "search",
+      searchQuery,
+      "--limit",
+      String(limit),
+      "--json",
+    ]),
+    execFirecrawlSearchJson([
+      "search",
+      searchQuery,
+      "--sources",
+      "images",
+      "--limit",
+      String(limit),
+      "--json",
+    ]),
+  ]);
+
+  const webData = (
+    (webCli?.data as Record<string, unknown> | undefined)?.web as
+      | Array<Record<string, unknown>>
+      | undefined
+  ) || [];
+  for (const w of webData) {
+    hits.push({
+      url: String(w.url || ""),
+      title: String(w.title || ""),
+      description: String(w.description || ""),
+    });
+  }
+
+  const imgData = (
+    (imgCli?.data as Record<string, unknown> | undefined)?.images as
+      | Array<Record<string, unknown>>
+      | undefined
+  ) || [];
+  for (const im of imgData) {
+    hits.push({
+      url: String(im.url || ""),
+      title: String(im.title || ""),
+      imageUrl: String(im.imageUrl || ""),
+    });
+  }
+
+  return hits;
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const query = searchParams.get("q") || "";
@@ -35,15 +180,50 @@ export async function GET(req: NextRequest) {
     | Product["category"]
     | "all";
   const markup = Number(searchParams.get("markup") || 2.85);
+  const live = searchParams.get("live") === "1";
 
-  const items = searchTopLineAliExpressFeed({
+  const verifiedItems = searchTopLineAliExpressFeed({
     query,
     category,
     markupMultiplier: markup,
   });
 
+  if (!live) {
+    return NextResponse.json({
+      items: verifiedItems,
+      liveScrapedCount: 0,
+      officialApiConnected: Boolean(
+        process.env.ALIEXPRESS_APP_KEY && process.env.ALIEXPRESS_APP_SECRET
+      ),
+    });
+  }
+
+  // Live Firecrawl AliExpress Luxury Discovery
+  const catHint =
+    category !== "all" ? category : "women boutique luxury";
+  const liveQuery = `site:aliexpress.com/item ${catHint} ${
+    query.trim() || "satin corset dress blazer"
+  }`.trim();
+  const rawHits = await discoverLiveAliExpressHits(liveQuery, 8);
+  const scrapedProducts = parseScrapedAliExpressSearchHits(
+    rawHits,
+    markup
+  ).filter((p) => Boolean(p.imageUrl));
+
+  // Persist freshly discovered photo-verified AliExpress pieces into shared catalog
+  for (const sp of scrapedProducts.slice(0, 6)) {
+    await upsertSharedProduct(sp).catch(() => undefined);
+  }
+
+  const seenIds = new Set(scrapedProducts.map((p) => p.id));
+  const merged = [
+    ...scrapedProducts,
+    ...verifiedItems.filter((v) => !seenIds.has(v.id)),
+  ];
+
   return NextResponse.json({
-    items,
+    items: merged,
+    liveScrapedCount: scrapedProducts.length,
     officialApiConnected: Boolean(
       process.env.ALIEXPRESS_APP_KEY && process.env.ALIEXPRESS_APP_SECRET
     ),
@@ -58,13 +238,16 @@ export async function POST(req: NextRequest) {
     const itemId =
       extractAliExpressItemId(rawUrl) || `${Date.now()}`.slice(-12);
 
-    // 1. Check verified Gold Supplier feed first
+    // 1. Check verified 14-SKU Gold Supplier feed first
     const catalog = buildTopLineAliExpressDropshipCatalog(markup);
     const verifiedMatch = catalog.find(
       (p) => p.dropship?.aliexpressItemId === itemId
     );
     if (verifiedMatch) {
-      const saved = await upsertSharedProduct(verifiedMatch);
+      const hydrated = body.customImageUrl
+        ? { ...verifiedMatch, imageUrl: String(body.customImageUrl) }
+        : verifiedMatch;
+      const saved = await upsertSharedProduct(hydrated);
       return NextResponse.json({
         product: saved,
         source: "verified_supplier_catalog",
@@ -152,7 +335,33 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Respect CAPTCHA boundaries strictly: if user supplied custom title/photo/cost, save cleanly; otherwise return transparent notice
+    // 3. Sanctioned Firecrawl Public Search + CDN Image Lookup for this exact AliExpress itemId!
+    if (!body.persistToStore && /^\d{10,20}$/.test(itemId)) {
+      const liveHits = await discoverLiveAliExpressHits(
+        `site:aliexpress.com/item/${itemId}`,
+        5
+      );
+      const parsed = parseScrapedAliExpressSearchHits(liveHits, markup);
+      const exactHit =
+        parsed.find((p) => p.dropship?.aliexpressItemId === itemId) ||
+        parsed[0];
+      if (exactHit && (exactHit.imageUrl || exactHit.title)) {
+        const mergedLive: Product = {
+          ...exactHit,
+          imageUrl: body.customImageUrl
+            ? String(body.customImageUrl)
+            : exactHit.imageUrl,
+        };
+        const saved = await upsertSharedProduct(mergedLive);
+        return NextResponse.json({
+          product: saved,
+          source: "firecrawl_live_index",
+          captchaGated: false,
+        });
+      }
+    }
+
+    // 4. Respect CAPTCHA boundaries strictly: if user supplied custom title/photo/cost, save cleanly; otherwise return transparent notice
     const wholesaleUsd = Number(body.customWholesaleUsd || 18.5);
     const econ = calculateDropshipEconomics(wholesaleUsd, 0, markup);
     const nowIso = new Date().toISOString();
@@ -216,7 +425,7 @@ export async function POST(req: NextRequest) {
       source: "captcha_gated_notice",
       captchaGated: true,
       notice:
-        "AliExpress gates unauthenticated item HTML with reCAPTCHA (which GWO never bypasses). Set ALIEXPRESS_APP_KEY & ALIEXPRESS_APP_SECRET for live official API sync, pick from the Verified Gold Boutique Feed, or attach a product photo below!",
+        "AliExpress gated unauthenticated item HTML with reCAPTCHA (which GWO never bypasses). Use 'Scrape Live AliExpress' to pull public-indexed boutique pieces, connect ALIEXPRESS_APP_KEY, or attach a product photo below!",
     });
   } catch (err) {
     return NextResponse.json(

@@ -40,6 +40,13 @@ import {
   saveStoredSocialStyleDNA,
 } from "@/lib/social/social-style-dna";
 import { calculateDropshipEconomics } from "@/lib/dropship/aliexpress-dropship";
+import {
+  buildDropshipOrderFromBag,
+  DropshipFulfillmentOrder,
+  getStarterSampleDropshipOrders,
+  loadStoredDropshipOrders,
+  saveStoredDropshipOrders,
+} from "@/lib/dropship/dropship-fulfillment";
 
 interface TelemetryData {
   ledger: ComputeBudgetLedger;
@@ -118,6 +125,19 @@ interface GwoContextValue {
   dropshipMarkup: number;
   setDropshipMarkup: (multiplier: number) => void;
   importDropshipProductToStore: (product: Product) => Promise<void>;
+  dropshipCheckoutOpen: boolean;
+  dropshipCheckoutTab: "checkout" | "fulfillment";
+  setDropshipCheckoutTab: (tab: "checkout" | "fulfillment") => void;
+  openDropshipCheckout: (tab?: "checkout" | "fulfillment") => void;
+  closeDropshipCheckout: () => void;
+  dropshipOrders: DropshipFulfillmentOrder[];
+  placeDropshipOrder: (customer: {
+    customerName: string;
+    customerEmail: string;
+    shippingAddress: string;
+    cityPostal: string;
+  }) => DropshipFulfillmentOrder | null;
+  dispatchDropshipOrder: (orderId: string) => void;
   avatar360Target: Avatar360Target | null;
   openAvatar360: (target: Avatar360Target) => void;
   closeAvatar360: () => void;
@@ -188,8 +208,27 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
   );
   const [socialModalOpen, setSocialModalOpen] = useState(false);
   const [dropshipMarkup, setDropshipMarkupState] = useState<number>(2.85);
+  const [dropshipCheckoutOpen, setDropshipCheckoutOpen] = useState(false);
+  const [dropshipCheckoutTab, setDropshipCheckoutTab] = useState<
+    "checkout" | "fulfillment"
+  >("checkout");
+  const [dropshipOrders, setDropshipOrders] = useState<
+    DropshipFulfillmentOrder[]
+  >(() => getStarterSampleDropshipOrders(INITIAL_SEED_DB.products));
   const [avatar360Target, setAvatar360Target] =
     useState<Avatar360Target | null>(null);
+
+  const openDropshipCheckout = useCallback(
+    (tab: "checkout" | "fulfillment" = "checkout") => {
+      setDropshipCheckoutTab(tab);
+      setDropshipCheckoutOpen(true);
+    },
+    []
+  );
+
+  const closeDropshipCheckout = useCallback(() => {
+    setDropshipCheckoutOpen(false);
+  }, []);
 
   const openAvatar360 = useCallback((target: Avatar360Target) => {
     setAvatar360Target(target);
@@ -204,6 +243,10 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
     if (stored) setCustomAvatar(stored);
     const storedSocial = loadStoredSocialStyleDNA();
     if (storedSocial) setSocialDna(storedSocial);
+    const storedOrders = loadStoredDropshipOrders();
+    if (storedOrders && storedOrders.length > 0) {
+      setDropshipOrders(storedOrders);
+    }
   }, []);
 
   const showToast = useCallback((msg: string) => {
@@ -353,6 +396,56 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
   const removeFromBag = useCallback((id: string) => {
     setBagItems((prev) => prev.filter((x) => x.id !== id));
   }, []);
+
+  const placeDropshipOrder = useCallback(
+    (customer: {
+      customerName: string;
+      customerEmail: string;
+      shippingAddress: string;
+      cityPostal: string;
+    }) => {
+      if (bagItems.length === 0) return null;
+      const created = buildDropshipOrderFromBag({
+        bagItems,
+        catalog: products.length > 0 ? products : INITIAL_SEED_DB.products,
+        ...customer,
+      });
+      setDropshipOrders((prev) => {
+        const next = [created, ...prev];
+        saveStoredDropshipOrders(next);
+        return next;
+      });
+      setBagItems([]);
+      showToast(
+        `Order ${created.orderId} confirmed! Net store profit +$${created.totalNetStoreProfitUsd.toFixed(
+          2
+        )} queued for supplier dispatch.`
+      );
+      return created;
+    },
+    [bagItems, products, showToast]
+  );
+
+  const dispatchDropshipOrder = useCallback(
+    (orderId: string) => {
+      const tracking = `AE-CHOICE-${String(Math.floor(100000 + (Date.now() % 900000)))}`;
+      setDropshipOrders((prev) => {
+        const next = prev.map((o) =>
+          o.orderId === orderId
+            ? {
+                ...o,
+                status: "dispatched_choice_air" as const,
+                trackingNumber: tracking,
+              }
+            : o
+        );
+        saveStoredDropshipOrders(next);
+        return next;
+      });
+      showToast(`Dispatched ${orderId} via AliExpress Choice Direct Air (${tracking})!`);
+    },
+    [showToast]
+  );
 
   const applyClientSeedFallback = useCallback(() => {
     let savedPatch: Partial<UserProfile> = {};
@@ -860,6 +953,14 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         dropshipMarkup,
         setDropshipMarkup,
         importDropshipProductToStore,
+        dropshipCheckoutOpen,
+        dropshipCheckoutTab,
+        setDropshipCheckoutTab,
+        openDropshipCheckout,
+        closeDropshipCheckout,
+        dropshipOrders,
+        placeDropshipOrder,
+        dispatchDropshipOrder,
         avatar360Target,
         openAvatar360,
         closeAvatar360,

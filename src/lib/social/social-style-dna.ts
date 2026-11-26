@@ -437,3 +437,174 @@ export function saveStoredSocialStyleDNA(dna: SocialStyleDNA): void {
     // Ignore storage quota error
   }
 }
+
+export interface ParsedSocialUrlInfo {
+  platform: "instagram" | "tiktok" | "pinterest";
+  handle: string;
+  boardSlug?: string;
+  boardTitle?: string;
+  inferredKeywords: string;
+  suggestedGlam: number;
+  suggestedEdge: number;
+  suggestedPalette: string[];
+}
+
+/**
+ * Parses any Instagram, TikTok, or Pinterest URL / @handle into structured social aesthetic hints.
+ */
+export function parseSocialProfileUrl(rawInput: string): ParsedSocialUrlInfo {
+  const clean = rawInput.trim();
+  const lower = clean.toLowerCase();
+
+  let platform: "instagram" | "tiktok" | "pinterest" = "instagram";
+  let handle = "@mila.nyc";
+  let boardSlug = "";
+  let boardTitle = "";
+
+  if (lower.includes("tiktok.com")) {
+    platform = "tiktok";
+    const m = clean.match(/tiktok\.com\/@?([a-zA-Z0-9._-]+)/i);
+    if (m?.[1]) handle = `@${m[1].replace(/^@/, "")}`;
+  } else if (lower.includes("pinterest.")) {
+    platform = "pinterest";
+    const m = clean.match(/pinterest\.[a-z.]+\/([a-zA-Z0-9._-]+)(?:\/([a-zA-Z0-9._-]+))?/i);
+    if (m?.[1]) handle = `@${m[1].replace(/^@/, "")}`;
+    if (m?.[2]) {
+      boardSlug = m[2];
+      boardTitle = m[2]
+        .replace(/[-_]+/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+  } else if (lower.includes("instagram.com")) {
+    platform = "instagram";
+    const m = clean.match(/instagram\.com\/([a-zA-Z0-9._-]+)/i);
+    if (m?.[1] && !["p", "reel", "stories", "explore"].includes(m[1].toLowerCase())) {
+      handle = `@${m[1].replace(/^@/, "")}`;
+    }
+  } else if (clean.startsWith("@")) {
+    handle = clean.split(/\s+/)[0];
+  }
+
+  const hay = `${handle} ${boardSlug} ${lower}`;
+  let suggestedGlam = 70;
+  let suggestedEdge = 62;
+  let suggestedPalette = ["#C80815", "#4B3531", "#18181B", "#D9CEBE"];
+  const tags: string[] = [];
+
+  if (/old-?money|quiet-?luxury|atelier|tailored|sofia|chloe|tweed|paris|linen|minimal/.test(hay)) {
+    suggestedGlam = 68;
+    suggestedEdge = 34;
+    suggestedPalette = ["#EFECE6", "#D9CEBE", "#1F5441", "#D4B475"];
+    tags.push("#oldmoney", "#quietluxury", "#tailored", "#blazer");
+  }
+  if (/pilates|matcha|clean|active|wellness|yoga|morning/.test(hay)) {
+    suggestedGlam = 28;
+    suggestedEdge = 30;
+    suggestedPalette = ["#F4EFE6", "#DFC1B8", "#2B221F", "#6D8299"];
+    tags.push("#cleangirl", "#pilates", "#athleisure");
+  }
+  if (/street|cargo|edgy|downtown|soho|skate|noir|leather|boots/.test(hay)) {
+    suggestedGlam = 62;
+    suggestedEdge = 86;
+    suggestedPalette = ["#1D1E22", "#C7CDD6", "#6E1423", "#D8CFC2"];
+    tags.push("#streetwear", "#downtown", "#noir");
+  }
+  if (/siren|party|night|corset|birthday|miami|glam|red|cocktail|dress/.test(hay)) {
+    suggestedGlam = 84;
+    suggestedEdge = 74;
+    suggestedPalette = ["#C80815", "#4B3531", "#18181B", "#D4B475"];
+    tags.push("#sirenglam", "#datenight", "#corset", "#party");
+  }
+  if (/hailey|kendall|matilda|bella|off-?duty|model|capsule/.test(hay)) {
+    suggestedGlam = 64;
+    suggestedEdge = 58;
+    suggestedPalette = ["#4A3B31", "#ECE8E1", "#18181B", "#B58969"];
+    tags.push("#modeloffduty", "#capsule", "#soho");
+  }
+
+  if (tags.length === 0) {
+    tags.push("#modeloffduty", "#sirenglam", "#tailored");
+  }
+
+  return {
+    platform,
+    handle,
+    boardSlug: boardSlug || undefined,
+    boardTitle: boardTitle || undefined,
+    inferredKeywords: `${boardTitle ? `${boardTitle} • ` : ""}${tags.join(" ")}`,
+    suggestedGlam,
+    suggestedEdge,
+    suggestedPalette,
+  };
+}
+
+/**
+ * Fetches public aesthetic metadata from an Instagram, TikTok, or Pinterest URL.
+ * Strictly honors login/CAPTCHA boundaries (never attempts to bypass authentication or bot gates).
+ */
+export async function fetchPublicSocialAestheticClient(rawUrl: string): Promise<{
+  platform: "instagram" | "tiktok" | "pinterest";
+  handle: string;
+  boardTitle?: string;
+  extractedKeywords: string;
+  suggestedGlam: number;
+  suggestedEdge: number;
+  suggestedPalette: string[];
+  liveIndexed: boolean;
+}> {
+  const parsed = parseSocialProfileUrl(rawUrl);
+  const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+  try {
+    const res = await fetch(`${base}/api/social/collaborate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: rawUrl }),
+      signal: AbortSignal.timeout(8500),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {
+    // Static export mode fallback: try public Pinterest metadata via r.jina.ai if Pinterest URL
+  }
+
+  if (parsed.platform === "pinterest" && rawUrl.startsWith("http")) {
+    try {
+      const jina = await fetch(`https://r.jina.ai/${rawUrl.trim()}`, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(4500),
+      });
+      if (jina.ok) {
+        const data = await jina.json();
+        const title = String(data?.data?.title || "");
+        const content = String(data?.data?.content || "").slice(0, 400);
+        if (!/captcha|verify you are human|log in/i.test(`${title} ${content}`)) {
+          return {
+            platform: parsed.platform,
+            handle: parsed.handle,
+            boardTitle: title.split("|")[0]?.trim() || parsed.boardTitle,
+            extractedKeywords: `${title.split("|")[0]?.trim() || ""} ${parsed.inferredKeywords}`.trim(),
+            suggestedGlam: parsed.suggestedGlam,
+            suggestedEdge: parsed.suggestedEdge,
+            suggestedPalette: parsed.suggestedPalette,
+            liveIndexed: true,
+          };
+        }
+      }
+    } catch {
+      // Ignore network timeout
+    }
+  }
+
+  return {
+    platform: parsed.platform,
+    handle: parsed.handle,
+    boardTitle: parsed.boardTitle,
+    extractedKeywords: parsed.inferredKeywords,
+    suggestedGlam: parsed.suggestedGlam,
+    suggestedEdge: parsed.suggestedEdge,
+    suggestedPalette: parsed.suggestedPalette,
+    liveIndexed: false,
+  };
+}

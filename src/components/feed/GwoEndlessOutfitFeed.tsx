@@ -15,19 +15,22 @@ import {
   Plus,
   Rotate3d,
   Search,
-  Share2,
   ShoppingBag,
   Sparkles,
   Star,
   TrendingUp,
+  Truck,
+  X,
 } from "lucide-react";
 import { useGwo } from "@/context/GwoAppContext";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
+import { IgStoryLookbookModal } from "../social/IgStoryLookbookModal";
 import { generateEndlessOutfitBatch } from "@/lib/stylist/infinite-outfit-engine";
 import { ARCHETYPE_META } from "@/lib/social/social-style-dna";
 import {
   AliExpressUrlScrapeOutcome,
   importAliExpressUrlForDropship,
+  scrapeLiveAliExpressNicheClient,
   searchTopLineAliExpressFeed,
 } from "@/lib/dropship/aliexpress-dropship";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
@@ -48,6 +51,13 @@ const MARKUP_TIERS = [
   { mult: 3.4, label: "3.4x Luxury" },
 ];
 
+const QUICK_VIBE_PROMPTS = [
+  "Miami Rooftop Birthday Red & Gold",
+  "Old Money Paris Brunch",
+  "SoHo Leather Boots & Mini",
+  "Clean Girl Pilates Matcha",
+];
+
 export function GwoEndlessOutfitFeed() {
   const searchParams = useSearchParams();
   const initialStudioOpen = searchParams.get("studio") === "dropship";
@@ -62,6 +72,8 @@ export function GwoEndlessOutfitFeed() {
     dropshipMarkup,
     setDropshipMarkup,
     importDropshipProductToStore,
+    dropshipOrders,
+    openDropshipCheckout,
     addToBag,
     openAvatar360,
     showToast,
@@ -88,6 +100,10 @@ export function GwoEndlessOutfitFeed() {
   const [showMerchantMargins, setShowMerchantMargins] = useState<boolean>(true);
   const [dropshipStudioOpen, setDropshipStudioOpen] =
     useState<boolean>(initialStudioOpen);
+  const [vibeInputDraft, setVibeInputDraft] = useState<string>("");
+  const [activeVibePrompt, setActiveVibePrompt] = useState<string>("");
+  const [activeStoryOutfit, setActiveStoryOutfit] =
+    useState<EndlessAiOutfit | null>(null);
 
   // AliExpress Dropship Sourcing Studio state
   const [aeSearchQuery, setAeSearchQuery] = useState("");
@@ -95,19 +111,22 @@ export function GwoEndlessOutfitFeed() {
   const [aeUrlInput, setAeUrlInput] = useState("");
   const [aeWholesaleInput, setAeWholesaleInput] = useState("19.50");
   const [aeImportingUrl, setAeImportingUrl] = useState(false);
+  const [aeLiveScraping, setAeLiveScraping] = useState(false);
+  const [aeLiveItems, setAeLiveItems] = useState<Product[]>([]);
   const [aeOutcome, setAeOutcome] =
     useState<AliExpressUrlScrapeOutcome | null>(null);
   const aePhotoInputRef = useRef<HTMLInputElement | null>(null);
 
-  const aeFeedItems = useMemo(
-    () =>
-      searchTopLineAliExpressFeed({
-        query: aeSearchQuery,
-        category: aeCategory,
-        markupMultiplier: dropshipMarkup,
-      }),
-    [aeCategory, aeSearchQuery, dropshipMarkup]
-  );
+  const aeFeedItems = useMemo(() => {
+    const base = searchTopLineAliExpressFeed({
+      query: aeSearchQuery,
+      category: aeCategory,
+      markupMultiplier: dropshipMarkup,
+    });
+    if (aeLiveItems.length === 0) return base;
+    const seen = new Set(aeLiveItems.map((p) => p.id));
+    return [...aeLiveItems, ...base.filter((b) => !seen.has(b.id))];
+  }, [aeCategory, aeLiveItems, aeSearchQuery, dropshipMarkup]);
 
   const storeIdsSet = useMemo(
     () => new Set(products.map((p) => p.id)),
@@ -121,7 +140,7 @@ export function GwoEndlessOutfitFeed() {
   const [outfits, setOutfits] = useState<EndlessAiOutfit[]>([]);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // Rebuild Batch 0 whenever Social Style DNA, catalog, or filters update
+  // Rebuild Batch 0 whenever Social Style DNA, catalog, vibe prompt, or filters update
   useEffect(() => {
     if (products.length === 0) return;
     const freshSeen = new Set<string>();
@@ -133,6 +152,7 @@ export function GwoEndlessOutfitFeed() {
       batchSize: 6,
       occasionFilter,
       sourceFilter: onlyDropshipOutfits ? "aliexpress_dropship" : "all",
+      customVibePrompt: activeVibePrompt,
       ownedProductIds: ownedIds,
       seenSignatures: freshSeen,
     });
@@ -142,6 +162,7 @@ export function GwoEndlessOutfitFeed() {
     setOutfits(initial);
   }, [
     activeAvatar,
+    activeVibePrompt,
     occasionFilter,
     onlyDropshipOutfits,
     ownedIds,
@@ -161,6 +182,7 @@ export function GwoEndlessOutfitFeed() {
       batchSize: 6,
       occasionFilter,
       sourceFilter: onlyDropshipOutfits ? "aliexpress_dropship" : "all",
+      customVibePrompt: activeVibePrompt,
       ownedProductIds: ownedIds,
       seenSignatures: seenSigsRef.current,
     });
@@ -171,6 +193,7 @@ export function GwoEndlessOutfitFeed() {
     });
   }, [
     activeAvatar,
+    activeVibePrompt,
     occasionFilter,
     onlyDropshipOutfits,
     ownedIds,
@@ -208,6 +231,32 @@ export function GwoEndlessOutfitFeed() {
       if (!sampleUrl) setAeUrlInput("");
     } finally {
       setAeImportingUrl(false);
+    }
+  };
+
+  const handleLiveScrapeAliExpress = async () => {
+    setAeLiveScraping(true);
+    try {
+      const res = await scrapeLiveAliExpressNicheClient({
+        query: aeSearchQuery,
+        category: aeCategory,
+        markupMultiplier: dropshipMarkup,
+      });
+      if (res.liveScrapedCount > 0) {
+        setAeLiveItems(res.items.slice(0, res.liveScrapedCount));
+        for (const p of res.items.slice(0, Math.min(4, res.liveScrapedCount))) {
+          await importDropshipProductToStore(p);
+        }
+        showToast(
+          `Live-scraped ${res.liveScrapedCount} AliExpress luxury pieces into your store!`
+        );
+      } else {
+        showToast(
+          `Loaded ${res.items.length} verified Top-1% AliExpress Gold Boutique pieces!`
+        );
+      }
+    } finally {
+      setAeLiveScraping(false);
     }
   };
 
@@ -353,6 +402,78 @@ export function GwoEndlessOutfitFeed() {
               <strong className="text-[#244B3B]">360° Front &amp; Back</strong>
             </span>
           </div>
+
+          {/* Interactive AI Stylist Vibe Collaborator Prompt Bar */}
+          <div className="pt-2 border-t border-black/[0.06] space-y-2">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+              <div className="relative flex-1 min-w-[200px]">
+                <Sparkles className="w-3.5 h-3.5 text-[#244B3B] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  id="gwo-ai-vibe-prompt-input"
+                  type="text"
+                  value={vibeInputDraft}
+                  onChange={(e) => setVibeInputDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setActiveVibePrompt(vibeInputDraft.trim());
+                    }
+                  }}
+                  placeholder="Collaborate with AI Stylist: e.g. Miami rooftop birthday in red & gold, Paris brunch..."
+                  className="w-full pl-9 pr-3 py-2 rounded-full bg-[#F4F5F7] border border-black/10 text-xs font-medium text-[#141518]"
+                />
+              </div>
+
+              <button
+                type="button"
+                id="gwo-ai-vibe-apply-btn"
+                onClick={() => setActiveVibePrompt(vibeInputDraft.trim())}
+                className="px-4 py-2 rounded-full bg-[#244B3B] hover:bg-[#1D3E30] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shrink-0 transition"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" /> Style My Vibe
+              </button>
+
+              {activeVibePrompt && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVibeInputDraft("");
+                    setActiveVibePrompt("");
+                  }}
+                  aria-label="Clear Vibe Prompt"
+                  className="px-3 py-2 rounded-full bg-[#F1F2F5] hover:bg-[#E5E7EB] text-[#141518] text-xs font-bold inline-flex items-center gap-1 cursor-pointer shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" /> Reset
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-bold text-[#686D76]">
+                Quick Vibes:
+              </span>
+              {QUICK_VIBE_PROMPTS.map((vp) => {
+                const isCurr =
+                  activeVibePrompt.toLowerCase() === vp.toLowerCase();
+                return (
+                  <button
+                    key={vp}
+                    type="button"
+                    onClick={() => {
+                      setVibeInputDraft(vp);
+                      setActiveVibePrompt(vp);
+                    }}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold border cursor-pointer transition ${
+                      isCurr
+                        ? "bg-[#141518] text-white border-[#141518]"
+                        : "bg-white hover:bg-[#F4F5F7] text-[#5C6068] border-black/[0.08]"
+                    }`}
+                  >
+                    {vp}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </section>
 
         {/* ==================== ALIEXPRESS TOP-LINE DROPSHIP SOURCING STUDIO ==================== */}
@@ -376,26 +497,38 @@ export function GwoEndlessOutfitFeed() {
                 </p>
               </div>
 
-              {/* Store Markup Tier Selector */}
-              <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-full bg-[#F1F2F5] border border-black/[0.06]">
-                {MARKUP_TIERS.map((tier) => {
-                  const active = Math.abs(dropshipMarkup - tier.mult) < 0.08;
-                  return (
-                    <button
-                      key={tier.label}
-                      type="button"
-                      id={`gwo-markup-${tier.mult}`}
-                      onClick={() => setDropshipMarkup(tier.mult)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold cursor-pointer transition ${
-                        active
-                          ? "bg-[#141518] text-white shadow-xs"
-                          : "text-[#686D76] hover:text-[#141518]"
-                      }`}
-                    >
-                      {tier.label}
-                    </button>
-                  );
-                })}
+              {/* Store Markup Tier Selector + Supplier Fulfillment Queue */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-full bg-[#F1F2F5] border border-black/[0.06]">
+                  {MARKUP_TIERS.map((tier) => {
+                    const active = Math.abs(dropshipMarkup - tier.mult) < 0.08;
+                    return (
+                      <button
+                        key={tier.label}
+                        type="button"
+                        id={`gwo-markup-${tier.mult}`}
+                        onClick={() => setDropshipMarkup(tier.mult)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold cursor-pointer transition ${
+                          active
+                            ? "bg-[#141518] text-white shadow-xs"
+                            : "text-[#686D76] hover:text-[#141518]"
+                        }`}
+                      >
+                        {tier.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  id="gwo-open-fulfillment-queue-btn"
+                  onClick={() => openDropshipCheckout("fulfillment")}
+                  className="px-3.5 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <Truck className="w-3.5 h-3.5 text-[#A7D7C5]" />
+                  Supplier Queue ({dropshipOrders.length})
+                </button>
               </div>
             </div>
 
@@ -466,12 +599,29 @@ export function GwoEndlessOutfitFeed() {
                 >
                   <option value="all">All Categories</option>
                   <option value="top">Tops &amp; Corsets</option>
-                  <option value="outerwear">Blazers &amp; Jackets</option>
+                  <option value="outerwear">Blazers &amp; Coats</option>
                   <option value="dress">Dresses</option>
                   <option value="bottom">Trousers &amp; Skirts</option>
-                  <option value="shoes">Heels &amp; Footwear</option>
+                  <option value="shoes">Heels &amp; Boots</option>
                   <option value="accessory">Leather Bags</option>
                 </select>
+                <button
+                  type="button"
+                  id="gwo-ae-live-scrape-btn"
+                  disabled={aeLiveScraping}
+                  onClick={() => void handleLiveScrapeAliExpress()}
+                  className="px-3.5 py-2 rounded-full bg-[#141518] hover:bg-[#27292E] disabled:opacity-50 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shrink-0 transition"
+                >
+                  {aeLiveScraping ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Scraping...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-[#A7D7C5]" /> Scrape Live
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -816,29 +966,12 @@ export function GwoEndlessOutfitFeed() {
 
                     <button
                       type="button"
-                      onClick={() => {
-                        const summary = `IG Story Look Poll (${
-                          socialDna.instagramHandle || "@gwo"
-                        }): ${outfit.title} — ${outfit.items
-                          .map((x) => x.title)
-                          .join(" + ")} ($${outfit.totalValue})`;
-                        if (
-                          typeof navigator !== "undefined" &&
-                          navigator.clipboard
-                        ) {
-                          void navigator.clipboard
-                            .writeText(summary)
-                            .catch(() => undefined);
-                        }
-                        showToast(
-                          `Copied "${outfit.title}" IG Story Look Poll to clipboard!`
-                        );
-                      }}
-                      title="Share outfit poll to Instagram Story"
-                      aria-label={`Share ${outfit.title} to Instagram`}
-                      className="p-2 rounded-full bg-white hover:bg-[#F4F5F7] border border-black/10 text-[#686D76] hover:text-[#141518] cursor-pointer"
+                      onClick={() => setActiveStoryOutfit(outfit)}
+                      title="Generate 1080×1920 Instagram Story Poll Card"
+                      aria-label={`Share ${outfit.title} to Instagram Story`}
+                      className="px-2.5 py-2 rounded-full bg-[#FDEEF4] hover:bg-[#FADCE8] border border-[#F5C5D8] text-[#9D174D] text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition"
                     >
-                      <Share2 className="w-3.5 h-3.5" />
+                      <Instagram className="w-3.5 h-3.5" /> IG Story
                     </button>
                   </div>
                 </div>
@@ -846,6 +979,16 @@ export function GwoEndlessOutfitFeed() {
             );
           })}
         </section>
+
+        <IgStoryLookbookModal
+          outfit={activeStoryOutfit}
+          socialDna={socialDna}
+          avatarHeightDisplay={`${Math.floor(activeAvatar.heightInches / 12)}'${Math.round(
+            activeAvatar.heightInches % 12
+          )}"`}
+          onClose={() => setActiveStoryOutfit(null)}
+          onToast={showToast}
+        />
 
         {/* Infinite Scroll Sentinel + Manual Load More Button */}
         <div

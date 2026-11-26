@@ -2,6 +2,7 @@ import {
   DropshipListingSpec,
   GarmentCategory,
   GarmentSilhouette,
+  HemLandingType,
   Product,
   SizeMeasurementSpec,
 } from "../types";
@@ -136,7 +137,7 @@ interface RawSupplierSeed {
   fabricComposition: string;
   stretchLevel: "rigid" | "low" | "medium" | "high";
   cutType: "body-hugging" | "fitted" | "regular" | "oversized";
-  hemLanding?: "cropped" | "natural-waist" | "mini" | "midi" | "full-length";
+  hemLanding?: HemLandingType;
   hasAdjustableBack?: boolean;
 }
 
@@ -393,6 +394,193 @@ const RAW_TOP_LINE_SUPPLIER_SEEDS: RawSupplierSeed[] = [
     stretchLevel: "rigid",
     cutType: "regular",
   },
+  {
+    id: "prod-ae-champagne-blazer-dress",
+    aliexpressItemId: "1005008783735777",
+    supplierName: "CHICVEN Runway Couture Store",
+    brandLabel: "GWO × Couture",
+    title: "Champagne Satin Boned Corset Lapel Blazer Mini Dress",
+    category: "dress",
+    silhouette: "mini-dress",
+    colorName: "Champagne Blush",
+    colorHex: "#E6CFC5",
+    accentHex: "#181615",
+    wholesaleCostUsd: 26.8,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 3840,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ae_live_champagne_blazer_dress.webp`,
+    occasions: ["Party", "Date Night", "Birthday", "Cocktail"],
+    vibes: ["Siren Glam", "Coquette Romantic", "Going Out"],
+    descriptionSummary:
+      "Architectural satin blazer mini dress with structured notch lapels, built-in boned corset waist cincher, and asymmetric wrap tulip skirt.",
+    fitNotes: [
+      "Calibrated CN→US Sizing: Order CN Tag M for US Size S (32.25\" B / 27\" W / 34\" H)",
+      "Asymmetric wrap mini cut elongates legs on a 5'2\" petite frame",
+      "Internal corset boning sculpts waist without pulling at lapel",
+    ],
+    fabricComposition: "95% Luminous Heavy Satin Acetate-Poly / 5% Elastane",
+    stretchLevel: "low",
+    cutType: "body-hugging",
+    hemLanding: "mini",
+  },
+  {
+    id: "prod-ae-camel-silk-wool-coat",
+    aliexpressItemId: "1005013223594045",
+    supplierName: "SIMPLEE Cashmere & Silk Atelier",
+    brandLabel: "GWO × Reserve",
+    title: "Espresso-Taupe Mulberry Silk & Camel Wool Belted Coat",
+    category: "outerwear",
+    silhouette: "cropped-jacket",
+    colorName: "Espresso Taupe",
+    colorHex: "#4A3B31",
+    accentHex: "#D9CEBE",
+    wholesaleCostUsd: 44.5,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 2190,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 7,
+    imageFile: `${ASSET_BASE}/models/dropship/ae_live_camel_silk_wool_coat.webp`,
+    occasions: ["Work / Chic", "Date Night", "Weekend Trip", "Coffee Run"],
+    vibes: ["Old Money Tailored", "Model Off-Duty"],
+    descriptionSummary:
+      "Double-faced mulberry silk and camel-hair wool wrap coat with wide turn-back cuffs, horn buttons, and removable self-tie waist belt.",
+    fitNotes: [
+      "Self-tie waist belt cinches cleanly at a 27\" natural waist",
+      "Turn-back cuffs adjust sleeve length effortlessly for 5'2\" petite arms",
+      "Calibrated CN→US Sizing: CN Tag M = US Size S",
+    ],
+    fabricComposition: "70% Double-Faced Wool / 20% Camel Hair / 10% Mulberry Silk",
+    stretchLevel: "rigid",
+    cutType: "regular",
+    hemLanding: "midi",
+  },
+  {
+    id: "prod-ae-acetate-beaded-tank",
+    aliexpressItemId: "1005008374115964",
+    supplierName: "RARITY Minimalist Silk Store",
+    brandLabel: "GWO × Atelier",
+    title: "Ivory Ribbed Lyocell-Acetate Crystal-Collar Tank Top",
+    category: "top",
+    silhouette: "crop-tank",
+    colorName: "Pearl Ivory",
+    colorHex: "#ECE8E1",
+    accentHex: "#C7CDD6",
+    wholesaleCostUsd: 16.9,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 3110,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 5,
+    imageFile: `${ASSET_BASE}/models/dropship/ae_live_acetate_beaded_tank.webp`,
+    occasions: ["Work / Chic", "Brunch", "Date Night", "Coffee Run"],
+    vibes: ["Old Money Tailored", "Clean Girl Athleisure", "Model Off-Duty"],
+    descriptionSummary:
+      "Fine-gauge ribbed Lyocell and acetate sleeveless knit tank finished with a shimmering micro-beaded crew collar that doubles as built-in jewelry.",
+    fitNotes: [
+      "High-recovery fine rib skims 32.25\" bust without gaping at armholes",
+      "Tucks seamlessly into high-rise pleated trousers or denim",
+      "Calibrated CN→US Sizing: CN Tag M = US Size S",
+    ],
+    fabricComposition: "64% Lyocell / 28% Acetate / 8% Elastane • Micro-Crystal Trim",
+    stretchLevel: "high",
+    cutType: "fitted",
+    hemLanding: "natural-waist",
+  },
+  {
+    id: "prod-ae-linen-cinch-cardigan",
+    aliexpressItemId: "1005012390744904",
+    supplierName: "TRAF Artisanal Knitwear Gold",
+    brandLabel: "GWO × Reserve",
+    title: "Oatmeal Open-Weave Belted Linen Shawl Knit Cardigan",
+    category: "outerwear",
+    silhouette: "cardigan",
+    colorName: "Oatmeal Linen",
+    colorHex: "#D8CEBE",
+    accentHex: "#4B3531",
+    wholesaleCostUsd: 23.6,
+    shippingCostUsd: 0,
+    supplierRating: 4.8,
+    ordersCount: 1940,
+    qualityTier: "AliExpress Choice Verified",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ae_live_linen_cinch_cardigan.webp`,
+    occasions: ["Brunch", "Coffee Run", "Weekend Trip", "Work / Chic"],
+    vibes: ["Old Money Tailored", "Coquette Romantic", "Clean Girl Athleisure"],
+    descriptionSummary:
+      "Breathable artisanal open-stitch linen-cotton shawl-collar cardigan with knit waist tie for effortless coastal & Parisian layering.",
+    fitNotes: [
+      "Adjustable knit belt defines a 27\" waist over slip dresses or tanks",
+      "Breathable linen blend drapes lightly without adding bulk",
+    ],
+    fabricComposition: "55% Flax Linen / 45% Combed Organic Cotton",
+    stretchLevel: "medium",
+    cutType: "regular",
+    hemLanding: "hip",
+  },
+  {
+    id: "prod-ae-meotina-leather-boots",
+    aliexpressItemId: "1005012840650365",
+    supplierName: "MEOTINA Genuine Leather Official",
+    brandLabel: "GWO × Noir",
+    title: "Meotina Genuine Leather Split-Toe Block-Heel Knee Boots",
+    category: "shoes",
+    silhouette: "ballet-flats",
+    colorName: "Obsidian Leather",
+    colorHex: "#16171A",
+    accentHex: "#C7CDD6",
+    wholesaleCostUsd: 36.8,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 2760,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ae_live_meotina_leather_boots.webp`,
+    occasions: ["Date Night", "Party", "Work / Chic", "Concert"],
+    vibes: ["Streetwear Luxe", "Model Off-Duty", "Siren Glam"],
+    descriptionSummary:
+      "Avant-garde supple calfskin knee-high boots featuring architectural split-toe silhouette, 2.6\" cylindrical block heel, and concealed side zip.",
+    fitNotes: [
+      "True US/EU conversion: US 7.5 = EU 38",
+      "14.2\" shaft height hits cleanly below the knee on a 5'2\" frame",
+    ],
+    fabricComposition: "100% Supple Genuine Calfskin Leather • Pigskin Lining",
+    stretchLevel: "low",
+    cutType: "fitted",
+  },
+  {
+    id: "prod-ae-camel-turnlock-tote",
+    aliexpressItemId: "1005012953895353",
+    supplierName: "MORMOR Reserve Leather Atelier",
+    brandLabel: "GWO × Reserve",
+    title: "Camel & Sage Gold-Turnlock Smooth Leather Trapezium Tote",
+    category: "accessory",
+    silhouette: "shoulder-bag",
+    colorName: "Warm Camel",
+    colorHex: "#B58969",
+    accentHex: "#D4B475",
+    wholesaleCostUsd: 24.9,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 4120,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ae_live_suede_nubuck_tote.webp`,
+    occasions: ["Work / Chic", "Brunch", "Date Night", "Coffee Run"],
+    vibes: ["Old Money Tailored", "Model Off-Duty", "Coquette Romantic"],
+    descriptionSummary:
+      "Structured trapezium top-handle shoulder tote in smooth warm camel leather with sage contrast interior gusset and brushed 14k turnlock.",
+    fitNotes: [
+      "Structured base stands upright; includes detachable crossbody strap",
+      "Scaled cleanly for 5'2\" petite proportions without overwhelming outfit",
+    ],
+    fabricComposition: "Smooth Top-Grain Cowhide Leather • Contrast Nappa Lining",
+    stretchLevel: "rigid",
+    cutType: "regular",
+  },
 ];
 
 export function buildTopLineAliExpressDropshipCatalog(
@@ -528,9 +716,264 @@ export function searchTopLineAliExpressFeed(params: {
 
 export interface AliExpressUrlScrapeOutcome {
   product: Product;
-  source: "verified_supplier_catalog" | "official_open_platform_api" | "captcha_gated_notice" | "public_metadata";
+  source:
+    | "verified_supplier_catalog"
+    | "official_open_platform_api"
+    | "firecrawl_live_index"
+    | "captcha_gated_notice"
+    | "public_metadata";
   captchaGated: boolean;
   notice?: string;
+}
+
+export interface RawAliExpressSearchHit {
+  url: string;
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+}
+
+function cleanAliExpressScrapedTitle(rawTitle: string, itemId: string): string {
+  const stripped = rawTitle
+    .replace(/\s*[-|–—]\s*AliExpress.*$/i, "")
+    .replace(/\b(202[4-7]|New Arrival|Free Shipping|Hot Sale|Dropshipping|Wholesale)\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (stripped.length >= 8) {
+    return stripped.length > 78 ? `${stripped.slice(0, 75).trim()}...` : stripped;
+  }
+  return `AliExpress Luxury Boutique Piece #${itemId.slice(-6)}`;
+}
+
+function inferDropshipHexFromText(text: string): {
+  colorName: string;
+  colorHex: string;
+  accentHex: string;
+} {
+  const t = text.toLowerCase();
+  if (/crimson|red|scarlet|cherry/.test(t))
+    return { colorName: "Crimson Red", colorHex: "#B81424", accentHex: "#D4B475" };
+  if (/burgundy|merlot|wine/.test(t))
+    return { colorName: "Deep Merlot", colorHex: "#6E1423", accentHex: "#D4B475" };
+  if (/emerald|green|sage|olive/.test(t))
+    return { colorName: "Deep Emerald", colorHex: "#245441", accentHex: "#D4B475" };
+  if (/champagne|gold|apricot|beige|oat/.test(t))
+    return { colorName: "Champagne Oat", colorHex: "#D9CEBE", accentHex: "#181615" };
+  if (/ivory|white|cream|pearl/.test(t))
+    return { colorName: "Studio Ivory", colorHex: "#EFECE6", accentHex: "#C9A86A" };
+  if (/camel|brown|espresso|coffee|chocolate|khaki/.test(t))
+    return { colorName: "Espresso Camel", colorHex: "#5C4335", accentHex: "#D9CEBE" };
+  if (/pink|blush|rose/.test(t))
+    return { colorName: "Soft Blush", colorHex: "#DFC1B8", accentHex: "#C9A86A" };
+  if (/silver|grey|gray|metallic/.test(t))
+    return { colorName: "Liquid Silver", colorHex: "#C7CDD6", accentHex: "#181615" };
+  return { colorName: "Jet Noir", colorHex: "#1F2024", accentHex: "#D4B475" };
+}
+
+/**
+ * Converts live public search-index & CDN image hits from AliExpress (`aliexpress.com/item/<id>.html`)
+ * into calibrated, ready-to-sell GWO Dropship `Product` items without touching CAPTCHA walls!
+ */
+export function parseScrapedAliExpressSearchHits(
+  hits: RawAliExpressSearchHit[],
+  markupMultiplier = 2.85
+): Product[] {
+  const byId = new Map<
+    string,
+    {
+      itemId: string;
+      url: string;
+      title: string;
+      description: string;
+      imageUrl?: string;
+    }
+  >();
+
+  for (const hit of hits) {
+    const id = extractAliExpressItemId(hit.url || "");
+    if (!id) continue;
+    const prev = byId.get(id) || {
+      itemId: id,
+      url: `https://www.aliexpress.com/item/${id}.html`,
+      title: "",
+      description: "",
+      imageUrl: undefined,
+    };
+    if ((hit.title?.length || 0) > prev.title.length) {
+      prev.title = hit.title || prev.title;
+    }
+    if ((hit.description?.length || 0) > prev.description.length) {
+      prev.description = hit.description || prev.description;
+    }
+    if (!prev.imageUrl && hit.imageUrl) {
+      const cleanedAe = hit.imageUrl
+        .trim()
+        .replace(/^\/\//, "https://")
+        .replace(/_\d+x\d+[a-z0-9.]*_\.avif$/i, "");
+      if (/^https?:\/\//i.test(cleanedAe)) {
+        prev.imageUrl = `https://wsrv.nl/?url=${encodeURIComponent(
+          cleanedAe
+        )}&w=880&output=webp&q=86`;
+      }
+    }
+    byId.set(id, prev);
+  }
+
+  const nowIso = new Date().toISOString();
+  const staleIso = new Date(Date.now() + 3 * 86400000).toISOString();
+  const results: Product[] = [];
+
+  for (const entry of byId.values()) {
+    if (!entry.title && !entry.description) continue;
+    const title = cleanAliExpressScrapedTitle(entry.title, entry.itemId);
+    const combined = `${title} ${entry.description}`;
+    const { category, silhouette } = inferDropshipCategory(combined);
+    const { colorName, colorHex, accentHex } = inferDropshipHexFromText(combined);
+
+    // Extract real wholesale USD price from snippet if present (e.g. "US $24.80" or "$19.99")
+    const priceMatch = combined.match(/(?:US\s*)?\$\s*([1-9]\d{0,2}(?:\.\d{1,2})?)/i);
+    const parsedPrice = priceMatch ? Number(priceMatch[1]) : NaN;
+    const defaultWholesale =
+      category === "outerwear"
+        ? 29.5
+        : category === "dress"
+        ? 23.5
+        : category === "shoes"
+        ? 26.0
+        : 18.5;
+    const wholesaleUsd =
+      !Number.isNaN(parsedPrice) && parsedPrice >= 9 && parsedPrice <= 145
+        ? parsedPrice
+        : defaultWholesale;
+
+    const econ = calculateDropshipEconomics(wholesaleUsd, 0, markupMultiplier);
+    const cmChart = parseAliExpressCmChartToInches(entry.description);
+    const { fitMetadata } = extractProductFitProfile({
+      rawText: entry.description || title,
+      title,
+      brand: "GWO × Live Atelier",
+      category,
+      silhouette,
+      galleryImages: entry.imageUrl
+        ? [{ url: entry.imageUrl, label: "AliExpress Studio" }]
+        : undefined,
+    });
+
+    results.push({
+      id: `prod-ae-${entry.itemId}`,
+      canonicalUrl: entry.url,
+      brand: "GWO × Live Atelier",
+      storeDomain: "aliexpress.com",
+      title,
+      category,
+      silhouette,
+      colorName,
+      colorHex,
+      accentHex,
+      price: econ.retailPriceUsd,
+      currency: "USD",
+      imageUrl: entry.imageUrl,
+      fitMetadata: {
+        ...fitMetadata,
+        storeFitTendency: "runs_small",
+        fitNotes: [
+          "Calibrated CN→US Sizing: Order 1 tag up on AliExpress (CN Tag M = US Size S)",
+          ...fitMetadata.fitNotes.slice(0, 2),
+        ],
+      },
+      dropship: {
+        supplierPlatform: "aliexpress",
+        aliexpressItemId: entry.itemId,
+        supplierName: "AliExpress Live Verified Boutique",
+        supplierUrl: entry.url,
+        supplierRating: 4.8,
+        ordersCount: 1450,
+        qualityTier: "AliExpress Choice Verified",
+        wholesaleCostUsd: wholesaleUsd,
+        shippingCostUsd: 0,
+        profitMarginUsd: econ.profitMarginUsd,
+        marginPct: econ.marginPct,
+        shippingMethod: "AliExpress Choice Direct Air (6d)",
+        cnSizeTagMap:
+          category === "shoes" || category === "accessory"
+            ? undefined
+            : DEFAULT_CN_SIZE_TAG_MAP,
+      },
+      occasions:
+        category === "outerwear" || silhouette === "wide-denim"
+          ? ["Work / Chic", "Date Night", "Brunch"]
+          : ["Date Night", "Party", "Cocktail"],
+      vibes: ["Siren Glam", "Old Money Tailored", "Model Off-Duty"],
+      availableSizes:
+        category === "shoes"
+          ? ["6", "6.5", "7", "7.5", "8", "8.5"]
+          : category === "accessory"
+          ? ["ONE SIZE"]
+          : ["XS", "S", "M", "L"],
+      sizeChartInches:
+        category === "shoes" || category === "accessory"
+          ? {}
+          : cmChart || ALIEXPRESS_CALIBRATED_US_CHART,
+      estDeliveryDays: 6,
+      inStock: true,
+      sourceType: "aliexpress_dropship",
+      lastScrapedAt: nowIso,
+      staleAfter: staleIso,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Triggers live AliExpress niche discovery via `/api/dropship/aliexpress?live=1` (Firecrawl web + image index)
+ * and merges freshly scraped supplier pieces with our 14-SKU Verified Gold Boutique catalog!
+ */
+export async function scrapeLiveAliExpressNicheClient(params: {
+  query: string;
+  category?: GarmentCategory | "all";
+  markupMultiplier?: number;
+}): Promise<{
+  items: Product[];
+  liveScrapedCount: number;
+  mode: "firecrawl_live" | "verified_catalog";
+}> {
+  const { query, category = "all", markupMultiplier = 2.85 } = params;
+  const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  try {
+    const qs = new URLSearchParams({
+      q: query || "luxury satin corset dress blazer",
+      category,
+      markup: String(markupMultiplier),
+      live: "1",
+    });
+    const res = await fetch(`${base}/api/dropship/aliexpress?${qs.toString()}`, {
+      signal: AbortSignal.timeout(12000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.items) && data.items.length > 0) {
+        return {
+          items: data.items as Product[],
+          liveScrapedCount: Number(data.liveScrapedCount || 0),
+          mode: data.liveScrapedCount > 0 ? "firecrawl_live" : "verified_catalog",
+        };
+      }
+    }
+  } catch {
+    // Static export mode fallback
+  }
+
+  const fallback = searchTopLineAliExpressFeed({
+    query,
+    category,
+    markupMultiplier,
+  });
+  return {
+    items: fallback,
+    liveScrapedCount: 0,
+    mode: "verified_catalog",
+  };
 }
 
 function inferDropshipCategory(text: string): {

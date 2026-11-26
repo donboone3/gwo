@@ -8,7 +8,6 @@ import {
   Box,
   Camera,
   Check,
-  ExternalLink,
   ImagePlus,
   Link2,
   Loader2,
@@ -25,6 +24,7 @@ import { GwoLogo } from "../brand/GwoLogo";
 import { CustomerAvatarModal } from "../avatar/CustomerAvatarModal";
 import { Avatar360Modal } from "../studio/Avatar360Modal";
 import { SocialStyleDnaModal } from "../social/SocialStyleDnaModal";
+import { DropshipCheckoutModal } from "../dropship/DropshipCheckoutModal";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
 import { useGwo } from "@/context/GwoAppContext";
@@ -79,6 +79,7 @@ export function UnifiedGwoNav() {
     customAvatar,
     setAvatarModalOpen,
     openAvatar360,
+    openDropshipCheckout,
     ingestUrlToSharedCatalog,
     pullStoreRackToCatalog,
     shareMyClosetAndClaimBonus,
@@ -436,14 +437,18 @@ export function UnifiedGwoNav() {
                     ${bagTotal.toLocaleString()}
                   </span>
                 </div>
-                <a
-                  href={bagItems[bagItems.length - 1]?.storeUrl || "https://skims.com"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-3.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold flex items-center justify-center gap-2 transition"
+                <button
+                  type="button"
+                  id="gwo-bag-boutique-checkout-btn"
+                  onClick={() => {
+                    setBagOpen(false);
+                    openDropshipCheckout("checkout");
+                  }}
+                  className="w-full py-3.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
                 >
-                  Continue to Store Checkout <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+                  Checkout with GWO Boutique (${bagTotal.toLocaleString()}){" "}
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
           </div>
@@ -962,6 +967,7 @@ export function UnifiedGwoNav() {
       <CustomerAvatarModal />
       <Avatar360Modal />
       <SocialStyleDnaModal />
+      <DropshipCheckoutModal />
 
       {/* ==================== UNIFIED SUBTLE TOAST ==================== */}
       {toastMessage && (

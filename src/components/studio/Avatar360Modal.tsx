@@ -118,7 +118,7 @@ export function Avatar360Modal() {
               </span>
               {primaryProduct.dropship?.cnSizeTagMap?.[selectedSize] && (
                 <span className="px-2.5 py-0.5 rounded-full bg-[#FEF6E6] text-[#8A5808] text-[10.5px] font-bold border border-[#F4DFB4]">
-                  US {selectedSize} = Supplier CN Tag{" "}
+                  US {selectedSize} = Supplier{" "}
                   {primaryProduct.dropship.cnSizeTagMap[selectedSize]}
                 </span>
               )}

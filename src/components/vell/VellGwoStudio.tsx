@@ -11,6 +11,7 @@ import {
   Columns2,
   Copy,
   HeartHandshake,
+  Instagram,
   Plus,
   Rotate3d,
   Ruler,
@@ -39,6 +40,7 @@ import {
   DEFAULT_AVATAR_MEASUREMENTS,
   deriveStandardApparelSize,
 } from "@/lib/catalog/sizing";
+import { ARCHETYPE_META } from "@/lib/social/social-style-dna";
 import { Product } from "@/lib/types";
 
 type SimpleCategory = "all" | "everyday" | "athletic" | "going-out" | "accessories";
@@ -66,6 +68,8 @@ export function VellGwoStudio() {
     setActiveImportedProduct,
     customAvatar,
     setAvatarModalOpen,
+    socialDna,
+    setSocialModalOpen,
     openAvatar360,
     showToast,
   } = useGwo();
@@ -715,6 +719,18 @@ export function VellGwoStudio() {
                     Petite Frame ({activeHeight}&quot;) • Shoe {user?.shoeSize || "7.5"} • Best Fit:{" "}
                     <strong className="text-[#244B3B]">Size {recSize}</strong>
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => setSocialModalOpen(true)}
+                    className="w-full py-1.5 px-2.5 rounded-xl bg-[#FDEEF4] hover:bg-[#FADCE8] border border-[#F5C5D8] text-[10.5px] font-bold text-[#9D174D] flex items-center justify-between gap-1.5 cursor-pointer transition"
+                  >
+                    <span className="inline-flex items-center gap-1 truncate">
+                      <Instagram className="w-3 h-3 shrink-0" />
+                      {socialDna.instagramHandle || "@mila.nyc"} •{" "}
+                      {ARCHETYPE_META[socialDna.primaryArchetype].shortTag} DNA
+                    </span>
+                    <span className="underline shrink-0">Sync</span>
+                  </button>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2 pt-1">

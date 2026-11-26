@@ -6,6 +6,8 @@ import {
   Check,
   ImagePlus,
   Instagram,
+  Link2,
+  Loader2,
   Sparkles,
   X,
 } from "lucide-react";
@@ -14,6 +16,7 @@ import {
   ARCHETYPE_META,
   buildSocialStyleDNA,
   extractPaletteFromSocialPhotos,
+  fetchPublicSocialAestheticClient,
   SAMPLE_SOCIAL_PERSONAS,
 } from "@/lib/social/social-style-dna";
 import { SocialStyleArchetype } from "@/lib/types";
@@ -53,6 +56,9 @@ export function SocialStyleDnaModal() {
     | undefined
   >(undefined);
   const [extractingPhotos, setExtractingPhotos] = useState(false);
+  const [socialUrlInput, setSocialUrlInput] = useState("");
+  const [pullingSocialUrl, setPullingSocialUrl] = useState(false);
+  const [socialUrlStatus, setSocialUrlStatus] = useState<string | null>(null);
 
   const previewDna = useMemo(
     () =>
@@ -129,6 +135,33 @@ export function SocialStyleDnaModal() {
     setGlamSlider(persona.glamSlider);
     setEdgeSlider(persona.edgeSlider);
     setPaletteHex(persona.palette);
+    setSocialUrlStatus(null);
+  };
+
+  const handleFetchSocialUrl = async () => {
+    if (!socialUrlInput.trim()) return;
+    setPullingSocialUrl(true);
+    setSocialUrlStatus(null);
+    try {
+      const res = await fetchPublicSocialAestheticClient(socialUrlInput.trim());
+      if (res.platform === "instagram") setIgHandle(res.handle);
+      if (res.platform === "tiktok") setTtHandle(res.handle);
+      if (res.platform === "pinterest") {
+        setPinBoard(res.boardTitle || socialUrlInput.trim());
+      }
+      setBioKeywords(res.extractedKeywords);
+      setGlamSlider(res.suggestedGlam);
+      setEdgeSlider(res.suggestedEdge);
+      setPaletteHex(res.suggestedPalette);
+      setSocialUrlStatus(
+        res.liveIndexed
+          ? `Pulled live public aesthetic from ${res.handle} (${res.platform})!`
+          : `Calibrated ${res.handle} (${res.platform}) aesthetic signals!`
+      );
+      setSocialUrlInput("");
+    } finally {
+      setPullingSocialUrl(false);
+    }
   };
 
   return (
@@ -167,6 +200,56 @@ export function SocialStyleDnaModal() {
 
         {/* Scrollable Body */}
         <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+          {/* Live Public Social Profile / Moodboard URL Collaborator */}
+          <div className="p-3 rounded-2xl bg-[#FAF6F8] border border-[#F2D5E3] space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#9D174D]">
+              Paste Public Instagram, TikTok or Pinterest Board URL
+            </span>
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+              <div className="relative flex-1 min-w-[200px]">
+                <Link2 className="w-3.5 h-3.5 text-[#9D174D] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  id="gwo-social-live-url-input"
+                  type="url"
+                  value={socialUrlInput}
+                  onChange={(e) => setSocialUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === "Enter" &&
+                      socialUrlInput.trim() &&
+                      !pullingSocialUrl
+                    ) {
+                      e.preventDefault();
+                      void handleFetchSocialUrl();
+                    }
+                  }}
+                  placeholder="https://www.instagram.com/haileybieber or pinterest.com/chloe/old-money..."
+                  className="w-full pl-8 pr-3 py-2 rounded-full bg-white border border-black/10 text-xs text-[#141518]"
+                />
+              </div>
+              <button
+                type="button"
+                id="gwo-social-pull-url-btn"
+                disabled={pullingSocialUrl || !socialUrlInput.trim()}
+                onClick={() => void handleFetchSocialUrl()}
+                className="px-4 py-2 rounded-full bg-[#9D174D] hover:bg-[#831843] disabled:opacity-50 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+              >
+                {pullingSocialUrl ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Syncing...
+                  </>
+                ) : (
+                  "Pull Aesthetic"
+                )}
+              </button>
+            </div>
+            {socialUrlStatus && (
+              <p className="text-[11px] font-semibold text-[#1D4232]">
+                ✓ {socialUrlStatus}
+              </p>
+            )}
+          </div>
+
           {/* 1-Tap Sample Social Personas */}
           <div className="space-y-1.5">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#686D76]">

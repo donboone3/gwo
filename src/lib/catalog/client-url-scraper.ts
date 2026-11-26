@@ -26,6 +26,10 @@ export function getSafeClothingImageUrl(
   if (trimmed.startsWith("//")) {
     trimmed = `https:${trimmed}`;
   }
+  // Strip AliExpress / Alibaba CDN double-extension .avif thumbnails so wsrv.nl fetches crisp original JPG/PNG
+  if (/aliexpress-media\.com|alicdn\.com/i.test(trimmed)) {
+    trimmed = trimmed.replace(/_\d+x\d+[a-z0-9.]*_\.avif$/i, "");
+  }
   if (
     trimmed.startsWith("/") ||
     trimmed.includes("/models/") ||
