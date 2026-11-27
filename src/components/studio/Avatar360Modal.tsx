@@ -202,7 +202,9 @@ export function Avatar360Modal() {
                   dimensions={bodyDims}
                   wornPieces={wornSpecs}
                   faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
-                  initialYawDeg={22}
+                  customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
+                  customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}
+                  initialYawDeg={0}
                   showHud={true}
                 />
               </div>

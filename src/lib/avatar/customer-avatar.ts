@@ -13,6 +13,9 @@ export interface CustomerAvatarData {
   label: string;
   /** Saved crop transform so user can tweak alignment anytime */
   crop: FaceCropParams;
+  /** Optional dedicated Higgsfield 360° customer avatar turntable MP4 */
+  turntableMp4Url?: string;
+  turntablePosterUrl?: string;
   updatedAt: string;
 }
 
@@ -118,21 +121,21 @@ export async function autoDetectFaceCrop(
     }
   }
 
-  // 2. Clean aspect-aware portrait framing (never zooms onto a single cheek under cool/side lighting)
+  // 2. Clean aspect-aware portrait framing (immune to dramatic side/colored lighting)
   const aspect = ih / Math.max(1, iw);
   if (aspect > 1.6) {
-    // Full-body / mirror standing shot
-    return { cx: 0.5, cy: 0.2, faceWidthRatio: 0.22 };
+    // Full-body / standing mirror shot
+    return { cx: 0.5, cy: 0.19, faceWidthRatio: 0.22 };
   }
   if (aspect < 0.85) {
-    // Landscape webcam / wide shot
-    return { cx: 0.5, cy: 0.42, faceWidthRatio: 0.28 };
+    // Landscape portrait / webcam shot
+    return { cx: 0.5, cy: 0.35, faceWidthRatio: 0.33 };
   }
-  // Standard selfie / portrait
+  // Standard vertical selfie / portrait
   return {
     cx: 0.5,
-    cy: 0.39,
-    faceWidthRatio: 0.44,
+    cy: 0.36,
+    faceWidthRatio: 0.40,
   };
 }
 

@@ -617,6 +617,8 @@ export function GwoSpinProduct() {
                 dimensions={bodyDims}
                 wornPieces={worn3DSpecs}
                 faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
+                customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
+                customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}
                 externalYawDeg={externalYawDeg}
                 initialYawDeg={0}
                 seamlessStage={true}

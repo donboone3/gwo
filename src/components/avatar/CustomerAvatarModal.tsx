@@ -34,18 +34,25 @@ import { deriveStandardApparelSize } from "@/lib/catalog/sizing";
 import { Interactive3DAvatarStage } from "../three/Interactive3DAvatarStage";
 import { H, STUDIO_LOOKS } from "../vell/vell-data";
 
-const DEMO_CUSTOMER_SELFIES = [
+const DEMO_CUSTOMER_SELFIES: Array<{
+  label: string;
+  url: string;
+  presetCrop: FaceCropParams;
+}> = [
   {
-    label: "Demo: Sophia",
-    url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=640&q=85",
+    label: "Demo: Elena",
+    url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=640&q=85",
+    presetCrop: { cx: 0.5, cy: 0.42, faceWidthRatio: 0.42 },
   },
   {
     label: "Demo: Zara",
     url: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=640&q=85",
+    presetCrop: { cx: 0.49, cy: 0.44, faceWidthRatio: 0.46 },
   },
   {
     label: "Demo: Claire",
     url: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=640&q=85",
+    presetCrop: { cx: 0.5, cy: 0.34, faceWidthRatio: 0.34 },
   },
 ];
 
@@ -213,7 +220,7 @@ export function CustomerAvatarModal() {
   };
 
   const ingestImageSource = useCallback(
-    async (rawUrl: string, nextLabel: string) => {
+    async (rawUrl: string, nextLabel: string, overrideCrop?: FaceCropParams) => {
       setBusy(true);
       setCameraError(null);
       try {
@@ -221,7 +228,7 @@ export function CustomerAvatarModal() {
         const compressed = compressSourceImage(img, 720);
         const cleanImg = await loadImageElement(compressed);
         loadedImgRef.current = cleanImg;
-        const detected = await autoDetectFaceCrop(cleanImg);
+        const detected = overrideCrop || (await autoDetectFaceCrop(cleanImg));
         setLabel(nextLabel);
         setSourceDataUrl(compressed);
         setCrop(detected);
@@ -407,15 +414,17 @@ export function CustomerAvatarModal() {
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-5">
           {/* LEFT: LIVE INTERACTIVE 3D BODY TWIN STAGE */}
           <div className="flex flex-col gap-2.5">
-            <div className="relative h-[370px] sm:h-[430px] rounded-2xl bg-gradient-to-b from-[#EEF1F6] via-[#E7ECF4] to-[#F5F7FA] border border-black/[0.08] overflow-hidden">
+            <div className="relative h-[370px] sm:h-[430px] rounded-2xl bg-white border border-black/[0.08] overflow-hidden">
               <Interactive3DAvatarStage
                 mode="avatar"
                 dimensions={dims}
                 wornPieces={sampleWornPieces}
                 showMeasurementRings={true}
                 faceOvalDataUrl={previewOvalUrl || customAvatar?.faceOvalDataUrl}
+                customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
+                customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}
                 autoSpinDefault={false}
-                initialYawDeg={18}
+                initialYawDeg={0}
                 compactHud={true}
                 showHud={true}
               />
@@ -763,7 +772,9 @@ export function CustomerAvatarModal() {
                     key={demo.label}
                     type="button"
                     disabled={busy}
-                    onClick={() => ingestImageSource(demo.url, demo.label)}
+                    onClick={() =>
+                      ingestImageSource(demo.url, demo.label, demo.presetCrop)
+                    }
                     className="px-3 py-1.5 rounded-full bg-[#F4F8F5] hover:bg-[#E4F0E8] border border-[#C6E0D0] text-[11px] font-bold text-[#1D4232] inline-flex items-center gap-1 cursor-pointer"
                   >
                     <Sparkles className="w-3 h-3" /> {demo.label}
@@ -843,12 +854,29 @@ export function CustomerAvatarModal() {
                       />
                     </label>
 
-                    <div className="relative h-44 rounded-2xl bg-[#EEF1F5] border border-black/[0.06] flex items-end justify-center overflow-hidden">
-                      <img
-                        src={H(STUDIO_LOOKS[0].file, 540)}
-                        alt="Studio composite preview"
-                        className="h-full object-contain"
-                      />
+                    <div className="relative h-44 rounded-2xl bg-[#EEF1F5] border border-black/[0.06] flex flex-col items-center justify-center gap-2 p-3 overflow-hidden">
+                      {previewOvalUrl ? (
+                        <>
+                          <img
+                            src={previewOvalUrl}
+                            alt="Aligned face oval preview"
+                            className="h-28 w-auto object-contain drop-shadow-sm"
+                          />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white text-[10.5px] font-bold text-[#141518] border border-black/[0.07]">
+                            <span
+                              className="w-3 h-3 rounded-full border border-black/15"
+                              style={{ backgroundColor: dims.skinToneHex }}
+                            />
+                            Badge &amp; 360° Skin Tone Active
+                          </span>
+                        </>
+                      ) : (
+                        <img
+                          src={H(STUDIO_LOOKS[0].file, 540)}
+                          alt="Studio composite preview"
+                          className="h-full object-contain"
+                        />
+                      )}
                     </div>
                   </div>
                 </div>

@@ -56,6 +56,8 @@ export interface Interactive3DAvatarStageProps {
   onVisualModeChange?: (mode: Render3DVisualMode) => void;
   showMeasurementRings?: boolean;
   faceOvalDataUrl?: string | null;
+  customAvatarTurntableMp4Url?: string | null;
+  customAvatarTurntablePosterUrl?: string | null;
   autoSpinDefault?: boolean;
   externalSpinActive?: boolean;
   onAutoSpinChange?: (spinning: boolean) => void;
@@ -139,6 +141,8 @@ export function Interactive3DAvatarStage({
   onVisualModeChange,
   showMeasurementRings: propShowRings,
   faceOvalDataUrl,
+  customAvatarTurntableMp4Url,
+  customAvatarTurntablePosterUrl,
   autoSpinDefault = false,
   externalSpinActive,
   onAutoSpinChange,
@@ -236,9 +240,6 @@ export function Interactive3DAvatarStage({
   const [isLoadingFrames, setIsLoadingFrames] = useState<boolean>(false);
 
   const framesRef = useRef<ImageBitmap[]>([]);
-  const frameKindRef = useRef<"higgsfield_mp4" | "unwarped_modular_quad">(
-    "higgsfield_mp4"
-  );
   const posterBitmapRef = useRef<ImageBitmap | null>(null);
   const faceOvalImgRef = useRef<HTMLImageElement | null>(null);
 
@@ -377,16 +378,26 @@ export function Interactive3DAvatarStage({
     () =>
       resolveTurntableSpecForOutfit(
         userSelectedProducts,
-        effectiveEquippedProducts
+        effectiveEquippedProducts,
+        {
+          skinToneHex: safeDimensions.skinToneHex,
+          customTurntableMp4Url: customAvatarTurntableMp4Url || undefined,
+          customTurntablePosterUrl: customAvatarTurntablePosterUrl || undefined,
+        }
       ),
-    [effectiveEquippedProducts, userSelectedProducts]
+    [
+      customAvatarTurntableMp4Url,
+      customAvatarTurntablePosterUrl,
+      effectiveEquippedProducts,
+      safeDimensions.skinToneHex,
+      userSelectedProducts,
+    ]
   );
 
   // Load Poster + Decode 96 `ImageBitmap` Frames from Higgsfield All-Intra MP4!
   useEffect(() => {
     if (mode !== "avatar") return;
     let cancelled = false;
-    frameKindRef.current = turntableSpec.kind;
 
     // 1. Instant 0ms synchronous LRU hit if already decoded in RAM!
     const syncHit = getCachedTurntableBundleSync(turntableSpec, seamlessStage);
@@ -736,48 +747,15 @@ export function Interactive3DAvatarStage({
         if (posterImgRef.current) {
           posterImgRef.current.style.opacity = "0";
         }
-        if (frameKindRef.current === "unwarped_modular_quad" && frames.length === 4) {
-          const exactQ = normProgress * 4;
-          const idx0 = Math.floor(exactQ) % 4;
-          const idx1 = (idx0 + 1) % 4;
-          const frac = exactQ - Math.floor(exactQ);
-          // Hold crisp view across 76% of quadrant, smooth cross-dissolve across transition
-          const blend = clamp((frac - 0.78) / 0.22, 0, 1);
-          const fA = frames[idx0];
-          drawSlicedPortrait(fA, fA.width, fA.height, 1.0);
-          if (blend > 0.01) {
-            const fB = frames[idx1];
-            drawSlicedPortrait(fB, fB.width, fB.height, blend);
-          }
-        } else {
-          const idx = Math.floor(normProgress * frames.length) % frames.length;
-          const bmp = frames[idx];
-          drawSlicedPortrait(bmp, bmp.width, bmp.height, 1.0);
-        }
+        const idx = Math.floor(normProgress * frames.length) % frames.length;
+        const bmp = frames[idx];
+        drawSlicedPortrait(bmp, bmp.width, bmp.height, 1.0);
       } else if (posterBitmapRef.current) {
         const pBmp = posterBitmapRef.current;
         drawSlicedPortrait(pBmp, pBmp.width, pBmp.height, 1.0);
       }
-
-      // Optional Customer Scanned Face Oval Overlay near 0° Front
-      if (faceOvalImgRef.current && (normProgress < 0.09 || normProgress > 0.91)) {
-        const fade =
-          normProgress < 0.09
-            ? 1 - normProgress / 0.09
-            : (normProgress - 0.91) / 0.09;
-        const fw = drawW * 0.135;
-        const fh = fw * 1.24;
-        ctx.save();
-        ctx.globalAlpha = fade * 0.94;
-        ctx.drawImage(
-          faceOvalImgRef.current,
-          centerX - fw * 0.5,
-          drawY + drawH * 0.148,
-          fw,
-          fh
-        );
-        ctx.restore();
-      }
+      // Note: Customer skin-tone & 3D body-scan proportions are harmonized across all 96 frames
+      // via `resolveTurntableSpecForOutfit` + `drawSlicedPortrait` (never a flat 2D face-sticker paste!)
 
       // Optional Fit Heatmap Zone Wash (`Fit Map` mode)
       if (

@@ -390,16 +390,8 @@ export function GwoRunwayLookbook() {
 
   useEffect(() => {
     hydrateNearWindowModular(safeActiveIdx, runwayAngle);
-
     faceImgElsRef.current.forEach((faceEl) => {
-      if (!faceEl) return;
-      if (customAvatar?.faceOvalDataUrl && runwayAngle === "front") {
-        faceEl.src = customAvatar.faceOvalDataUrl;
-        faceEl.style.display = "block";
-      } else {
-        faceEl.removeAttribute("src");
-        faceEl.style.display = "none";
-      }
+      if (faceEl) faceEl.style.display = "none";
     });
   }, [
     customAvatar,
@@ -474,12 +466,7 @@ export function GwoRunwayLookbook() {
       const faceImg = document.createElement("img");
       faceImg.className = "mv-face-oval";
       faceImg.alt = "";
-      if (customAvatar?.faceOvalDataUrl && runwayAngle === "front") {
-        faceImg.src = customAvatar.faceOvalDataUrl;
-        faceImg.style.display = "block";
-      } else {
-        faceImg.style.display = "none";
-      }
+      faceImg.style.display = "none";
       e.append(faceImg);
       createdFaceImgs.push(faceImg);
 
@@ -865,6 +852,8 @@ export function GwoRunwayLookbook() {
                   selectedSize: p.recommendedSize,
                 }))}
                 faceOvalDataUrl={customAvatar?.faceOvalDataUrl || null}
+                customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
+                customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}
                 externalYawDeg={runwayYawDeg}
                 showHud={false}
                 seamlessStage

@@ -25,6 +25,7 @@ import { Avatar360Modal } from "../studio/Avatar360Modal";
 import { SocialStyleDnaModal } from "../social/SocialStyleDnaModal";
 import { DropshipCheckoutModal } from "../dropship/DropshipCheckoutModal";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
+import { Interactive3DAvatarStage } from "../three/Interactive3DAvatarStage";
 import { SIGNATURE_BADGE_URL } from "../vell/vell-data";
 import { useGwo } from "@/context/GwoAppContext";
 import { VERIFIED_LIVE_STORE_RACKS } from "@/lib/catalog/client-url-scraper";
@@ -34,11 +35,13 @@ import { buildSynthetic3DProductFromPiece } from "@/lib/catalog/closet-look-3d-m
 import {
   DEFAULT_AVATAR_MEASUREMENTS,
 } from "@/lib/catalog/sizing";
+import { deriveFullBodyDimensionsFromProfile } from "@/lib/three/body-scan-analyzer";
 import {
   certifyProductAvatarReadiness,
   ensureProductIs360AndAvatarReady,
   isolateProductBackgroundClient,
 } from "@/lib/three/avatar-ready-pipeline";
+import { prefetchTurntableBundle } from "@/lib/three/higgsfield-turntable-engine";
 import { Product } from "@/lib/types";
 
 const STEPS = [
@@ -49,6 +52,10 @@ const STEPS = [
 
 const QUICK_SAMPLE_LINKS = [
   {
+    label: "Princess Polly Mini Dress",
+    url: "https://us.princesspolly.com/products/selby-mini-dress-white",
+  },
+  {
     label: "AliExpress Espresso Corset",
     url: "https://www.aliexpress.com/item/1005012677693131.html",
   },
@@ -57,8 +64,8 @@ const QUICK_SAMPLE_LINKS = [
     url: "https://www.aliexpress.com/item/1005010695803178.html",
   },
   {
-    label: "AliExpress 18k Gold Belt",
-    url: "https://www.aliexpress.com/item/1005013901284750.html",
+    label: "AliExpress Emerald Silk Midi",
+    url: "https://www.aliexpress.com/item/1005012134863411.html",
   },
 ];
 
@@ -97,6 +104,9 @@ export function UnifiedGwoNav() {
   const [importing, setImporting] = useState(false);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   const [previewAngleIdx, setPreviewAngleIdx] = useState(0);
+  const [urlPreviewView, setUrlPreviewView] = useState<"avatar360" | "cutout">(
+    "avatar360"
+  );
   const [manualImgUrl, setManualImgUrl] = useState("");
 
   const [storeDomainInput, setStoreDomainInput] = useState(
@@ -107,13 +117,14 @@ export function UnifiedGwoNav() {
   const [rackError, setRackError] = useState<string | null>(null);
 
   const bagTotal = bagItems.reduce((sum, item) => sum + item.price, 0);
+  const bodyDims = deriveFullBodyDimensionsFromProfile(user, customAvatar);
 
   const activeAvatarStats = {
-    bustInches: user?.bustInches ?? DEFAULT_AVATAR_MEASUREMENTS.bustInches,
-    waistInches: user?.waistInches ?? DEFAULT_AVATAR_MEASUREMENTS.waistInches,
-    hipsInches: user?.hipsInches ?? DEFAULT_AVATAR_MEASUREMENTS.hipsInches,
-    heightInches: user?.heightInches ?? DEFAULT_AVATAR_MEASUREMENTS.heightInches,
-    shoeSize: user?.shoeSize || "7.5",
+    bustInches: bodyDims.bustInches,
+    waistInches: bodyDims.waistInches,
+    hipsInches: bodyDims.hipsInches,
+    heightInches: bodyDims.heightInches,
+    shoeSize: bodyDims.shoeSize,
   };
 
   const previewFitReport = previewProduct
@@ -135,10 +146,22 @@ export function UnifiedGwoNav() {
         const q = targetDomain.replace(/^aliexpress:/i, "").trim();
         const aeHits = searchTopLineAliExpressFeed({ query: q }).slice(0, 6);
         setPulledRackItems(aeHits);
+        if (aeHits[0]) {
+          prefetchTurntableBundle([aeHits[0]], false, {
+            skinToneHex: bodyDims.skinToneHex,
+            customTurntableMp4Url: customAvatar?.turntableMp4Url,
+          });
+        }
         return;
       }
       const items = await pullStoreRackToCatalog(targetDomain, 6);
       setPulledRackItems(items);
+      if (items[0]) {
+        prefetchTurntableBundle([items[0]], false, {
+          skinToneHex: bodyDims.skinToneHex,
+          customTurntableMp4Url: customAvatar?.turntableMp4Url,
+        });
+      }
       if (items.length === 0) {
         setRackError(
           "No public catalog items returned—select an AliExpress capsule above or paste a single product link."
@@ -159,6 +182,7 @@ export function UnifiedGwoNav() {
     setImporting(true);
     setPreviewProduct(null);
     setPreviewAngleIdx(0);
+    setUrlPreviewView("avatar360");
     try {
       const res = await ingestUrlToSharedCatalog(target);
       if (res?.product) {
@@ -173,6 +197,7 @@ export function UnifiedGwoNav() {
           updateImportedProductImage(readyProd.id, readyProd.imageUrl);
         }
         setPreviewProduct(readyProd);
+        setActiveImportedProduct(readyProd);
         setUrlInput("");
       }
     } finally {
@@ -684,7 +709,7 @@ export function UnifiedGwoNav() {
                             </div>
                           </div>
 
-                          <div className="px-2.5 pb-2.5 flex items-center gap-1.5">
+                          <div className="px-2.5 pb-2.5 flex items-center gap-1">
                             <button
                               type="button"
                               onClick={() => {
@@ -692,17 +717,33 @@ export function UnifiedGwoNav() {
                                 openAvatar360({
                                   title: `${prod.brand} — ${prod.title}`,
                                   primaryProduct: prod,
-                                  initialAngleMode: "split",
+                                  initialAngleMode: "spin",
                                 });
                               }}
                               className="flex-1 py-1.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[10px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
                             >
-                              <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> 360° F/B
+                              <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> 360° Spin
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveImportedProduct(prod);
+                                setAddUrlModalOpen(false);
+                                if (cleanPath !== "/" && cleanPath !== "/closet") {
+                                  router.push(
+                                    `/?try=${encodeURIComponent(prod.id)}`
+                                  );
+                                }
+                              }}
+                              className="px-2 py-1.5 rounded-full bg-[#EBF3EE] hover:bg-[#DCECE3] border border-[#C5DFD0] text-[10px] font-bold text-[#1D4232] cursor-pointer"
+                            >
+                              Wear
                             </button>
                             <button
                               type="button"
                               onClick={() => {
                                 addToBag({
+                                  productId: prod.id,
                                   brand: prod.brand,
                                   title: prod.title,
                                   price: prod.price,
@@ -711,7 +752,7 @@ export function UnifiedGwoNav() {
                                   storeUrl: prod.canonicalUrl,
                                 });
                               }}
-                              className="px-2.5 py-1.5 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[10px] font-bold text-[#141518] cursor-pointer"
+                              className="px-2 py-1.5 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[10px] font-bold text-[#141518] cursor-pointer"
                             >
                               + Bag
                             </button>
@@ -783,46 +824,100 @@ export function UnifiedGwoNav() {
                 className="rounded-2xl bg-[#F6F7F9] border border-black/[0.08] p-4 space-y-3.5 max-h-[62vh] overflow-y-auto"
               >
                 <div className="flex flex-col sm:flex-row items-start gap-4">
-                  {/* Left: Hero + Multi-Angle Thumbnail Strip */}
-                  <div className="w-full sm:w-36 shrink-0 space-y-2">
-                    <div className="w-full h-44 rounded-2xl overflow-hidden bg-white border border-black/[0.07] shadow-xs">
-                      <GarmentArtwork
-                        product={{
-                          ...previewProduct,
-                          imageUrl:
-                            previewProduct.fitMetadata?.galleryImages?.[
-                              previewAngleIdx
-                            ]?.url || previewProduct.imageUrl,
-                        }}
-                        className="w-full h-full"
-                      />
+                  {/* Left: LIVE 96-Frame Higgsfield 360° Avatar Turntable + Cutout Switcher! */}
+                  <div className="w-full sm:w-56 shrink-0 space-y-2">
+                    <div className="inline-flex items-center p-0.5 rounded-full bg-white border border-black/[0.08] w-full">
+                      <button
+                        type="button"
+                        onClick={() => setUrlPreviewView("avatar360")}
+                        className={`flex-1 py-1 rounded-full text-[10.5px] font-bold cursor-pointer transition ${
+                          urlPreviewView === "avatar360"
+                            ? "bg-[#141518] text-white"
+                            : "text-[#686D76] hover:text-[#141518]"
+                        }`}
+                      >
+                        360° Avatar Spin
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUrlPreviewView("cutout")}
+                        className={`flex-1 py-1 rounded-full text-[10.5px] font-bold cursor-pointer transition ${
+                          urlPreviewView === "cutout"
+                            ? "bg-[#141518] text-white"
+                            : "text-[#686D76] hover:text-[#141518]"
+                        }`}
+                      >
+                        Garment Photo
+                      </button>
                     </div>
 
-                    {(previewProduct.fitMetadata?.galleryImages?.length || 0) > 1 && (
-                      <div className="grid grid-cols-4 gap-1">
-                        {previewProduct.fitMetadata!.galleryImages!
-                          .slice(0, 4)
-                          .map((ang, idx) => (
-                            <button
-                              key={ang.url}
-                              type="button"
-                              onClick={() => setPreviewAngleIdx(idx)}
-                              title={ang.label}
-                              className={`h-11 rounded-lg overflow-hidden border bg-white cursor-pointer ${
-                                previewAngleIdx === idx
-                                  ? "border-[#141518] ring-1 ring-[#141518]"
-                                  : "border-black/10 opacity-75 hover:opacity-100"
-                              }`}
-                            >
-                              <img
-                                src={ang.url}
-                                alt={ang.label}
-                                className="w-full h-full object-cover object-top"
-                              />
-                            </button>
-                          ))}
+                    {urlPreviewView === "avatar360" ? (
+                      <div
+                        data-url-preview-360="true"
+                        className="w-full h-72 rounded-2xl overflow-hidden bg-white border border-black/[0.08] shadow-xs"
+                      >
+                        <Interactive3DAvatarStage
+                          mode="avatar"
+                          dimensions={bodyDims}
+                          wornPieces={[
+                            {
+                              product: previewProduct,
+                              selectedSize: previewFitReport.recommendedSize,
+                            },
+                          ]}
+                          faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
+                          customAvatarTurntableMp4Url={
+                            customAvatar?.turntableMp4Url
+                          }
+                          customAvatarTurntablePosterUrl={
+                            customAvatar?.turntablePosterUrl
+                          }
+                          initialYawDeg={0}
+                          compactHud={true}
+                          showHud={false}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-full h-56 rounded-2xl overflow-hidden bg-white border border-black/[0.07] shadow-xs">
+                        <GarmentArtwork
+                          product={{
+                            ...previewProduct,
+                            imageUrl:
+                              previewProduct.fitMetadata?.galleryImages?.[
+                                previewAngleIdx
+                              ]?.url || previewProduct.imageUrl,
+                          }}
+                          className="w-full h-full"
+                        />
                       </div>
                     )}
+
+                    {(previewProduct.fitMetadata?.galleryImages?.length || 0) > 1 &&
+                      urlPreviewView === "cutout" && (
+                        <div className="grid grid-cols-4 gap-1">
+                          {previewProduct.fitMetadata!.galleryImages!
+                            .slice(0, 4)
+                            .map((ang, idx) => (
+                              <button
+                                key={ang.url}
+                                type="button"
+                                onClick={() => setPreviewAngleIdx(idx)}
+                                title={ang.label}
+                                className={`h-11 rounded-lg overflow-hidden border bg-white cursor-pointer ${
+                                  previewAngleIdx === idx
+                                    ? "border-[#141518] ring-1 ring-[#141518]"
+                                    : "border-black/10 opacity-75 hover:opacity-100"
+                                }`}
+                              >
+                                <img
+                                  src={ang.url}
+                                  alt={ang.label}
+                                  className="w-full h-full object-cover object-top"
+                                />
+                              </button>
+                            ))}
+                        </div>
+                      )}
                   </div>
 
                   {/* Right: Extracted Fit, Model Sizing & Avatar Match */}

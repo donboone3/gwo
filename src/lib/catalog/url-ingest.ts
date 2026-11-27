@@ -262,9 +262,15 @@ export function parseProductFromHtml(
     }
   });
 
-  // Clean store suffix from title
+  // Clean store suffix & reject Demandware / WAF boilerplate titles
   title = title.split(/\s+[|\-–—]\s+/)[0].trim();
-  if (!title) {
+  if (
+    !title ||
+    /^sites-[a-z0-9_-]+-site$/i.test(title) ||
+    /^(just a moment|attention required|access denied|404|page not found|pardon our interruption|robot or human)/i.test(
+      title
+    )
+  ) {
     const slug = urlObj.pathname.split("/").filter(Boolean).pop() || "Curated Piece";
     title = slug
       .replace(/[-_]+/g, " ")

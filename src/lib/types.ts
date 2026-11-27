@@ -133,6 +133,9 @@ export interface Product {
   currency: string;
   imageUrl?: string;
   studioLookIndex?: number;
+  /** Optional dedicated All-Intra 360° Higgsfield MP4 turntable URL */
+  turntableMp4Url?: string;
+  turntablePosterUrl?: string;
   fitMetadata?: ProductFitMetadata;
   dropship?: DropshipListingSpec;
   occasions: string[];

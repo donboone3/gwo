@@ -425,6 +425,10 @@ export function MotionSitesProductShowroom({
                     dimensions={bodyDims}
                     wornPieces={wornSpecsOnAvatar}
                     faceOvalDataUrl={customAvatar?.faceOvalDataUrl || null}
+                    customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
+                    customAvatarTurntablePosterUrl={
+                      customAvatar?.turntablePosterUrl
+                    }
                     visualMode={showHeatmap ? "heatmap" : "studio"}
                     showMeasurementRings={showRings}
                     externalSpinActive={autoRotate}

@@ -155,17 +155,25 @@ export function VellGwoStudio() {
     setScanPulseKey((k) => k + 1);
   }, []);
 
-  // Full store catalog (always immediately available even before async state hydration)
+  // Full store catalog (always immediately available even before async state hydration, including customer URL imports!)
   const storeCatalog = useMemo(() => {
     const map = new Map<string, Product>();
-    for (const p of buildTopLineAliExpressDropshipCatalog()) {
-      map.set(p.id, p);
+    if (activeImportedProduct) {
+      map.set(activeImportedProduct.id, activeImportedProduct);
     }
     for (const p of products) {
-      map.set(p.id, p);
+      if (p.sourceType === "scraped_url") {
+        map.set(p.id, p);
+      }
+    }
+    for (const p of buildTopLineAliExpressDropshipCatalog()) {
+      if (!map.has(p.id)) map.set(p.id, p);
+    }
+    for (const p of products) {
+      if (!map.has(p.id)) map.set(p.id, p);
     }
     return Array.from(map.values());
-  }, [products]);
+  }, [activeImportedProduct, products]);
 
   const productById = useMemo(
     () => new Map(storeCatalog.map((p) => [p.id, p])),
@@ -329,38 +337,43 @@ export function VellGwoStudio() {
       if (matchedLook) {
         applyPresetLook(matchedLook.index);
       } else {
-        equipProductPiece(prod);
+        equipProductPiece(prod, true);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allWearableById, applyPresetLook]);
 
-  // Equip or toggle a single 3D garment/shoe/bag/belt mesh on the 3D Character!
+  // Equip or toggle a single 3D garment/shoe/bag/belt on the 3D Character!
   const equipProductPiece = useCallback(
-    (prod: Product) => {
+    (prod: Product, forceEquip = false) => {
       const slot = classifyProductSlot(prod);
       setDressedSlots((prev) => {
         const next = { ...prev };
         if (slot === "dress") {
-          next.dressId = prev.dressId === prod.id ? null : prod.id;
+          next.dressId =
+            !forceEquip && prev.dressId === prod.id ? null : prod.id;
           if (next.dressId) {
             next.topId = null;
             next.bottomId = null;
           }
         } else if (slot === "top") {
-          next.topId = prev.topId === prod.id ? null : prod.id;
+          next.topId = !forceEquip && prev.topId === prod.id ? null : prod.id;
           if (next.topId) next.dressId = null;
         } else if (slot === "bottom") {
-          next.bottomId = prev.bottomId === prod.id ? null : prod.id;
+          next.bottomId =
+            !forceEquip && prev.bottomId === prod.id ? null : prod.id;
           if (next.bottomId) next.dressId = null;
         } else if (slot === "outerwear") {
-          next.outerwearId = prev.outerwearId === prod.id ? null : prod.id;
+          next.outerwearId =
+            !forceEquip && prev.outerwearId === prod.id ? null : prod.id;
         } else if (slot === "shoes") {
-          next.shoesId = prev.shoesId === prod.id ? null : prod.id;
+          next.shoesId =
+            !forceEquip && prev.shoesId === prod.id ? null : prod.id;
         } else if (slot === "bag") {
-          next.bagId = prev.bagId === prod.id ? null : prod.id;
+          next.bagId = !forceEquip && prev.bagId === prod.id ? null : prod.id;
         } else if (slot === "belt") {
-          next.beltId = prev.beltId === prod.id ? null : prod.id;
+          next.beltId =
+            !forceEquip && prev.beltId === prod.id ? null : prod.id;
         }
         return next;
       });
@@ -371,10 +384,10 @@ export function VellGwoStudio() {
     [triggerScanBeam]
   );
 
-  // If user imports a store link via "+ Link", put it right onto her 3D Avatar!
+  // If user imports a store link via "+ Add Outfit", force-equip it right onto her 3D Avatar!
   useEffect(() => {
     if (activeImportedProduct) {
-      equipProductPiece(activeImportedProduct);
+      equipProductPiece(activeImportedProduct, true);
     }
   }, [activeImportedProduct, equipProductPiece]);
 
@@ -1080,6 +1093,8 @@ export function VellGwoStudio() {
                 dimensions={bodyDims}
                 wornPieces={activeWornSpecs}
                 faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
+                customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
+                customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}
                 initialYawDeg={0}
                 seamlessStage={true}
                 inertiaSpin={true}

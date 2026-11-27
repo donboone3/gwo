@@ -794,6 +794,14 @@ export async function scrapeProductInBrowser(
     }
   }
 
+  if (
+    /^sites-[a-z0-9_-]+-site$/i.test(extractedTitle) ||
+    /^(just a moment|attention required|access denied|404|page not found|pardon our interruption|robot or human)/i.test(
+      extractedTitle
+    )
+  ) {
+    extractedTitle = "";
+  }
   const finalTitle = extractedTitle || cleanSlugTitle;
   const { category, silhouette } = inferClientCategory(
     `${finalTitle} ${parsedUrl.pathname}`
@@ -993,6 +1001,16 @@ export function parseShopifyJsonProduct(
 }
 
 export const VERIFIED_LIVE_STORE_RACKS = [
+  {
+    label: "Princess Polly Live",
+    domain: "us.princesspolly.com",
+    badge: "Live Shopify Feed",
+  },
+  {
+    label: "Babyboo Couture",
+    domain: "babyboofashion.com",
+    badge: "Live Dresses & Corsets",
+  },
   {
     label: "AliExpress Evening",
     domain: "aliexpress:satin",
