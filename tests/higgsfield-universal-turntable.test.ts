@@ -47,8 +47,8 @@ describe("Universal Dual-Sheet 1024p HD Higgsfield 360° Turntable Engine (Store
     const slipSpec = resolveTurntableSpecForOutfit([blushSlip], [blushSlip]);
     expect(slipSpec.kind).toBe("higgsfield_mp4");
     expect(slipSpec.lookIdx).toBe(2);
-    expect(slipSpec.atlasUrl).toContain("ae_outfit_2_hd_a.webp");
-    expect(slipSpec.atlasUrlB).toContain("ae_outfit_2_hd_b.webp");
+    expect(slipSpec.fastAtlasUrl).toContain("ae_outfit_2_fast.webp");
+    expect(slipSpec.atlasUrl).toContain("ae_outfit_2_qhd.webp");
     expect(slipSpec.colorwayShifts?.length).toBeGreaterThan(0);
 
     const navyBlazer = makeScrapedProduct({

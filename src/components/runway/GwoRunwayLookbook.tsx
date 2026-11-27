@@ -551,11 +551,20 @@ export function GwoRunwayLookbook() {
     let last = 0;
     let lastReportedIdx = Math.round(wrap(p, N)) % N;
 
+    let rafId = 0;
+    const kickRunway = () => {
+      if (!rafId) {
+        last = performance.now();
+        rafId = requestAnimationFrame((ts) => frame(ts));
+      }
+    };
+
     jumpLookRef.current = (lookIndex: number) => {
       const currMod = wrap(Math.round(target), N);
       let delta = lookIndex - currMod;
       if (delta < 0) delta += N;
       target = Math.round(target) + delta;
+      kickRunway();
     };
 
     let footerStartTarget = 0;
@@ -565,9 +574,11 @@ export function GwoRunwayLookbook() {
       },
       move: (dx: number) => {
         target = footerStartTarget - dx / Math.max(110, W * 0.28);
+        kickRunway();
       },
       end: () => {
         target = Math.round(target);
+        kickRunway();
       },
     };
 
@@ -581,6 +592,7 @@ export function GwoRunwayLookbook() {
         m.e.style.height = `${base}px`;
       });
       dirty = true;
+      kickRunway();
     };
 
     const paint = () => {
@@ -679,6 +691,7 @@ export function GwoRunwayLookbook() {
       cy = my = e.clientY - r.top;
       ring.style.transform = `translate3d(${cx}px,${cy}px,0)`;
       ring.classList.add("show");
+      kickRunway();
     };
 
     const onLeave = () => ring.classList.remove("show", "drag");
@@ -689,6 +702,7 @@ export function GwoRunwayLookbook() {
       const r = stage.getBoundingClientRect();
       mx = e.clientX - r.left;
       my = e.clientY - r.top;
+      if (e.pointerType === "mouse") kickRunway();
       if (!drag) return;
       const dx = e.clientX - sx;
       const dy = e.clientY - sy;
@@ -709,6 +723,7 @@ export function GwoRunwayLookbook() {
       }
       if (dist > 6) moved = true;
       target = s0 + dx / Math.max(200, W * 0.34);
+      kickRunway();
     };
 
     const onDown = (e: PointerEvent) => {
@@ -735,6 +750,7 @@ export function GwoRunwayLookbook() {
           // ignore
         }
       }
+      kickRunway();
     };
 
     const onRelease = (e: PointerEvent) => {
@@ -767,6 +783,7 @@ export function GwoRunwayLookbook() {
       } else {
         target = Math.round(target);
       }
+      kickRunway();
     };
 
     let wheelAcc = 0;
@@ -782,6 +799,7 @@ export function GwoRunwayLookbook() {
       if (Math.abs(wheelAcc) > 55) {
         target = Math.round(target) + Math.sign(wheelAcc);
         wheelAcc = 0;
+        kickRunway();
       }
       if (wheelT) clearTimeout(wheelT);
       wheelT = setTimeout(() => {
@@ -800,6 +818,7 @@ export function GwoRunwayLookbook() {
       if (step) {
         e.preventDefault();
         target = Math.round(target) + step;
+        kickRunway();
       }
     };
 
@@ -813,20 +832,29 @@ export function GwoRunwayLookbook() {
     window.addEventListener("resize", size);
     window.addEventListener("keydown", onKeyDown);
 
-    let rafId = 0;
     let lastHeroReady = Boolean(
       stage.querySelector('[data-frames-ready="true"]')
     );
-    const frame = (now: number) => {
-      const dt = Math.min(50, now - (last || now));
-      last = now;
+    const heroObs = new MutationObserver(() => {
       const heroNow = Boolean(
         stage.querySelector('[data-frames-ready="true"]')
       );
       if (heroNow !== lastHeroReady) {
         lastHeroReady = heroNow;
         dirty = true;
+        kickRunway();
       }
+    });
+    heroObs.observe(stage, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-frames-ready"],
+    });
+
+    const frame = (now: number) => {
+      rafId = 0;
+      const dt = Math.min(50, Math.max(1, now - (last || now)));
+      last = now;
       const diff = target - p;
       if (Math.abs(diff) > 0.0004) {
         p = calm ? target : p + diff * (1 - Math.pow(0.0012, dt / 1000));
@@ -842,22 +870,29 @@ export function GwoRunwayLookbook() {
           dirty = false;
         }
       }
-      if (Math.abs(mx - cx) > 0.25 || Math.abs(my - cy) > 0.25) {
+      const ringMoving =
+        ring.classList.contains("show") &&
+        (Math.abs(mx - cx) > 0.25 || Math.abs(my - cy) > 0.25);
+      if (ringMoving) {
         cx += (mx - cx) * 0.35;
         cy += (my - cy) * 0.35;
         ring.style.transform = `translate3d(${cx.toFixed(1)}px,${cy.toFixed(
           1
         )}px,0)`;
       }
-      rafId = requestAnimationFrame(frame);
+      // Event-driven sleep: 0.0% idle CPU while stationary so 360° spin gets 100% GPU/CPU!
+      if (Math.abs(target - p) > 0.0004 || dirty || ringMoving) {
+        rafId = requestAnimationFrame(frame);
+      }
     };
 
     size();
     paint();
-    rafId = requestAnimationFrame(frame);
+    kickRunway();
 
     return () => {
-      cancelAnimationFrame(rafId);
+      if (rafId) cancelAnimationFrame(rafId);
+      heroObs.disconnect();
       if (wheelT) clearTimeout(wheelT);
       stage.removeEventListener("pointerenter", onEnter);
       stage.removeEventListener("pointerleave", onLeave);

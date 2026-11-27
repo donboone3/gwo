@@ -17,6 +17,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <link
+          rel="preload"
+          as="fetch"
+          crossOrigin="anonymous"
+          href={`${
+            process.env.NEXT_PUBLIC_BASE_PATH || ""
+          }/models/turntables/ae_outfit_0_fast.webp?v=hf360v6`}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"

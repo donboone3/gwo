@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -244,7 +244,12 @@ export function GwoSpinProduct() {
   const [externalYawDeg, setExternalYawDeg] = useState<number | undefined>(
     undefined
   );
-  const [liveSpinDeg, setLiveSpinDeg] = useState<number>(0);
+  const spinDegBadgeRef = useRef<HTMLSpanElement | null>(null);
+  const handleLiveYawChange = useCallback((deg: number) => {
+    if (spinDegBadgeRef.current) {
+      spinDegBadgeRef.current.textContent = `${String(deg).padStart(3, "0")}°`;
+    }
+  }, []);
 
   const [openSection, setOpenSection] = useState<string>("Fit & Description");
   const [savedToCloset, setSavedToCloset] = useState(false);
@@ -576,7 +581,7 @@ export function GwoSpinProduct() {
                 initialYawDeg={0}
                 seamlessStage={false}
                 inertiaSpin={true}
-                onYawChange={setLiveSpinDeg}
+                onYawChange={handleLiveYawChange}
                 onSelectProduct={(prod) => setSelectedQuickProduct(prod)}
                 showHud={false}
               />
@@ -595,7 +600,7 @@ export function GwoSpinProduct() {
                 autoSpinDefault={false}
                 initialYawDeg={0}
                 inertiaSpin={true}
-                onYawChange={setLiveSpinDeg}
+                onYawChange={handleLiveYawChange}
                 showHud={false}
               />
             </div>
@@ -692,8 +697,11 @@ export function GwoSpinProduct() {
                   <Images className="w-3 h-3" /> Photo
                 </button>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-[#141518] text-white text-[10px] font-bold">
-                {String(liveSpinDeg).padStart(3, "0")}°
+              <span
+                ref={spinDegBadgeRef}
+                className="px-2 py-0.5 rounded-full bg-[#141518] text-white text-[10px] font-bold"
+              >
+                000°
               </span>
             </div>
             {/* Scanned 3D Body Measurements Header */}
