@@ -14,23 +14,20 @@ interface GarmentArtworkProps {
 }
 
 export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps) {
-  const [useFallback2D, setUseFallback2D] = useState(false);
   const [useProxyFallback, setUseProxyFallback] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const [isolatedUrl, setIsolatedUrl] = useState<string | null>(null);
-  const [tilt, setTilt] = useState<{ rx: number; ry: number }>({ rx: 0, ry: 0 });
+  const [tilt, setTilt] = useState<{ rx: number; ry: number; gx: number; gy: number }>({
+    rx: 0,
+    ry: 0,
+    gx: 50,
+    gy: 50,
+  });
   const isNike = product.brand.toLowerCase() === "nike";
-  const isCertified3D = ALL_CERTIFIED_MODULAR_SKU_IDS.has(product.id);
 
   useEffect(() => {
-    setUseFallback2D(false);
     setUseProxyFallback(false);
     setImgFailed(false);
-
-    if (isCertified3D && !useFallback2D) {
-      setIsolatedUrl(getInApp3DRenderedItemUrl(product) || product.imageUrl || null);
-      return;
-    }
 
     const raw = product.imageUrl;
     if (!raw) {
@@ -38,7 +35,6 @@ export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps)
       return;
     }
     if (
-      raw.includes("/models/items_3d/") ||
       raw.includes("/models/dropship/ds_") ||
       raw.includes("bag_rgba_")
     ) {
@@ -52,7 +48,7 @@ export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps)
     return () => {
       cancelled = true;
     };
-  }, [isCertified3D, product, product.id, product.imageUrl, useFallback2D]);
+  }, [product.id, product.imageUrl]);
 
   if ((isolatedUrl || product.imageUrl) && !imgFailed) {
     const activeRaw = isolatedUrl || product.imageUrl!;
@@ -63,16 +59,23 @@ export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps)
         ? `https://wsrv.nl/?url=${encodeURIComponent(product.imageUrl!)}&w=640&output=webp`
         : activeRaw;
 
+    const isTilted = tilt.rx !== 0 || tilt.ry !== 0;
+
     return (
       <div
         onPointerMove={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
-          const nx = (e.clientX - r.left) / Math.max(1, r.width) - 0.5;
-          const ny = (e.clientY - r.top) / Math.max(1, r.height) - 0.5;
-          setTilt({ rx: -ny * 12, ry: nx * 16 });
+          const px = (e.clientX - r.left) / Math.max(1, r.width);
+          const py = (e.clientY - r.top) / Math.max(1, r.height);
+          setTilt({
+            rx: -(py - 0.5) * 14,
+            ry: (px - 0.5) * 18,
+            gx: Math.round(px * 100),
+            gy: Math.round(py * 100),
+          });
         }}
-        onPointerLeave={() => setTilt({ rx: 0, ry: 0 })}
-        style={{ perspective: "560px" }}
+        onPointerLeave={() => setTilt({ rx: 0, ry: 0, gx: 50, gy: 50 })}
+        style={{ perspective: "620px" }}
         className={`relative overflow-hidden bg-white flex items-center justify-center p-1.5 ${className}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -81,9 +84,7 @@ export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps)
           alt={product.title}
           decoding="async"
           onError={() => {
-            if (isCertified3D && !useFallback2D) {
-              setUseFallback2D(true);
-            } else if (!useProxyFallback && !product.imageUrl?.includes("wsrv.nl")) {
+            if (!useProxyFallback && !product.imageUrl?.includes("wsrv.nl")) {
               setUseProxyFallback(true);
             } else {
               setImgFailed(true);
@@ -92,12 +93,20 @@ export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps)
           style={{
             transform: `rotateX(${tilt.rx.toFixed(1)}deg) rotateY(${tilt.ry.toFixed(
               1
-            )}deg)`,
-            transition: tilt.rx === 0 && tilt.ry === 0 ? "transform 280ms ease-out" : "none",
+            )}deg) translateZ(${isTilted ? "8px" : "0px"})`,
+            transition: !isTilted ? "transform 280ms ease-out" : "none",
           }}
-          className="w-full h-full object-contain drop-shadow-[0_6px_12px_rgba(20,21,24,0.08)]"
+          className="w-full h-full object-contain drop-shadow-[0_8px_16px_rgba(20,21,24,0.09)]"
         />
-        <span className="pointer-events-none absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-[#141518]/[0.06] text-[8.5px] font-extrabold tracking-wider text-[#141518]/70 uppercase">
+        {isTilted && (
+          <div
+            className="pointer-events-none absolute inset-0 transition-opacity duration-150"
+            style={{
+              background: `radial-gradient(circle at ${tilt.gx}% ${tilt.gy}%, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0) 58%)`,
+            }}
+          />
+        )}
+        <span className="pointer-events-none absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-[#141518]/[0.05] text-[8.5px] font-extrabold tracking-wider text-[#141518]/65 uppercase">
           3D
         </span>
       </div>

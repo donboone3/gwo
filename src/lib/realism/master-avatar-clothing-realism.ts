@@ -30,7 +30,7 @@ import {
 } from "@/lib/three/avatar-ready-pipeline";
 import { ALL_CERTIFIED_MODULAR_SKU_IDS } from "@/lib/three/modular-outfit-compositor";
 
-export const MASTER_REALISM_SPEC_VERSION = "2026.4-immersive-pbr";
+export const MASTER_REALISM_SPEC_VERSION = "2026.5-albedo-3d-relief";
 
 // ============================================================================
 // 1. MASTER ANTHROPOMETRIC & CRANIOFACIAL AVATAR STANDARD

@@ -9,9 +9,7 @@ This master document and its executable TypeScript counterpart guarantee that **
 
 ## 1. Lifelike 3D Human Character Rules (`avatar_character.glb`)
 
-1. **Zero Mannequins / Zero Flat Photo Swaps:** The avatar is always a persistent Three.js WebGL 3D human character (`public/models/glb/avatar_character.glb`) composed of two dedicated submeshes:
-   - `AvatarBody` (`OPAQUE`): True-proportion cranium & coronal facial plane, slender neck, sloping trapezius/deltoid shoulders, welded arms/hands, sculpted torso/pelvis, and dainty legs/feet with Subsurface Scattering (SSS) warm skin wrap lighting.
-   - `AvatarHair` (`MASK`): 3D layered wavy espresso hair mantle draping naturally around the crown, temples, neck, and collarbones without distorting neck or shoulder geometry.
+1. **Zero Mannequins / Zero Cylindrical Sausage-Tube Wrapping:** Never wrap 2D studio photographs around 5 cylindrical pipes (`cos(phi)` / `sin(phi)`) or apply Lambertian `MeshStandardMaterial` gray shading over studio-lit photography — doing so warps facial proportions, chops fingers, and washes out skin tones. Instead, the avatar is rendered in `THREE.WebGLRenderer` as an **Albedo-Preserving Multi-View 3D Depth-Relief Character** (`CharacterFront`, `CharacterSide`, `CharacterBack` on a `72×108` anatomical 3D relief surface with `toneMapped: false` studio sRGB fidelity + real-time moving-light normal specular glint).
 2. **1.000:1.000 Craniofacial Lock (`craniofacialLockNormY = 0.848`):** Scaling height, shoulders, bust, waist, or hips on the GPU strictly preserves `1:1` facial aspect ratio above `yn = 0.848` so facial features never stretch or compress.
 3. **Human Proportion Guardrails (`enforceRealisticAvatarAnatomy`):** Clamps and couples height (`58"–73"`), bust (`29"–46"`), waist (`22"–40"`), hips (`31"–49"`), and shoulders (`13.4"–18.4"`) to realistic human anthropometry.
 

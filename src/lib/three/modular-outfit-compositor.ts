@@ -5,11 +5,11 @@ import {
 } from "./avatar-ready-pipeline";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-const LAYER_VER = "mod12";
+export const LAYER_VER = "mod14";
 
 export type AvatarViewAngle = "front" | "side" | "back";
 
-const MOD_TOP_SLUG: Record<
+export const MOD_TOP_SLUG: Record<
   string,
   { slug: string; overWaist: boolean }
 > = {
@@ -20,7 +20,7 @@ const MOD_TOP_SLUG: Record<
   "prod-ae-butter-silk-cami": { slug: "top_butter_cami", overWaist: false },
 };
 
-const MOD_BOT_SLUG: Record<
+export const MOD_BOT_SLUG: Record<
   string,
   { slug: string; coversShins: boolean }
 > = {
@@ -33,7 +33,7 @@ const MOD_BOT_SLUG: Record<
   "prod-ae-charcoal-pinstripe-trousers": { slug: "bot_charcoal_pinstripe", coversShins: true },
 };
 
-const MOD_DRESS_SLUG: Record<
+export const MOD_DRESS_SLUG: Record<
   string,
   { slug: string; sideOutfitIdx: number }
 > = {
@@ -44,7 +44,7 @@ const MOD_DRESS_SLUG: Record<
   "prod-ae-butter-lace-slip-midi": { slug: "dress_butter_lace", sideOutfitIdx: 14 },
 };
 
-const MOD_OUTER_SLUG: Record<
+export const MOD_OUTER_SLUG: Record<
   string,
   { slug: string; sideOutfitIdx: number; isClosed: boolean }
 > = {
@@ -57,7 +57,7 @@ const MOD_OUTER_SLUG: Record<
   "prod-ae-cream-cropped-fur-jacket": { slug: "outer_cream_bolero", sideOutfitIdx: 14, isClosed: false },
 };
 
-const MOD_SHOE_SLUG: Record<string, string> = {
+export const MOD_SHOE_SLUG: Record<string, string> = {
   "prod-ae-noir-slingbacks": "shoe_noir_slingbacks",
   "prod-ae-gold-strappy-heels": "shoe_gold_heels",
   "prod-ae-meotina-leather-boots": "shoe_meotina_boots",
@@ -66,7 +66,7 @@ const MOD_SHOE_SLUG: Record<string, string> = {
   "prod-ae-silver-crystal-heels": "shoe_silver_heels",
 };
 
-const MOD_BAG_SLUG: Record<string, string> = {
+export const MOD_BAG_SLUG: Record<string, string> = {
   "prod-ae-burgundy-crescent-bag": "bag_merlot_crescent",
   "prod-ae-camel-turnlock-tote": "bag_camel_tote",
   "prod-ae-noir-quilted-bag": "bag_noir_quilted",
@@ -74,7 +74,7 @@ const MOD_BAG_SLUG: Record<string, string> = {
   "prod-ae-silver-metallic-shoulder-bag": "bag_silver_metallic",
 };
 
-const MOD_BELT_SLUG: Record<string, string> = {
+export const MOD_BELT_SLUG: Record<string, string> = {
   "prod-ae-gold-sculpted-belt": "belt_gold_calfskin",
 };
 
@@ -124,11 +124,15 @@ export function getCachedOrLoadImage(
   return null;
 }
 
-function modUrl(name: string): string {
+export function modLayerUrl(name: string): string {
   return `${BASE}/models/modular/${name}.webp?v=${LAYER_VER}`;
 }
 
-function resolveSideOutfitFallbackIndex(products: Product[]): number {
+function modUrl(name: string): string {
+  return modLayerUrl(name);
+}
+
+export function resolveSideOutfitFallbackIndex(products: Product[]): number {
   for (const p of products) {
     if (p.id in MOD_OUTER_SLUG) return MOD_OUTER_SLUG[p.id].sideOutfitIdx;
   }
