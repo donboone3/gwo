@@ -5,7 +5,7 @@ import {
 } from "./avatar-ready-pipeline";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const LAYER_VER = "mod14";
+export const LAYER_VER = "mod15";
 
 export type AvatarViewAngle = "front" | "side" | "back";
 
@@ -18,6 +18,10 @@ export const MOD_TOP_SLUG: Record<
   "prod-ae-blush-ruched-offshoulder": { slug: "top_blush_ruched", overWaist: true },
   "prod-ae-noir-halter-vest": { slug: "top_noir_vest", overWaist: true },
   "prod-ae-butter-silk-cami": { slug: "top_butter_cami", overWaist: false },
+  "prod-ae-ivory-pearl-corset": { slug: "top_ivory_corset", overWaist: true },
+  "prod-ae-noir-satin-corset": { slug: "top_noir_corset", overWaist: true },
+  "prod-ae-emerald-silk-cami": { slug: "top_emerald_cami", overWaist: false },
+  "prod-ae-camel-tailored-vest": { slug: "top_camel_vest", overWaist: true },
 };
 
 export const MOD_BOT_SLUG: Record<
@@ -31,6 +35,10 @@ export const MOD_BOT_SLUG: Record<
   "prod-ae-ivory-satin-bias-midi": { slug: "bot_ivory_satin_midi", coversShins: false },
   "prod-ae-espresso-tailored-shorts": { slug: "bot_espresso_shorts", coversShins: false },
   "prod-ae-charcoal-pinstripe-trousers": { slug: "bot_charcoal_pinstripe", coversShins: true },
+  "prod-ae-obsidian-wide-trousers": { slug: "bot_obsidian_trousers", coversShins: true },
+  "prod-ae-olive-pleated-trousers": { slug: "bot_olive_trousers", coversShins: true },
+  "prod-ae-burgundy-pleated-mini": { slug: "bot_burgundy_mini", coversShins: false },
+  "prod-ae-chocolate-satin-midi": { slug: "bot_chocolate_satin_midi", coversShins: false },
 };
 
 export const MOD_DRESS_SLUG: Record<
@@ -42,6 +50,10 @@ export const MOD_DRESS_SLUG: Record<
   "prod-ae-crimson-corset-mini": { slug: "dress_crimson_mini", sideOutfitIdx: 6 },
   "prod-ae-cobalt-draped-mini": { slug: "dress_cobalt_mini", sideOutfitIdx: 12 },
   "prod-ae-butter-lace-slip-midi": { slug: "dress_butter_lace", sideOutfitIdx: 14 },
+  "prod-ae-sapphire-satin-midi": { slug: "dress_sapphire_midi", sideOutfitIdx: 2 },
+  "prod-ae-onyx-satin-midi": { slug: "dress_onyx_midi", sideOutfitIdx: 2 },
+  "prod-ae-rosewood-corset-mini": { slug: "dress_rosewood_mini", sideOutfitIdx: 6 },
+  "prod-ae-noir-tuxedo-blazer-dress": { slug: "dress_noir_blazer", sideOutfitIdx: 3 },
 };
 
 export const MOD_OUTER_SLUG: Record<
@@ -55,6 +67,9 @@ export const MOD_OUTER_SLUG: Record<
   "prod-ae-sage-zip-jacket": { slug: "outer_sage_jacket", sideOutfitIdx: 8, isClosed: true },
   "prod-ae-burgundy-leather-trench": { slug: "outer_burgundy_trench", sideOutfitIdx: 13, isClosed: false },
   "prod-ae-cream-cropped-fur-jacket": { slug: "outer_cream_bolero", sideOutfitIdx: 14, isClosed: false },
+  "prod-ae-emerald-tweed-blazer": { slug: "outer_emerald_blazer", sideOutfitIdx: 1, isClosed: false },
+  "prod-ae-espresso-tailored-blazer": { slug: "outer_espresso_blazer", sideOutfitIdx: 7, isClosed: false },
+  "prod-ae-charcoal-wool-coat": { slug: "outer_charcoal_coat", sideOutfitIdx: 4, isClosed: false },
 };
 
 export const MOD_SHOE_SLUG: Record<string, string> = {
@@ -64,6 +79,7 @@ export const MOD_SHOE_SLUG: Record<string, string> = {
   "prod-ae-cloud-platform-sneakers": "shoe_white_sneakers",
   "prod-ae-burgundy-patent-heels": "shoe_burgundy_heels",
   "prod-ae-silver-crystal-heels": "shoe_silver_heels",
+  "prod-ae-ivory-patent-slingbacks": "shoe_ivory_slingbacks",
 };
 
 export const MOD_BAG_SLUG: Record<string, string> = {
@@ -72,10 +88,12 @@ export const MOD_BAG_SLUG: Record<string, string> = {
   "prod-ae-noir-quilted-bag": "bag_noir_quilted",
   "prod-ae-ivory-mini-bag": "bag_ivory_mini",
   "prod-ae-silver-metallic-shoulder-bag": "bag_silver_metallic",
+  "prod-ae-espresso-suede-crescent-bag": "bag_espresso_crescent",
 };
 
 export const MOD_BELT_SLUG: Record<string, string> = {
   "prod-ae-gold-sculpted-belt": "belt_gold_calfskin",
+  "prod-ae-silver-sculpted-belt": "belt_silver_calfskin",
 };
 
 export const ALL_CERTIFIED_MODULAR_SKU_IDS = new Set<string>([

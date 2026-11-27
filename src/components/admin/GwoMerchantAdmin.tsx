@@ -38,6 +38,8 @@ import {
   MASTER_REALISM_SPEC_VERSION,
   auditMasterCatalogRealism,
 } from "@/lib/realism/master-avatar-clothing-realism";
+import { evaluateCreditSmart360Plan } from "@/lib/higgsfield/credit-smart-360-pipeline";
+import { CURATED_100_OUTFIT_DESIGNS } from "@/lib/stylist/curated-100-outfits";
 import { GarmentCategory, Product } from "@/lib/types";
 
 const MARKUP_TIERS = [
@@ -114,6 +116,16 @@ export function GwoMerchantAdmin() {
         shoeSize: activeAvatar.shoeSize,
       }),
     [activeAvatar, products]
+  );
+
+  const creditSmartPlan = useMemo(
+    () =>
+      evaluateCreditSmart360Plan({
+        products,
+        curatedOutfitsCount: CURATED_100_OUTFIT_DESIGNS.length,
+        projectedShoppersCount: 100,
+      }),
+    [products]
   );
 
   const handleImportAliExpressUrl = async () => {
@@ -257,6 +269,57 @@ export function GwoMerchantAdmin() {
               {masterRealismAudit.certifiedCount}/{masterRealismAudit.totalItems}{" "}
               SKUs • {masterRealismAudit.averageRealismPct}% Certified
             </span>
+          </div>
+        </section>
+
+        {/* Higgsfield Credit-Smart 360° Architecture & Cost-Protection Telemetry */}
+        <section
+          id="gwo-admin-higgsfield-credit-smart"
+          className="rounded-3xl bg-white border border-black/[0.08] p-4 sm:p-5 space-y-3.5"
+        >
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#141518] text-white text-[11px] font-bold">
+                  <Rotate3d className="w-3.5 h-3.5 text-[#A7D7C5]" /> Higgsfield Credit-Smart 360° Engine
+                </span>
+                <span className="text-[11px] font-semibold text-[#244B3B]">
+                  {creditSmartPlan.totalCuratedOutfits} Curated Outfits • {creditSmartPlan.tier0ZeroCostSkus}/{creditSmartPlan.totalCatalogSkus} SKUs at $0.00 Runtime Spend
+                </span>
+              </div>
+              <p className="text-xs text-[#5C6068]">
+                Replaces naive per-outfit/per-scan cloud video rendering (${creditSmartPlan.naive100ShoppersUsd.toLocaleString()} per 100 shoppers) with real-time WebGL 360° 3D meshes, CIE-LAB colorway synthesis, and SHA-256 caching — saving {creditSmartPlan.savingsPct}% of Higgsfield credits while enforcing the ${creditSmartPlan.monthlyCapUsd}/mo cap.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold shrink-0">
+              <span className="px-3 py-1.5 rounded-full bg-[#E7F3EE] text-[#1D4232] border border-[#C5DFD0]">
+                Runtime 360° Cost: ${creditSmartPlan.creditSmartRuntime100ShoppersUsd.toFixed(2)} ({creditSmartPlan.savingsPct}% Saved)
+              </span>
+              <span className="px-3 py-1.5 rounded-full bg-[#FEF6E6] text-[#8A5808] border border-[#F4DFB4]">
+                Cap Capacity: {creditSmartPlan.maxNewExternalSilhouettesPerMonth} New URLs/mo
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {creditSmartPlan.tiers.map((tier) => (
+              <div
+                key={tier.id}
+                className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-1"
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[11px] font-bold text-[#141518] truncate">
+                    {tier.label}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-white border border-black/[0.08] text-[10px] font-extrabold text-[#244B3B] shrink-0">
+                    ${tier.marginalCreditCostUsd.toFixed(2)}
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-[#686D76] leading-snug">
+                  {tier.mechanism}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 

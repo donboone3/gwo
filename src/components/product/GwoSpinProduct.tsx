@@ -319,9 +319,17 @@ export function GwoSpinProduct() {
               <h1 className="text-lg sm:text-xl font-bold text-[#141518] mt-2 leading-snug">
                 {activeProduct.title}
               </h1>
-              <p className="text-base sm:text-lg font-bold text-[#141518] mt-0.5">
-                ${activeProduct.price}
-              </p>
+              <div className="flex items-center justify-between gap-2 mt-0.5">
+                <p className="text-base sm:text-lg font-bold text-[#141518]">
+                  ${activeProduct.price}
+                </p>
+                <Link
+                  href={`/product/${encodeURIComponent(activeProduct.id)}`}
+                  className="px-3 py-1 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[11px] font-bold inline-flex items-center gap-1"
+                >
+                  Open Dedicated Product Page →
+                </Link>
+              </div>
             </div>
 
             {/* Visual Outfit & Store Piece Picker */}
@@ -334,7 +342,7 @@ export function GwoSpinProduct() {
               </label>
 
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                {STUDIO_LOOKS.map((lk) => {
+                {STUDIO_LOOKS.slice(0, 20).map((lk) => {
                   const key = `closet-look:${lk.index}`;
                   const active = selectedPickerVal === key;
                   return (
@@ -352,6 +360,7 @@ export function GwoSpinProduct() {
                       <img
                         src={H(lk.file, 260)}
                         alt={lk.name}
+                        loading="lazy"
                         className="w-full h-full object-contain object-bottom"
                       />
                     </button>
@@ -365,14 +374,14 @@ export function GwoSpinProduct() {
                 onChange={(e) => selectOutfitOrProduct(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs font-semibold text-[#141518] focus:outline-none focus:border-[#141518]"
               >
-                <optgroup label="Full Boutique Outfits (3D Body Try-On)">
+                <optgroup label={`Full Boutique Outfits (${STUDIO_LOOKS.length} 3D Designs)`}>
                   {STUDIO_LOOKS.map((lk) => (
                     <option key={lk.index} value={`closet-look:${lk.index}`}>
-                      Outfit #{lk.index + 1}: {lk.name}
+                      Outfit #{String(lk.index + 1).padStart(3, "0")}: {lk.name}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Individual Store Pieces (23 SKUs)">
+                <optgroup label={`Individual Store Pieces (${fullCatalog.length} SKUs)`}>
                   {fullCatalog.map((prod) => (
                     <option key={prod.id} value={prod.id}>
                       {prod.brand} — {prod.title} (${prod.price})

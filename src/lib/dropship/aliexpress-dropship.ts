@@ -1262,7 +1262,834 @@ const RAW_TOP_LINE_SUPPLIER_SEEDS: RawSupplierSeed[] = [
     stretchLevel: "rigid",
     cutType: "regular",
   },
+  // ===================== 18 EXPANDED 360° BOUTIQUE ATELIER SKUS (54 TOTAL) =====================
+  {
+    id: "prod-ae-ivory-pearl-corset",
+    aliexpressItemId: "1005015100182901",
+    supplierName: "CHICVEN Atelier Gold Store",
+    brandLabel: "GWO × Atelier",
+    title: "Pearl-Ivory Boned Duchesse Satin Basque Corset Top",
+    category: "top",
+    silhouette: "crop-tank",
+    colorName: "Pearl Ivory",
+    colorHex: "#EFE9DF",
+    accentHex: "#C9A86A",
+    wholesaleCostUsd: 18.2,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 2890,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_ivory_pearl_corset.webp`,
+    occasions: ["Date Night", "Bridal / Engagement", "Cocktail", "Brunch"],
+    vibes: ["Coquette Romantic", "Siren Glam", "Old Money Tailored"],
+    descriptionSummary:
+      "Luminous pearl-ivory heavy duchesse satin basque corset structured with 10 internal spiral steel-style bones and an adjustable lace-tie back.",
+    fitNotes: [
+      "Calibrated CN→US Sizing: US S = CN Tag M (sculpted basque waist)",
+      "Adjustable back lacing offers ±1.4\" custom ribcage contouring",
+    ],
+    fabricComposition: "94% Heavy Duchesse Satin Polyester, 6% Elastane • Cotton Twill Lining",
+    stretchLevel: "low",
+    cutType: "body-hugging",
+    hemLanding: "natural-waist",
+    hasAdjustableBack: true,
+  },
+  {
+    id: "prod-ae-noir-satin-corset",
+    aliexpressItemId: "1005015100182902",
+    supplierName: "CHICVEN Atelier Gold Store",
+    brandLabel: "GWO × Atelier",
+    title: "Obsidian Noir Boned Satin Basque Bustier Corset Top",
+    category: "top",
+    silhouette: "crop-tank",
+    colorName: "Obsidian Noir",
+    colorHex: "#1D1E22",
+    accentHex: "#D4B475",
+    wholesaleCostUsd: 18.0,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 4120,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_noir_satin_corset.webp`,
+    occasions: ["Date Night", "Party", "Going Out", "Cocktail"],
+    vibes: ["Siren Glam", "Model Off-Duty", "Streetwear Luxe"],
+    descriptionSummary:
+      "Jet-noir architectural boned satin bustier corset with a dipped basque V-hem that elongates the torso over tailored trousers or denim.",
+    fitNotes: [
+      "True sculpted bustier fit after CN→US one-size-up calibration",
+      "Internal non-slip silicone neckline tape + back zipper & lacing",
+    ],
+    fabricComposition: "95% Matte-Luster Satin, 5% Spandex • Structured Boning",
+    stretchLevel: "low",
+    cutType: "body-hugging",
+    hemLanding: "natural-waist",
+    hasAdjustableBack: true,
+  },
+  {
+    id: "prod-ae-emerald-silk-cami",
+    aliexpressItemId: "1005015100182903",
+    supplierName: "LILYSILK Inspired Boutique",
+    brandLabel: "GWO × Couture",
+    title: "Emerald Bias-Cut Mulberry Silk-Satin Cowl Camisole",
+    category: "top",
+    silhouette: "crop-tank",
+    colorName: "Deep Emerald",
+    colorHex: "#1B5240",
+    accentHex: "#D4B475",
+    wholesaleCostUsd: 15.8,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 2340,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_emerald_silk_cami.webp`,
+    occasions: ["Date Night", "Work / Chic", "Dinner", "Cocktail"],
+    vibes: ["Old Money Tailored", "Siren Glam"],
+    descriptionSummary:
+      "Fluid emerald-green 22-momme silk-blend camisole cut on a 45° bias so it skims the bust and tucks seamlessly into high-waisted trousers.",
+    fitNotes: [
+      "Bias cut drapes with +1.2\" natural fluid ease across bust & waist",
+      "Adjustable roulette shoulder sliders customize neckline depth",
+    ],
+    fabricComposition: "72% Acetate Mulberry-Silk Blend, 28% Viscose",
+    stretchLevel: "medium",
+    cutType: "regular",
+    hemLanding: "hip",
+  },
+  {
+    id: "prod-ae-camel-tailored-vest",
+    aliexpressItemId: "1005015100182904",
+    supplierName: "TRAF Za-Studio Flagship",
+    brandLabel: "GWO × Tailoring",
+    title: "Warm Camel Savile-Weave Buttoned Halter Suiting Vest",
+    category: "top",
+    silhouette: "crop-tank",
+    colorName: "Warm Camel",
+    colorHex: "#B99976",
+    accentHex: "#181615",
+    wholesaleCostUsd: 16.9,
+    shippingCostUsd: 0,
+    supplierRating: 4.8,
+    ordersCount: 2180,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_camel_tailored_vest.webp`,
+    occasions: ["Work / Chic", "Brunch", "City / Off-Duty"],
+    vibes: ["Old Money Tailored", "Model Off-Duty"],
+    descriptionSummary:
+      "Tailored warm-camel halter waistcoat with horn-tone buttons, princess darting, and a rear cinch buckle for razor-sharp waist definition.",
+    fitNotes: [
+      "Back cinch tab adjusts waist fit by up to 1.5\"",
+      "Hits right at high-rise trouser waistband without bunching",
+    ],
+    fabricComposition: "78% Tailored Suiting Viscose-Poly, 19% Rayon, 3% Elastane",
+    stretchLevel: "low",
+    cutType: "fitted",
+    hemLanding: "natural-waist",
+    hasAdjustableBack: true,
+  },
+  {
+    id: "prod-ae-obsidian-wide-trousers",
+    aliexpressItemId: "1005015100182905",
+    supplierName: "TRAF Za-Studio Flagship",
+    brandLabel: "GWO × Tailoring",
+    title: "Obsidian Noir High-Waist Double-Pleat Fluid Wide Trousers",
+    category: "bottom",
+    silhouette: "cargo-pants",
+    colorName: "Obsidian Noir",
+    colorHex: "#1E2024",
+    accentHex: "#FAF8F5",
+    wholesaleCostUsd: 19.4,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 5190,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_obsidian_wide_trousers.webp`,
+    occasions: ["Work / Chic", "Date Night", "City / Off-Duty", "Dinner"],
+    vibes: ["Old Money Tailored", "Model Off-Duty", "Siren Glam"],
+    descriptionSummary:
+      "Floor-skimming obsidian noir double-pleated suiting trousers engineered with a contoured high-rise waistband and leg-lengthening drape.",
+    fitNotes: [
+      "11.5\" high rise cinches the natural waist while relaxed pleats skim 38\"–41\" hips",
+      "30.5\" calibrated inseam drapes cleanly over 2.5\"–3.5\" heels on 5'3\"–5'6\" frames",
+    ],
+    fabricComposition: "80% Fluid Suiting Tencel-Poly, 16% Viscose, 4% Spandex",
+    stretchLevel: "low",
+    cutType: "regular",
+    hemLanding: "full-length",
+  },
+  {
+    id: "prod-ae-olive-pleated-trousers",
+    aliexpressItemId: "1005015100182906",
+    supplierName: "TRAF Za-Studio Flagship",
+    brandLabel: "GWO × Tailoring",
+    title: "Atelier Olive High-Rise Tailored Pleated Wide-Leg Trousers",
+    category: "bottom",
+    silhouette: "cargo-pants",
+    colorName: "Atelier Olive",
+    colorHex: "#4B5343",
+    accentHex: "#EFE9DF",
+    wholesaleCostUsd: 19.2,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 2470,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_olive_pleated_trousers.webp`,
+    occasions: ["Work / Chic", "Brunch", "City / Off-Duty"],
+    vibes: ["Old Money Tailored", "Model Off-Duty"],
+    descriptionSummary:
+      "Muted botanical-olive tailored wide-leg trousers with pressed front knife pleats, deep slant pockets, and breathable drape.",
+    fitNotes: [
+      "Tailored waistband with hidden interior anchor button",
+      "Generous hip & thigh ease prevents pulling when seated",
+    ],
+    fabricComposition: "78% Lyocell-Blend Suiting Twill, 19% Rayon, 3% Elastane",
+    stretchLevel: "low",
+    cutType: "regular",
+    hemLanding: "full-length",
+  },
+  {
+    id: "prod-ae-burgundy-pleated-mini",
+    aliexpressItemId: "1005015100182907",
+    supplierName: "CHICVEN Atelier Gold Store",
+    brandLabel: "GWO × Atelier",
+    title: "Deep Merlot Belted Knife-Pleat Built-In-Shorts Mini Skirt",
+    category: "bottom",
+    silhouette: "mini-skirt",
+    colorName: "Deep Merlot",
+    colorHex: "#581F29",
+    accentHex: "#D4B475",
+    wholesaleCostUsd: 15.4,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 3110,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_burgundy_pleated_mini.webp`,
+    occasions: ["Brunch", "Date Night", "Party", "City / Off-Duty"],
+    vibes: ["Coquette Romantic", "Old Money Tailored", "Model Off-Duty"],
+    descriptionSummary:
+      "Rich merlot-burgundy crisp knife-pleat tailored mini skirt complete with matching tonal belt and concealed stretch safety shorts.",
+    fitNotes: [
+      "Sits at mid-to-high waist; A-line pleats flare effortlessly over hips",
+      "14.8\"–15.6\" petite-proportioned length with built-in lining shorts",
+    ],
+    fabricComposition: "82% Structured Suiting Twill, 14% Rayon, 4% Spandex",
+    stretchLevel: "low",
+    cutType: "fitted",
+    hemLanding: "mini",
+  },
+  {
+    id: "prod-ae-chocolate-satin-midi",
+    aliexpressItemId: "1005015100182908",
+    supplierName: "LILYSILK Inspired Boutique",
+    brandLabel: "GWO × Couture",
+    title: "Espresso-Chocolate Bias-Cut Liquid Satin Midi Skirt",
+    category: "bottom",
+    silhouette: "mini-skirt",
+    colorName: "Espresso Chocolate",
+    colorHex: "#432D27",
+    accentHex: "#EFE9DF",
+    wholesaleCostUsd: 16.8,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 2980,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_chocolate_satin_midi.webp`,
+    occasions: ["Date Night", "Cocktail", "Work / Chic", "Brunch"],
+    vibes: ["Siren Glam", "Old Money Tailored"],
+    descriptionSummary:
+      "Rich espresso-chocolate heavy liquid-satin midi skirt cut on the true bias with an invisible French-seamed elastic waist.",
+    fitNotes: [
+      "45° bias drape molds softly to curves without clinging",
+      "Hits mid-calf (31.5\" length) for an elongated silhouette",
+    ],
+    fabricComposition: "96% Heavy Acetate-Finish Satin, 4% Elastane",
+    stretchLevel: "medium",
+    cutType: "regular",
+    hemLanding: "midi",
+  },
+  {
+    id: "prod-ae-sapphire-satin-midi",
+    aliexpressItemId: "1005015100182909",
+    supplierName: "HOUSE OF SIREN Official Store",
+    brandLabel: "GWO × Couture",
+    title: "Midnight-Sapphire Bias-Cut Cowl-Neck Silk-Satin Midi Dress",
+    category: "dress",
+    silhouette: "slip-dress",
+    colorName: "Midnight Sapphire",
+    colorHex: "#1A3359",
+    accentHex: "#D4B475",
+    wholesaleCostUsd: 21.8,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 3640,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_sapphire_satin_midi.webp`,
+    occasions: ["Cocktail / Gala", "Wedding Guest", "Date Night"],
+    vibes: ["Siren Glam", "Old Money Tailored"],
+    descriptionSummary:
+      "Jewel-toned midnight-sapphire bias-cut satin midi slip gown featuring a draped cowl neckline and adjustable criss-cross open back.",
+    fitNotes: [
+      "Cross-back roulette ties adjust bust & waist tension by ±1.5\"",
+      "Double-lined bust panel enables confident braless wear",
+    ],
+    fabricComposition: "95% Heavy Mulberry-Finish Silk Satin, 5% Elastane",
+    stretchLevel: "medium",
+    cutType: "fitted",
+    hemLanding: "midi",
+    hasAdjustableBack: true,
+  },
+  {
+    id: "prod-ae-onyx-satin-midi",
+    aliexpressItemId: "1005015100182910",
+    supplierName: "HOUSE OF SIREN Official Store",
+    brandLabel: "GWO × Couture",
+    title: "Onyx Noir Bias-Cut Cowl-Neck Liquid-Satin Midi Slip Gown",
+    category: "dress",
+    silhouette: "slip-dress",
+    colorName: "Onyx Noir",
+    colorHex: "#1B1C20",
+    accentHex: "#D4B475",
+    wholesaleCostUsd: 21.5,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 4890,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_onyx_satin_midi.webp`,
+    occasions: ["Cocktail / Gala", "Date Night", "Evening", "Party"],
+    vibes: ["Siren Glam", "Model Off-Duty"],
+    descriptionSummary:
+      "Timeless onyx-noir liquid-satin midi dress cut on a 45° bias with a fluid cowl drape and sleek column fall.",
+    fitNotes: [
+      "True bias cut skims hips gracefully while contouring waist",
+      "Adjustable straps customize midi hem landing from mid-calf to ankle",
+    ],
+    fabricComposition: "95% Liquid Acetate Satin, 5% Elastane",
+    stretchLevel: "medium",
+    cutType: "fitted",
+    hemLanding: "midi",
+    hasAdjustableBack: true,
+  },
+  {
+    id: "prod-ae-rosewood-corset-mini",
+    aliexpressItemId: "1005015100182911",
+    supplierName: "HOUSE OF SIREN Official Store",
+    brandLabel: "GWO × Couture",
+    title: "Rosewood-Blush Boned Corset Draped-Skirt Cocktail Mini Dress",
+    category: "dress",
+    silhouette: "mini-dress",
+    colorName: "Rosewood Blush",
+    colorHex: "#B97D84",
+    accentHex: "#EFE9DF",
+    wholesaleCostUsd: 23.2,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 2760,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_rosewood_corset_mini.webp`,
+    occasions: ["Birthday / Glam", "Date Night", "Party", "Wedding Guest"],
+    vibes: ["Coquette Romantic", "Siren Glam"],
+    descriptionSummary:
+      "Romantic rosewood-blush corset mini dress combining an internally boned bodice with asymmetric sarong-style hip draping.",
+    fitNotes: [
+      "Structured bodice supports bust; ruched skirt forgives across lower hip",
+      "32.5\" petite-friendly mini length hits mid-thigh on 5'2\"–5'6\" frames",
+    ],
+    fabricComposition: "92% Stretch Crepe-Satin, 8% Elastane • Full Stretch Lining",
+    stretchLevel: "medium",
+    cutType: "body-hugging",
+    hemLanding: "mini",
+    hasAdjustableBack: true,
+  },
+  {
+    id: "prod-ae-noir-tuxedo-blazer-dress",
+    aliexpressItemId: "1005015100182912",
+    supplierName: "CHICVEN Atelier Gold Store",
+    brandLabel: "GWO × Couture",
+    title: "Noir Satin-Lapel Boned Corset Tuxedo Blazer Mini Dress",
+    category: "dress",
+    silhouette: "mini-dress",
+    colorName: "Jet Noir",
+    colorHex: "#1E1F24",
+    accentHex: "#D4B475",
+    wholesaleCostUsd: 26.8,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 3120,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_noir_tuxedo_blazer_dress.webp`,
+    occasions: ["Party / Night Out", "Cocktail", "Birthday / Glam", "Date Night"],
+    vibes: ["Siren Glam", "Old Money Tailored"],
+    descriptionSummary:
+      "Haute-tailored jet-noir tuxedo blazer mini dress sculpted with peak satin lapels and built-in waist boning.",
+    fitNotes: [
+      "Structured shoulder pads balance waist-cinching corset darts",
+      "Concealed interior anchor button keeps wrap front secure",
+    ],
+    fabricComposition: "84% Heavy Tuxedo Suiting Crepe, 12% Satin Lapel, 4% Spandex",
+    stretchLevel: "low",
+    cutType: "fitted",
+    hemLanding: "mini",
+  },
+  {
+    id: "prod-ae-emerald-tweed-blazer",
+    aliexpressItemId: "1005015100182913",
+    supplierName: "TRAF Za-Studio Flagship",
+    brandLabel: "GWO × Tailoring",
+    title: "Botanical-Emerald Bouclé Tweed 18k Gold-Button Cropped Blazer",
+    category: "outerwear",
+    silhouette: "cropped-jacket",
+    colorName: "Botanical Emerald",
+    colorHex: "#21493B",
+    accentHex: "#D4B475",
+    wholesaleCostUsd: 25.4,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 2290,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_emerald_tweed_blazer.webp`,
+    occasions: ["Work / Chic", "Brunch", "Date Night", "Holiday"],
+    vibes: ["Old Money Tailored", "Coquette Romantic"],
+    descriptionSummary:
+      "Rich emerald French-bouclé cropped jacket finished with embossed 18k gold-tone crest buttons and full satin lining.",
+    fitNotes: [
+      "19.5\" cropped hem hits right at natural waist to elongate legs",
+      "Tailored shoulder with comfortable sleeve room over tanks & camis",
+    ],
+    fabricComposition: "68% Textured Bouclé Cotton-Poly, 32% Viscose • Satin Lining",
+    stretchLevel: "rigid",
+    cutType: "fitted",
+    hemLanding: "natural-waist",
+  },
+  {
+    id: "prod-ae-espresso-tailored-blazer",
+    aliexpressItemId: "1005015100182914",
+    supplierName: "TRAF Za-Studio Flagship",
+    brandLabel: "GWO × Tailoring",
+    title: "Espresso Roast Oversized Single-Breasted Tailored Boyfriend Blazer",
+    category: "outerwear",
+    silhouette: "cropped-jacket",
+    colorName: "Espresso Roast",
+    colorHex: "#422E28",
+    accentHex: "#D9CEBE",
+    wholesaleCostUsd: 26.0,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 3580,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_espresso_tailored_blazer.webp`,
+    occasions: ["City / Off-Duty", "Work / Chic", "Date Night"],
+    vibes: ["Model Off-Duty", "Old Money Tailored", "Streetwear Luxe"],
+    descriptionSummary:
+      "Relaxed menswear-inspired espresso suiting blazer with architectural shoulder framing and effortless drape over corsets or denim.",
+    fitNotes: [
+      "Intentional +4.5\" oversized chest ease; take normal US size for runway slouch",
+      "28.5\" length covers hip cleanly over mini skirts, shorts, or wide denim",
+    ],
+    fabricComposition: "76% Worsted-Hand Suiting Poly-Viscose, 20% Rayon, 4% Spandex",
+    stretchLevel: "low",
+    cutType: "oversized",
+    hemLanding: "hip",
+  },
+  {
+    id: "prod-ae-charcoal-wool-coat",
+    aliexpressItemId: "1005015100182915",
+    supplierName: "CHICVEN Double-Faced Wool Atelier",
+    brandLabel: "GWO × Tailoring",
+    title: "Slate-Charcoal Double-Faced Merino-Blend Belted Maxi Coat",
+    category: "outerwear",
+    silhouette: "cropped-jacket",
+    colorName: "Slate Charcoal",
+    colorHex: "#33363B",
+    accentHex: "#EFE9DF",
+    wholesaleCostUsd: 34.5,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 1980,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 7,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_charcoal_wool_coat.webp`,
+    occasions: ["Work / Chic", "City / Off-Duty", "Winter Luxe", "Dinner"],
+    vibes: ["Old Money Tailored", "Model Off-Duty"],
+    descriptionSummary:
+      "Hand-finished slate-charcoal double-faced wool-blend wrap coat with wide notch lapels and removable self-tie waist belt.",
+    fitNotes: [
+      "Relaxed wrap cut layers effortlessly over blazers and knitwear",
+      "44.5\" midi-maxi length proportioned so 5'2\"–5'7\" frames never drag",
+    ],
+    fabricComposition: "55% Australian Merino Wool, 45% Mulberry-Blend Polyester",
+    stretchLevel: "rigid",
+    cutType: "oversized",
+    hemLanding: "midi",
+  },
+  {
+    id: "prod-ae-ivory-patent-slingbacks",
+    aliexpressItemId: "1005015100182916",
+    supplierName: "EILYKEN Footwear Couture",
+    brandLabel: "GWO × Couture",
+    title: "Pearl-Ivory Patent Pointed-Toe Gold-Buckle Kitten Slingbacks",
+    category: "shoes",
+    silhouette: "ballet-flats",
+    colorName: "Pearl Ivory",
+    colorHex: "#EFEAE1",
+    accentHex: "#D4B475",
+    wholesaleCostUsd: 19.8,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 3310,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 6,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_ivory_patent_slingbacks.webp`,
+    occasions: ["Work / Chic", "Brunch", "Bridal / Engagement", "Date Night"],
+    vibes: ["Old Money Tailored", "Coquette Romantic"],
+    descriptionSummary:
+      "Sleek pearl-ivory patent leather pointed-toe slingback kitten heels accented with a sculpted 18k gold buckle and memory-foam insole.",
+    fitNotes: [
+      "Calibrated US/EU footbed chart (US 6 = 9.05\" .. US 9 = 10.04\")",
+      "2.6\" sculpted kitten heel gives all-day walkable elevation",
+    ],
+    fabricComposition: "Patent Calf-Grain Microfiber • Latex Cushioned Footbed",
+    stretchLevel: "low",
+    cutType: "fitted",
+  },
+  {
+    id: "prod-ae-espresso-suede-crescent-bag",
+    aliexpressItemId: "1005015100182917",
+    supplierName: "MORMOR Leather Goods Gold",
+    brandLabel: "GWO × Atelier",
+    title: "Dark-Espresso Smooth Calfskin Gold-Clasp Crescent Shoulder Bag",
+    category: "accessory",
+    silhouette: "shoulder-bag",
+    colorName: "Dark Espresso",
+    colorHex: "#3B2822",
+    accentHex: "#D4B475",
+    wholesaleCostUsd: 16.5,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 4050,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 5,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_espresso_suede_crescent_bag.webp`,
+    occasions: ["City / Off-Duty", "Work / Chic", "Date Night", "Brunch"],
+    vibes: ["Old Money Tailored", "Model Off-Duty", "Siren Glam"],
+    descriptionSummary:
+      "Sculptural dark-espresso calfskin crescent shoulder bag with brushed 18k gold magnetic clasp and ergonomic underarm strap.",
+    fitNotes: [
+      "9.8\"W × 6.5\"H × 2.8\"D body with 9.4\" contoured shoulder drop",
+      "Fits iPhone Pro Max, cardholder, keys, and lip gloss",
+    ],
+    fabricComposition: "Top-Grain Split Calfskin • Microsuede Lining",
+    stretchLevel: "rigid",
+    cutType: "regular",
+  },
+  {
+    id: "prod-ae-silver-sculpted-belt",
+    aliexpressItemId: "1005015100182918",
+    supplierName: "MORMOR Leather Goods Gold",
+    brandLabel: "GWO × Tailoring",
+    title: "Palladium-Silver Sculpted Buckle Smooth Calfskin Waist Belt",
+    category: "accessory",
+    silhouette: "shoulder-bag",
+    colorName: "Palladium Silver",
+    colorHex: "#C8CDD4",
+    accentHex: "#18181B",
+    wholesaleCostUsd: 11.8,
+    shippingCostUsd: 0,
+    supplierRating: 4.9,
+    ordersCount: 2870,
+    qualityTier: "Top 1% Gold Boutique",
+    estDeliveryDays: 5,
+    imageFile: `${ASSET_BASE}/models/dropship/ds_silver_sculpted_belt.webp`,
+    occasions: ["City / Off-Duty", "Work / Chic", "Party"],
+    vibes: ["Model Off-Duty", "Streetwear Luxe", "Siren Glam"],
+    descriptionSummary:
+      "Full-grain calfskin waist & hip belt finished with a sculptural palladium-silver hardware buckle and 7 precision punch holes.",
+    fitNotes: [
+      "7-hole range spans 24.0\"–33.5\" waists (S/M & M/L calibrated)",
+      "1.1\" strap width slides cleanly through denim & tailored trouser loops",
+    ],
+    fabricComposition: "100% Full-Grain Split Cowhide • Solid Alloy Buckle",
+    stretchLevel: "rigid",
+    cutType: "fitted",
+  },
 ];
+
+/**
+ * Generates silhouette-, cut-, and stretch-calibrated physical garment measurements
+ * across EVERY size for 100% of products (Apparel XS..XL, Footwear 6..9, Belts, and Bags)
+ * so GWO can acutely predict fit & proportion from customer 3D body scans!
+ */
+function buildExactGarmentMeasurementsForSeed(seed: RawSupplierSeed): {
+  availableSizes: string[];
+  sizeChartInches: Record<string, SizeMeasurementSpec>;
+  garmentLengthBySizeInches?: Record<string, number>;
+  shoulderWidthBySizeInches?: Record<string, number>;
+  inseamInches?: number;
+  riseInches?: number;
+  heelHeightInches?: number;
+  strapDropInches?: number;
+  stretchMaxPct: number;
+  fabricWeightGsm: number;
+} {
+  const stretchMaxPct =
+    seed.stretchLevel === "high"
+      ? 18
+      : seed.stretchLevel === "medium"
+      ? 9
+      : seed.stretchLevel === "low"
+      ? 4
+      : 1;
+
+  if (seed.category === "shoes") {
+    const isBoot = /boot/i.test(seed.title);
+    const isSneaker = seed.silhouette === "sneakers";
+    const isStiletto = /stiletto|strappy/i.test(seed.title);
+    const heelIn = isSneaker ? 1.8 : isStiletto ? 3.7 : isBoot ? 2.9 : 2.6;
+    const shoeSizes = ["6", "6.5", "7", "7.5", "8", "8.5", "9"];
+    const footMap: Record<string, number> = {
+      "6": 9.05,
+      "6.5": 9.25,
+      "7": 9.45,
+      "7.5": 9.61,
+      "8": 9.8,
+      "8.5": 9.96,
+      "9": 10.12,
+    };
+    const chart: Record<string, SizeMeasurementSpec> = {};
+    for (const sz of shoeSizes) {
+      chart[sz] = {
+        footLengthIn: footMap[sz],
+        heelHeightIn: heelIn,
+        widthIn: Number((3.35 + (Number(sz) - 6) * 0.08).toFixed(2)),
+        heightIn: isBoot ? 15.4 : heelIn + 2.4,
+      };
+    }
+    return {
+      availableSizes: shoeSizes,
+      sizeChartInches: chart,
+      heelHeightInches: heelIn,
+      stretchMaxPct: 2,
+      fabricWeightGsm: 420,
+    };
+  }
+
+  if (seed.category === "accessory") {
+    const isBelt = /belt/i.test(seed.title);
+    if (isBelt) {
+      return {
+        availableSizes: ["XS/S", "M/L"],
+        sizeChartInches: {
+          "XS/S": {
+            waistMin: 23.5,
+            waistMax: 28.5,
+            garmentWaistIn: 26.5,
+            lengthIn: 37.5,
+            widthIn: 1.1,
+          },
+          "M/L": {
+            waistMin: 28.0,
+            waistMax: 34.0,
+            garmentWaistIn: 31.0,
+            lengthIn: 42.0,
+            widthIn: 1.1,
+          },
+        },
+        stretchMaxPct: 1,
+        fabricWeightGsm: 480,
+      };
+    }
+    const isTote = /tote/i.test(seed.title);
+    const isMini = /mini/i.test(seed.title);
+    const wIn = isTote ? 11.8 : isMini ? 7.9 : 9.8;
+    const hIn = isTote ? 8.9 : isMini ? 5.7 : 6.5;
+    const dIn = isTote ? 4.3 : isMini ? 2.6 : 2.8;
+    const dropIn = isTote ? 5.2 : isMini ? 4.5 : 9.5;
+    return {
+      availableSizes: ["ONE SIZE"],
+      sizeChartInches: {
+        "ONE SIZE": {
+          widthIn: wIn,
+          heightIn: hIn,
+          depthIn: dIn,
+          strapDropIn: dropIn,
+        },
+      },
+      strapDropInches: dropIn,
+      stretchMaxPct: 0,
+      fabricWeightGsm: 520,
+    };
+  }
+
+  // Apparel: XS, S, M, L, XL calibrated by cutType, category, and hemLanding!
+  const sizes = ["XS", "S", "M", "L", "XL"];
+  const baseBody = {
+    XS: { b: [30.7, 32.3], w: [23.6, 25.2], h: [33.5, 35.0], sh: 14.2 },
+    S: { b: [32.3, 33.9], w: [25.2, 27.5], h: [35.0, 37.0], sh: 14.7 },
+    M: { b: [33.9, 36.2], w: [27.6, 29.5], h: [37.0, 39.4], sh: 15.2 },
+    L: { b: [36.2, 38.6], w: [29.5, 31.9], h: [39.4, 41.7], sh: 15.8 },
+    XL: { b: [38.6, 41.3], w: [31.9, 34.6], h: [41.7, 44.3], sh: 16.4 },
+  } as const;
+
+  const easeBust =
+    seed.cutType === "oversized"
+      ? 4.6
+      : seed.cutType === "regular"
+      ? 1.8
+      : seed.cutType === "fitted"
+      ? 0.8
+      : -0.4;
+  const easeWaist =
+    seed.cutType === "oversized"
+      ? 4.2
+      : seed.cutType === "regular"
+      ? 1.4
+      : seed.cutType === "fitted"
+      ? 0.5
+      : -0.5;
+  const easeHip =
+    seed.silhouette === "cargo-pants" || seed.silhouette === "wide-denim"
+      ? 2.8
+      : seed.silhouette === "mini-skirt"
+      ? 2.2
+      : seed.cutType === "oversized"
+      ? 4.0
+      : seed.cutType === "regular"
+      ? 1.8
+      : 0.6;
+
+  const baseLenS =
+    seed.category === "dress"
+      ? seed.hemLanding === "midi"
+        ? 45.5
+        : 32.4
+      : seed.category === "outerwear"
+      ? seed.hemLanding === "midi"
+        ? 44.2
+        : seed.cutType === "oversized"
+        ? 28.4
+        : 19.6
+      : seed.category === "bottom"
+      ? seed.hemLanding === "full-length"
+        ? 41.6
+        : seed.hemLanding === "midi"
+        ? 31.5
+        : 14.8
+      : seed.hemLanding === "natural-waist"
+      ? 16.8
+      : 20.4;
+
+  const inseamBase =
+    seed.category === "bottom"
+      ? seed.hemLanding === "full-length"
+        ? /legging/i.test(seed.title)
+          ? 29.8
+          : 30.6
+        : /short/i.test(seed.title)
+        ? 3.8
+        : undefined
+      : undefined;
+
+  const riseBase =
+    seed.category === "bottom"
+      ? /legging|trouser|pinstripe|denim|jean/i.test(seed.title)
+        ? 11.4
+        : 10.6
+      : undefined;
+
+  const sleeveBase =
+    seed.category === "outerwear"
+      ? 23.6
+      : /off-shoulder|long-sleeve/i.test(seed.title)
+      ? 22.8
+      : undefined;
+
+  const chart: Record<string, SizeMeasurementSpec> = {};
+  const lenMap: Record<string, number> = {};
+  const shMap: Record<string, number> = {};
+
+  sizes.forEach((sz, idx) => {
+    const ref = baseBody[sz as keyof typeof baseBody];
+    const step = idx - 1; // S = 0
+    const len = Number((baseLenS + step * 0.55).toFixed(1));
+    const sh = Number(
+      (
+        ref.sh +
+        (seed.cutType === "oversized" ? 1.5 : seed.category === "outerwear" ? 0.5 : 0)
+      ).toFixed(1)
+    );
+    const bMid = (ref.b[0] + ref.b[1]) * 0.5;
+    const wMid = (ref.w[0] + ref.w[1]) * 0.5;
+    const hMid = (ref.h[0] + ref.h[1]) * 0.5;
+
+    lenMap[sz] = len;
+    shMap[sz] = sh;
+
+    chart[sz] = {
+      ...(seed.category !== "bottom"
+        ? {
+            bustMin: ref.b[0],
+            bustMax: ref.b[1],
+            garmentBustIn: Number((bMid + easeBust).toFixed(1)),
+            shoulderWidthIn: sh,
+          }
+        : {}),
+      waistMin: ref.w[0],
+      waistMax: ref.w[1],
+      garmentWaistIn: Number((wMid + easeWaist).toFixed(1)),
+      ...(seed.category !== "top" || seed.hemLanding === "hip"
+        ? {
+            hipsMin: ref.h[0],
+            hipsMax: ref.h[1],
+            garmentHipsIn: Number((hMid + easeHip).toFixed(1)),
+          }
+        : {}),
+      lengthIn: len,
+      ...(inseamBase !== undefined
+        ? { inseamIn: Number((inseamBase + step * 0.25).toFixed(1)) }
+        : {}),
+      ...(riseBase !== undefined
+        ? { riseIn: Number((riseBase + step * 0.2).toFixed(1)) }
+        : {}),
+      ...(sleeveBase !== undefined
+        ? { sleeveIn: Number((sleeveBase + step * 0.35).toFixed(1)) }
+        : {}),
+    };
+  });
+
+  const gsm =
+    seed.category === "outerwear"
+      ? 360
+      : seed.silhouette === "wide-denim"
+      ? 410
+      : /corset|blazer/i.test(seed.title)
+      ? 290
+      : /satin|silk/i.test(seed.fabricComposition)
+      ? 185
+      : 235;
+
+  return {
+    availableSizes: sizes,
+    sizeChartInches: chart,
+    garmentLengthBySizeInches: lenMap,
+    shoulderWidthBySizeInches: seed.category !== "bottom" ? shMap : undefined,
+    inseamInches: inseamBase,
+    riseInches: riseBase,
+    stretchMaxPct,
+    fabricWeightGsm: gsm,
+  };
+}
 
 export function buildTopLineAliExpressDropshipCatalog(
   markupMultiplier = 2.85
@@ -1281,6 +2108,8 @@ export function buildTopLineAliExpressDropshipCatalog(
     const versionedImage = seed.imageFile.includes("?")
       ? seed.imageFile.replace(/\?.*$/, "?v=rgba5")
       : `${seed.imageFile}?v=rgba5`;
+
+    const exactMeas = buildExactGarmentMeasurementsForSeed(seed);
 
     return {
       id: seed.id,
@@ -1301,10 +2130,18 @@ export function buildTopLineAliExpressDropshipCatalog(
         fitNotes: seed.fitNotes,
         fabricComposition: seed.fabricComposition,
         stretchLevel: seed.stretchLevel,
+        stretchMaxPct: exactMeas.stretchMaxPct,
+        fabricWeightGsm: exactMeas.fabricWeightGsm,
         cutType: seed.cutType,
         storeFitTendency: "runs_small",
         hemLanding: seed.hemLanding,
         hasAdjustableBack: seed.hasAdjustableBack,
+        garmentLengthBySizeInches: exactMeas.garmentLengthBySizeInches,
+        shoulderWidthBySizeInches: exactMeas.shoulderWidthBySizeInches,
+        inseamInches: exactMeas.inseamInches,
+        riseInches: exactMeas.riseInches,
+        heelHeightInches: exactMeas.heelHeightInches,
+        strapDropInches: exactMeas.strapDropInches,
         modelStats: {
           rawText:
             "Supplier Lookbook Model is 5'6\" (168cm) wearing CN Tag S (US XS) • Calibrated for US Sizing",
@@ -1337,16 +2174,8 @@ export function buildTopLineAliExpressDropshipCatalog(
       },
       occasions: seed.occasions,
       vibes: seed.vibes,
-      availableSizes:
-        seed.category === "shoes"
-          ? ["6", "6.5", "7", "7.5", "8", "8.5", "9"]
-          : seed.category === "accessory"
-          ? ["ONE SIZE"]
-          : ["XS", "S", "M", "L"],
-      sizeChartInches:
-        seed.category === "shoes" || seed.category === "accessory"
-          ? {}
-          : ALIEXPRESS_CALIBRATED_US_CHART,
+      availableSizes: exactMeas.availableSizes,
+      sizeChartInches: exactMeas.sizeChartInches,
       estDeliveryDays: seed.estDeliveryDays,
       inStock: true,
       sourceType: "aliexpress_dropship",
@@ -1591,13 +2420,32 @@ export function parseScrapedAliExpressSearchHits(
       vibes: ["Siren Glam", "Old Money Tailored", "Model Off-Duty"],
       availableSizes:
         category === "shoes"
-          ? ["6", "6.5", "7", "7.5", "8", "8.5"]
+          ? ["6", "6.5", "7", "7.5", "8", "8.5", "9"]
           : category === "accessory"
-          ? ["ONE SIZE"]
-          : ["XS", "S", "M", "L"],
+          ? /belt/i.test(title)
+            ? ["XS/S", "M/L"]
+            : ["ONE SIZE"]
+          : ["XS", "S", "M", "L", "XL"],
       sizeChartInches:
-        category === "shoes" || category === "accessory"
-          ? {}
+        category === "shoes"
+          ? {
+              "6": { footLengthIn: 9.05, heelHeightIn: 3.3, widthIn: 3.35 },
+              "6.5": { footLengthIn: 9.25, heelHeightIn: 3.3, widthIn: 3.39 },
+              "7": { footLengthIn: 9.45, heelHeightIn: 3.3, widthIn: 3.43 },
+              "7.5": { footLengthIn: 9.61, heelHeightIn: 3.3, widthIn: 3.47 },
+              "8": { footLengthIn: 9.8, heelHeightIn: 3.3, widthIn: 3.51 },
+              "8.5": { footLengthIn: 9.96, heelHeightIn: 3.3, widthIn: 3.55 },
+              "9": { footLengthIn: 10.12, heelHeightIn: 3.3, widthIn: 3.59 },
+            }
+          : category === "accessory"
+          ? /belt/i.test(title)
+            ? {
+                "XS/S": { waistMin: 23.5, waistMax: 28.5, garmentWaistIn: 26.5, lengthIn: 37.5, widthIn: 1.1 },
+                "M/L": { waistMin: 28.0, waistMax: 34.0, garmentWaistIn: 31.0, lengthIn: 42.0, widthIn: 1.1 },
+              }
+            : {
+                "ONE SIZE": { widthIn: 9.8, heightIn: 6.5, depthIn: 2.8, strapDropIn: 9.5 },
+              }
           : cmChart || ALIEXPRESS_CALIBRATED_US_CHART,
       estDeliveryDays: 6,
       inStock: true,
@@ -1872,13 +2720,32 @@ export async function importAliExpressUrlForDropship(
     vibes: ["Model Off-Duty", "Siren Glam"],
     availableSizes:
       category === "shoes"
-        ? ["6.5", "7", "7.5", "8", "8.5"]
+        ? ["6", "6.5", "7", "7.5", "8", "8.5", "9"]
         : category === "accessory"
-        ? ["ONE SIZE"]
-        : ["XS", "S", "M", "L"],
+        ? /belt/i.test(finalTitle)
+          ? ["XS/S", "M/L"]
+          : ["ONE SIZE"]
+        : ["XS", "S", "M", "L", "XL"],
     sizeChartInches:
-      category === "shoes" || category === "accessory"
-        ? {}
+      category === "shoes"
+        ? {
+            "6": { footLengthIn: 9.05, heelHeightIn: 3.3, widthIn: 3.35 },
+            "6.5": { footLengthIn: 9.25, heelHeightIn: 3.3, widthIn: 3.39 },
+            "7": { footLengthIn: 9.45, heelHeightIn: 3.3, widthIn: 3.43 },
+            "7.5": { footLengthIn: 9.61, heelHeightIn: 3.3, widthIn: 3.47 },
+            "8": { footLengthIn: 9.8, heelHeightIn: 3.3, widthIn: 3.51 },
+            "8.5": { footLengthIn: 9.96, heelHeightIn: 3.3, widthIn: 3.55 },
+            "9": { footLengthIn: 10.12, heelHeightIn: 3.3, widthIn: 3.59 },
+          }
+        : category === "accessory"
+        ? /belt/i.test(finalTitle)
+          ? {
+              "XS/S": { waistMin: 23.5, waistMax: 28.5, garmentWaistIn: 26.5, lengthIn: 37.5, widthIn: 1.1 },
+              "M/L": { waistMin: 28.0, waistMax: 34.0, garmentWaistIn: 31.0, lengthIn: 42.0, widthIn: 1.1 },
+            }
+          : {
+              "ONE SIZE": { widthIn: 9.8, heightIn: 6.5, depthIn: 2.8, strapDropIn: 9.5 },
+            }
         : cmChart || ALIEXPRESS_CALIBRATED_US_CHART,
     estDeliveryDays: 7,
     inStock: true,

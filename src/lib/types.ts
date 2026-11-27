@@ -58,14 +58,20 @@ export interface ProductFitMetadata {
   descriptionSummary?: string;
   fitNotes: string[];
   fabricComposition?: string;
+  fabricWeightGsm?: number;
   elastanePct?: number;
+  stretchMaxPct?: number;
   stretchLevel: FabricStretchLevel;
   cutType: GarmentCutType;
   storeFitTendency: FitRating;
   hemLanding?: HemLandingType;
   inseamInches?: number;
+  riseInches?: number;
+  heelHeightInches?: number;
+  strapDropInches?: number;
   hasAdjustableBack?: boolean;
   garmentLengthBySizeInches?: Record<string, number>;
+  shoulderWidthBySizeInches?: Record<string, number>;
   modelStats?: StoreModelStats;
   galleryImages?: ProductGalleryAngle[];
 }
@@ -77,6 +83,22 @@ export interface SizeMeasurementSpec {
   waistMax?: number;
   hipsMin?: number;
   hipsMax?: number;
+  /** Physical flat-doubled garment circumference & length specs (in inches) */
+  garmentBustIn?: number;
+  garmentWaistIn?: number;
+  garmentHipsIn?: number;
+  shoulderWidthIn?: number;
+  lengthIn?: number;
+  inseamIn?: number;
+  riseIn?: number;
+  sleeveIn?: number;
+  /** Footwear & Accessory physical measurements (in inches) */
+  footLengthIn?: number;
+  heelHeightIn?: number;
+  widthIn?: number;
+  heightIn?: number;
+  depthIn?: number;
+  strapDropIn?: number;
 }
 
 export interface DropshipListingSpec {

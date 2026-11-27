@@ -31,11 +31,11 @@ import {
 import { classifyWearableSlotAndAnchors } from "@/lib/three/avatar-ready-pipeline";
 import { MOD_BOT_SLUG } from "@/lib/three/modular-outfit-compositor";
 import {
-  BodyMorphUniforms,
   Character3DRig,
+  SideOutfit3DRig,
   Wearable3DItemRig,
   loadCharacter3DRig,
-  loadMatchedSideOutfitReliefMesh,
+  loadMatchedSideOutfit3DRig,
   loadStandalone3DItemInstance,
   loadWearable3DItemRig,
   preloadCore3DGlbs,
@@ -46,6 +46,7 @@ import {
   ImmersiveLightingPresetId,
   MASTER_IMMERSIVE_LIGHTING_PRESETS,
   MASTER_LIGHTING_PRESET_ORDER,
+  MASTER_REALISM_SPEC_VERSION,
   enforceRealisticAvatarAnatomy,
 } from "@/lib/realism/master-avatar-clothing-realism";
 
@@ -60,8 +61,11 @@ export interface Interactive3DAvatarStageProps {
   showMeasurementRings?: boolean;
   faceOvalDataUrl?: string | null;
   autoSpinDefault?: boolean;
+  externalSpinActive?: boolean;
+  onAutoSpinChange?: (spinning: boolean) => void;
   initialYawDeg?: number;
   externalYawDeg?: number;
+  externalYawSeq?: number;
   seamlessStage?: boolean;
   inertiaSpin?: boolean;
   onYawChange?: (deg: number) => void;
@@ -80,18 +84,41 @@ function angDistRad(a: number, b: number): number {
   return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 }
 
-function createFloorShadowTexture(): THREE.CanvasTexture {
+function shortestAngleDeltaRad(fromRad: number, toRad: number): number {
+  return Math.atan2(Math.sin(toRad - fromRad), Math.cos(toRad - fromRad));
+}
+
+function createFloorTurntableTexture(): THREE.CanvasTexture {
   const S = 256;
   const cv = document.createElement("canvas");
   cv.width = S;
   cv.height = S;
   const ctx = cv.getContext("2d")!;
-  const grad = ctx.createRadialGradient(S / 2, S / 2, 8, S / 2, S / 2, S / 2);
-  grad.addColorStop(0.0, "rgba(20, 22, 28, 0.16)");
-  grad.addColorStop(0.55, "rgba(20, 22, 28, 0.05)");
+  const grad = ctx.createRadialGradient(S / 2, S / 2, 10, S / 2, S / 2, S / 2);
+  grad.addColorStop(0.0, "rgba(20, 22, 28, 0.17)");
+  grad.addColorStop(0.56, "rgba(20, 22, 28, 0.05)");
   grad.addColorStop(1.0, "rgba(20, 22, 28, 0.0)");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, S, S);
+
+  ctx.save();
+  ctx.translate(S / 2, S / 2);
+  ctx.strokeStyle = "rgba(20, 22, 28, 0.11)";
+  ctx.lineWidth = 1.25;
+  ctx.beginPath();
+  ctx.arc(0, 0, S * 0.42, 0, Math.PI * 2);
+  ctx.stroke();
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const r0 = i % 6 === 0 ? S * 0.37 : S * 0.398;
+    const r1 = S * 0.432;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+    ctx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
+    ctx.stroke();
+  }
+  ctx.restore();
+
   const tex = new THREE.CanvasTexture(cv);
   tex.needsUpdate = true;
   return tex;
@@ -126,11 +153,10 @@ const LIGHT_MOOD_TINTS: Record<ImmersiveLightingPresetId, string> = {
 };
 
 /**
- * ALBEDO-PRESERVING LIFELIKE 3D CHARACTER & INDIVIDUAL 3D GARMENT STAGE (`THREE.WebGLRenderer`)
- * - Preserves 100% studio-grade human photorealism (`toneMapped: false` unlit albedo + live 3D normal specular glint)
- * - Mounts the persistent 3D Character (`CharacterFront`, `CharacterSide`, `CharacterBack` 3D depth-relief meshes)
- * - Equips each individual clothing, shoe, belt, and handbag item as its own dedicated 3D relief mesh in Z-depth space
- * - Supports 360° multi-view turnaround, GPU body-scan inch morphing, alpha-accurate raycast garment picking, and 3D Item Mesh spin!
+ * ORTHOGONAL 4-QUADRANT TRUE-3D INTERACTIVE CHARACTER & GARMENT TURNTABLE (`THREE.WebGLRenderer`)
+ * - Rotates `avatarTurntable.rotation.y = yawRef.current` continuously at true 1:1 3D angular velocity
+ *   around the Y-axis (`0° -> 90° -> 180° -> 270° -> 360°`) + vertical 3D pitch + wheel/pinch zoom!
+ * - Zero 2D card rock-and-snap; every garment mounts as its own physical 3D depth shell (`+5mm..+54mm`).
  */
 export function Interactive3DAvatarStage({
   mode = "avatar",
@@ -143,8 +169,11 @@ export function Interactive3DAvatarStage({
   showMeasurementRings: propShowRings,
   faceOvalDataUrl,
   autoSpinDefault = false,
+  externalSpinActive,
+  onAutoSpinChange,
   initialYawDeg = 0,
   externalYawDeg,
+  externalYawSeq,
   seamlessStage = false,
   inertiaSpin = true,
   onYawChange,
@@ -159,12 +188,14 @@ export function Interactive3DAvatarStage({
   onYawChangeRef.current = onYawChange;
   const onSelectProductRef = useRef(onSelectProduct);
   onSelectProductRef.current = onSelectProduct;
+  const onAutoSpinChangeRef = useRef(onAutoSpinChange);
+  onAutoSpinChangeRef.current = onAutoSpinChange;
 
   const yawRef = useRef<number>((initialYawDeg * Math.PI) / 180);
   const targetYawRef = useRef<number>((initialYawDeg * Math.PI) / 180);
   const velYawRef = useRef<number>(0);
-  const pitchRef = useRef<number>(0.01);
-  const targetPitchRef = useRef<number>(0.01);
+  const pitchRef = useRef<number>(0.015);
+  const targetPitchRef = useRef<number>(0.015);
   const zoomRef = useRef<number>(1.0);
   const targetZoomRef = useRef<number>(1.0);
 
@@ -172,9 +203,27 @@ export function Interactive3DAvatarStage({
     useState<Render3DVisualMode>("studio");
   const activeVisualMode = controlledVisualMode ?? internalVisualMode;
 
-  const [autoSpin, setAutoSpin] = useState<boolean>(autoSpinDefault);
+  const [autoSpin, setAutoSpinState] = useState<boolean>(autoSpinDefault);
+  const setAutoSpin = useCallback(
+    (val: boolean | ((prev: boolean) => boolean)) => {
+      setAutoSpinState((prev) => {
+        const next = typeof val === "function" ? val(prev) : val;
+        if (next !== prev) {
+          onAutoSpinChangeRef.current?.(next);
+        }
+        return next;
+      });
+    },
+    []
+  );
   const autoSpinRef = useRef<boolean>(autoSpinDefault);
   autoSpinRef.current = autoSpin;
+
+  useEffect(() => {
+    if (typeof externalSpinActive === "boolean") {
+      setAutoSpinState(externalSpinActive);
+    }
+  }, [externalSpinActive]);
 
   const [showRings, setShowRings] = useState<boolean>(Boolean(propShowRings));
   const effectiveShowRings = propShowRings ?? showRings;
@@ -211,17 +260,17 @@ export function Interactive3DAvatarStage({
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     stageRoot: THREE.Group;
-    frontStackGroup: THREE.Group;
-    sideStackGroup: THREE.Group;
-    backStackGroup: THREE.Group;
+    avatarTurntable: THREE.Group;
+    charGroup: THREE.Group;
     equippedFrontGroup: THREE.Group;
     equippedBackGroup: THREE.Group;
     sideOutfitGroup: THREE.Group;
     productTurntable: THREE.Group;
     ringsGroup: THREE.Group;
     faceDecalGroup: THREE.Group;
+    shadowPlane: THREE.Mesh;
     charRig: Character3DRig | null;
-    sideOutfitUniforms: BodyMorphUniforms | null;
+    sideOutfitRig: SideOutfit3DRig | null;
     itemRigs: Wearable3DItemRig[];
   } | null>(null);
 
@@ -243,9 +292,11 @@ export function Interactive3DAvatarStage({
     if (typeof externalYawDeg === "number") {
       setAutoSpin(false);
       velYawRef.current = 0;
-      targetYawRef.current = (externalYawDeg * Math.PI) / 180;
+      const desiredRad = (externalYawDeg * Math.PI) / 180;
+      targetYawRef.current =
+        yawRef.current + shortestAngleDeltaRad(yawRef.current, desiredRad);
     }
-  }, [externalYawDeg]);
+  }, [externalYawDeg, externalYawSeq, setAutoSpin]);
 
   const fitByProductId = useMemo(() => {
     const map = new Map<string, AvatarExactFitReport>();
@@ -287,7 +338,6 @@ export function Interactive3DAvatarStage({
     }
   }, [fitByProductId, selectedProductId, wornPieces]);
 
-  // Partition wornPieces into unique wearable 3D slots
   const slotEquippedProducts = useMemo(() => {
     const chosen = new Map<string, Product>();
     let hasDress = false;
@@ -321,7 +371,7 @@ export function Interactive3DAvatarStage({
     [mode, singleProduct, slotEquippedProducts, wornPieces]
   );
 
-  // 1. Mount WebGL Three.js Renderer & Persistent Lifelike 3D Character!
+  // 1. Mount WebGL Three.js Renderer & True 360° Orthogonal 3D Turntable!
   useEffect(() => {
     const wrapEl = wrapRef.current;
     if (!wrapEl) return;
@@ -346,9 +396,9 @@ export function Interactive3DAvatarStage({
     const stageRoot = new THREE.Group();
     scene.add(stageRoot);
 
-    const shadowTex = createFloorShadowTexture();
+    const shadowTex = createFloorTurntableTexture();
     const shadowPlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.88, 0.52),
+      new THREE.PlaneGeometry(0.76, 0.76),
       new THREE.MeshBasicMaterial({
         map: shadowTex,
         transparent: true,
@@ -358,11 +408,10 @@ export function Interactive3DAvatarStage({
     shadowPlane.rotation.x = -Math.PI / 2;
     shadowPlane.position.y = 0.002;
     shadowPlane.renderOrder = 1;
-    scene.add(shadowPlane);
+    stageRoot.add(shadowPlane);
 
-    const frontStackGroup = new THREE.Group();
-    const sideStackGroup = new THREE.Group();
-    const backStackGroup = new THREE.Group();
+    const avatarTurntable = new THREE.Group();
+    const charGroup = new THREE.Group();
     const equippedFrontGroup = new THREE.Group();
     const equippedBackGroup = new THREE.Group();
     const sideOutfitGroup = new THREE.Group();
@@ -370,33 +419,32 @@ export function Interactive3DAvatarStage({
     const ringsGroup = new THREE.Group();
     const faceDecalGroup = new THREE.Group();
 
-    frontStackGroup.add(equippedFrontGroup);
-    frontStackGroup.add(faceDecalGroup);
-    sideStackGroup.add(sideOutfitGroup);
-    backStackGroup.add(equippedBackGroup);
+    avatarTurntable.add(charGroup);
+    avatarTurntable.add(equippedFrontGroup);
+    avatarTurntable.add(equippedBackGroup);
+    avatarTurntable.add(sideOutfitGroup);
+    avatarTurntable.add(faceDecalGroup);
+    avatarTurntable.add(ringsGroup);
 
-    stageRoot.add(frontStackGroup);
-    stageRoot.add(sideStackGroup);
-    stageRoot.add(backStackGroup);
+    stageRoot.add(avatarTurntable);
     stageRoot.add(productTurntable);
-    stageRoot.add(ringsGroup);
 
     threeCtxRef.current = {
       renderer,
       scene,
       camera,
       stageRoot,
-      frontStackGroup,
-      sideStackGroup,
-      backStackGroup,
+      avatarTurntable,
+      charGroup,
       equippedFrontGroup,
       equippedBackGroup,
       sideOutfitGroup,
       productTurntable,
       ringsGroup,
       faceDecalGroup,
+      shadowPlane,
       charRig: null,
-      sideOutfitUniforms: null,
+      sideOutfitRig: null,
       itemRigs: [],
     };
 
@@ -404,26 +452,24 @@ export function Interactive3DAvatarStage({
     void loadCharacter3DRig().then((charRig) => {
       if (disposed || !threeCtxRef.current) return;
       threeCtxRef.current.charRig = charRig;
-      frontStackGroup.add(charRig.frontMesh);
-      sideStackGroup.add(charRig.sideMesh);
-      backStackGroup.add(charRig.backMesh);
+      charGroup.add(
+        charRig.frontMesh,
+        charRig.rightSideMesh,
+        charRig.backMesh,
+        charRig.leftSideMesh
+      );
 
-      const hasShoes = threeCtxRef.current.itemRigs.some(
-        (r) => r.slot === "shoes"
-      );
-      const hasDress = threeCtxRef.current.itemRigs.some(
-        (r) => r.slot === "dress"
-      );
-      const hasBottom = threeCtxRef.current.itemRigs.some(
-        (r) => r.slot === "bottom"
-      );
-      const hasTop = threeCtxRef.current.itemRigs.some(
-        (r) => r.slot === "top"
-      );
+      const rigs = threeCtxRef.current.itemRigs;
+      const hasShoes = rigs.some((r) => r.slot === "shoes");
+      const hasDress = rigs.some((r) => r.slot === "dress");
+      const hasBottom = rigs.some((r) => r.slot === "bottom");
+      const hasTop = rigs.some((r) => r.slot === "top");
       const hasShinPants =
         !hasDress &&
-        threeCtxRef.current.itemRigs.some((r) =>
-          Boolean(MOD_BOT_SLUG[r.product.id]?.coversShins)
+        rigs.some(
+          (r) =>
+            Boolean(MOD_BOT_SLUG[r.product.id]?.coversShins) ||
+            (r.slot === "bottom" && r.product.silhouette !== "mini-skirt")
         );
       const heelMaskVal = hasShoes ? (hasShinPants ? 2.0 : 1.0) : 0.0;
       charRig.frontUniforms.uMaskBaseHeels.value = heelMaskVal;
@@ -434,27 +480,14 @@ export function Interactive3DAvatarStage({
       charRig.backUniforms.uHasBottom.value = hasBottom ? 1.0 : 0.0;
       charRig.frontUniforms.uHasTop.value = hasTop ? 1.0 : 0.0;
       charRig.backUniforms.uHasTop.value = hasTop ? 1.0 : 0.0;
-      syncBodyMorphUniforms(
+      for (const u of [
         charRig.frontUniforms,
-        safeDimensions,
-        activeVisualMode,
-        false,
-        false
-      );
-      syncBodyMorphUniforms(
-        charRig.sideUniforms,
-        safeDimensions,
-        activeVisualMode,
-        false,
-        false
-      );
-      syncBodyMorphUniforms(
+        charRig.rightSideUniforms,
         charRig.backUniforms,
-        safeDimensions,
-        activeVisualMode,
-        false,
-        false
-      );
+        charRig.leftSideUniforms,
+      ]) {
+        syncBodyMorphUniforms(u, safeDimensions, activeVisualMode, false, false);
+      }
     });
 
     const updateLayout = () => {
@@ -468,7 +501,6 @@ export function Interactive3DAvatarStage({
     const ro = new ResizeObserver(updateLayout);
     ro.observe(wrapEl);
 
-    // Interactive 360° Orbit, Pitch, Zoom & Alpha-Aware 3D Raycast Garment Picking
     const dom = renderer.domElement;
     const raycaster = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
@@ -509,12 +541,12 @@ export function Interactive3DAvatarStage({
         setAutoSpin(false);
       }
       if (inertiaSpin) {
-        const instV = (stepDx * 0.015) / dtMove;
+        const instV = (stepDx * 0.016) / dtMove;
         velYawRef.current =
-          velYawRef.current * 0.55 + clamp(instV, -9, 9) * 0.45;
+          velYawRef.current * 0.55 + clamp(instV, -10, 10) * 0.45;
       }
-      targetYawRef.current = startYaw + dx * 0.015;
-      targetPitchRef.current = clamp(startPitch + dy * 0.0035, -0.18, 0.22);
+      targetYawRef.current = startYaw + dx * 0.016;
+      targetPitchRef.current = clamp(startPitch + dy * 0.0042, -0.24, 0.28);
     };
 
     const onPointerUp = (e: PointerEvent) => {
@@ -529,7 +561,6 @@ export function Interactive3DAvatarStage({
         // ignore
       }
 
-      // Alpha-Accurate 3D Raycast Tap-on-Garment Selection!
       if (movedDist < 6 && !productTurntable.visible) {
         const normRad =
           ((yawRef.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
@@ -564,8 +595,8 @@ export function Interactive3DAvatarStage({
         e.preventDefault();
         targetZoomRef.current = clamp(
           targetZoomRef.current - Math.sign(e.deltaY) * 0.08,
-          0.78,
-          1.55
+          0.76,
+          1.62
         );
       }
     };
@@ -586,101 +617,112 @@ export function Interactive3DAvatarStage({
       lastTime = now;
 
       if (autoSpinRef.current && !dragging) {
-        targetYawRef.current += dt * 0.78;
+        targetYawRef.current += dt * 0.85;
       } else if (
         inertiaSpin &&
         !dragging &&
         Math.abs(velYawRef.current) > 0.02
       ) {
         targetYawRef.current += velYawRef.current * dt;
-        velYawRef.current *= Math.exp(-3.6 * dt);
+        velYawRef.current *= Math.exp(-3.4 * dt);
         if (Math.abs(velYawRef.current) <= 0.02) velYawRef.current = 0;
       }
 
-      const damp = 1 - Math.exp(-12 * dt);
+      const damp = 1 - Math.exp(-13 * dt);
       yawRef.current += (targetYawRef.current - yawRef.current) * damp;
       pitchRef.current += (targetPitchRef.current - pitchRef.current) * damp;
       zoomRef.current += (targetZoomRef.current - zoomRef.current) * damp;
 
-      const breath = 1.0 + Math.sin(now * 0.0021) * 0.0024;
+      const breath = 1.0 + Math.sin(now * 0.0021) * 0.0022;
       stageRoot.rotation.x = pitchRef.current;
 
       const isProdMode = productTurntable.visible;
       if (isProdMode) {
         productTurntable.rotation.y = yawRef.current;
-        const dist = 1.55 / zoomRef.current;
+        shadowPlane.rotation.z = -yawRef.current;
+        const dist = 1.52 / zoomRef.current;
         camera.position.set(0, 0.42, dist);
         camera.lookAt(0, 0.42, 0);
         shadowPlane.position.y = 0.04;
-        shadowPlane.scale.setScalar(0.65);
+        shadowPlane.scale.setScalar(0.68);
       } else {
-        // Multi-View Distortion-Free 360° 3D Relief Turnaround!
+        // TRUE 1:1 360° 3D TURNTABLE ROTATION (`avatarTurntable.rotation.y = yawRef.current`)!
+        avatarTurntable.rotation.y = yawRef.current;
+        avatarTurntable.scale.y = breath;
+        shadowPlane.rotation.z = -yawRef.current;
+        shadowPlane.position.y = 0.002;
+        shadowPlane.scale.setScalar(0.96);
+
         const normRad =
           ((yawRef.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-        const deg = (normRad * 180) / Math.PI;
-
         const dFront = (angDistRad(normRad, 0) * 180) / Math.PI;
         const dRight = (angDistRad(normRad, Math.PI * 0.5) * 180) / Math.PI;
         const dBack = (angDistRad(normRad, Math.PI) * 180) / Math.PI;
         const dLeft = (angDistRad(normRad, Math.PI * 1.5) * 180) / Math.PI;
-        const dSide = Math.min(dRight, dLeft);
-        const isLeftSide = dLeft < dRight;
 
-        // Crisp 1.0 opacity in primary viewing arcs (0..54°, 68..112°, 126..234°, 248..292°, 306..360°)
-        // with smooth energy-preserving cross-fade ONLY across narrow 14° handoff corridors!
+        // Orthogonal 3D Quadrant Visibility Weights (each shell is ALREADY rotating in 3D inside avatarTurntable!)
         let wFront = 0;
-        let wSide = 0;
+        let wRight = 0;
         let wBack = 0;
+        let wLeft = 0;
 
-        if (dFront <= 54) {
+        if (dFront <= 58) {
           wFront = 1.0;
-        } else if (dFront < 68) {
-          const t = (68 - dFront) / 14;
+        } else if (dFront < 74) {
+          const t = (74 - dFront) / 16;
           wFront = Math.sqrt(t);
-          wSide = Math.sqrt(1 - t);
-        } else if (dSide <= 22) {
-          wSide = 1.0;
-        } else if (dBack < 68 && dBack > 54) {
-          const t = (68 - dBack) / 14;
+          if (dRight < dLeft) wRight = Math.sqrt(1 - t);
+          else wLeft = Math.sqrt(1 - t);
+        } else if (dRight <= 16) {
+          wRight = 1.0;
+        } else if (dLeft <= 16) {
+          wLeft = 1.0;
+        } else if (dBack < 74 && dBack > 58) {
+          const t = (74 - dBack) / 16;
           wBack = Math.sqrt(t);
-          wSide = Math.sqrt(1 - t);
+          if (dRight < dLeft) wRight = Math.sqrt(1 - t);
+          else wLeft = Math.sqrt(1 - t);
         } else {
           wBack = 1.0;
         }
-
-        frontStackGroup.visible = wFront > 0.01;
-        sideStackGroup.visible = wSide > 0.01;
-        backStackGroup.visible = wBack > 0.01;
-
-        frontStackGroup.scale.y = breath;
-        sideStackGroup.scale.y = breath;
-        backStackGroup.scale.y = breath;
-
-        // Genuine 3D perspective rotation & multi-layer Z-shell parallax within each view!
-        frontStackGroup.rotation.y = Math.sin(normRad) * 0.44;
-        const sideCenter = isLeftSide ? Math.PI * 1.5 : Math.PI * 0.5;
-        sideStackGroup.rotation.y = Math.sin(normRad - sideCenter) * 0.36;
-        backStackGroup.rotation.y = Math.sin(normRad - Math.PI) * 0.44;
 
         const cRef = threeCtxRef.current;
         if (cRef) {
           const hasWorn = cRef.itemRigs.length > 0;
           if (cRef.charRig) {
+            cRef.charRig.frontMesh.visible = wFront > 0.01;
             cRef.charRig.frontUniforms.uViewOpacity.value = wFront;
             cRef.charRig.frontUniforms.uYawAngle.value = normRad;
+
+            cRef.charRig.backMesh.visible = wBack > 0.01;
             cRef.charRig.backUniforms.uViewOpacity.value = wBack;
             cRef.charRig.backUniforms.uYawAngle.value = normRad;
-            cRef.charRig.sideMesh.visible = !hasWorn && wSide > 0.01;
-            cRef.charRig.sideUniforms.uViewOpacity.value = wSide;
-            cRef.charRig.sideUniforms.uMirrorX.value = isLeftSide ? -1.0 : 1.0;
-            cRef.charRig.sideUniforms.uYawAngle.value = normRad;
+
+            cRef.charRig.rightSideMesh.visible = !hasWorn && wRight > 0.01;
+            cRef.charRig.rightSideUniforms.uViewOpacity.value = wRight;
+            cRef.charRig.rightSideUniforms.uYawAngle.value = normRad;
+
+            cRef.charRig.leftSideMesh.visible = !hasWorn && wLeft > 0.01;
+            cRef.charRig.leftSideUniforms.uViewOpacity.value = wLeft;
+            cRef.charRig.leftSideUniforms.uYawAngle.value = normRad;
           }
-          cRef.sideOutfitGroup.visible = hasWorn && wSide > 0.01;
-          if (cRef.sideOutfitUniforms) {
-            cRef.sideOutfitUniforms.uViewOpacity.value = wSide;
-            cRef.sideOutfitUniforms.uMirrorX.value = isLeftSide ? -1.0 : 1.0;
-            cRef.sideOutfitUniforms.uYawAngle.value = normRad;
+
+          cRef.equippedFrontGroup.visible = wFront > 0.01;
+          cRef.equippedBackGroup.visible = wBack > 0.01;
+          cRef.faceDecalGroup.visible = Boolean(faceOvalDataUrl) && wFront > 0.25;
+
+          cRef.sideOutfitGroup.visible =
+            hasWorn && (wRight > 0.01 || wLeft > 0.01);
+          if (cRef.sideOutfitRig) {
+            cRef.sideOutfitRig.rightMesh.visible = hasWorn && wRight > 0.01;
+            cRef.sideOutfitRig.rightUniforms.uViewOpacity.value = wRight;
+            cRef.sideOutfitRig.rightUniforms.uYawAngle.value = normRad;
+
+            cRef.sideOutfitRig.leftMesh.visible = hasWorn && wLeft > 0.01;
+            cRef.sideOutfitRig.leftUniforms.uViewOpacity.value = wLeft;
+            cRef.sideOutfitRig.leftUniforms.uYawAngle.value = normRad;
           }
+
           for (const rig of cRef.itemRigs) {
             rig.frontUniforms.uViewOpacity.value = wFront;
             rig.frontUniforms.uYawAngle.value = normRad;
@@ -690,7 +732,7 @@ export function Interactive3DAvatarStage({
 
           const hScale = cRef.charRig?.frontUniforms.uHeightScale.value ?? 1.0;
           const charTop = 1.58 * hScale;
-          const hudPadFactor = showHud ? (compactHud ? 1.11 : 1.13) : 1.01;
+          const hudPadFactor = showHud ? (compactHud ? 1.11 : 1.13) : 1.015;
           const halfFovRad = (camera.fov * Math.PI) / 360;
           const reqDistH =
             (charTop * hudPadFactor * 0.5) / Math.tan(halfFovRad);
@@ -701,28 +743,14 @@ export function Interactive3DAvatarStage({
           camera.position.set(0, lookY + 0.02, dist);
           camera.lookAt(0, lookY, 0);
         }
-
-        ringsGroup.rotation.y = normRad;
-        shadowPlane.position.y = 0.002;
-        shadowPlane.scale.setScalar(1.0);
-
-        frameTick++;
-        if (frameTick % 4 === 0) {
-          const rounded = Math.round(deg) % 360;
-          setLiveDeg(rounded);
-          onYawChangeRef.current?.(rounded);
-        }
       }
 
-      if (isProdMode) {
-        frameTick++;
-        if (frameTick % 4 === 0) {
-          const deg =
-            (((Math.round((yawRef.current * 180) / Math.PI) % 360) + 360) %
-              360);
-          setLiveDeg(deg);
-          onYawChangeRef.current?.(deg);
-        }
+      frameTick++;
+      if (frameTick % 4 === 0) {
+        const deg =
+          (((Math.round((yawRef.current * 180) / Math.PI) % 360) + 360) % 360);
+        setLiveDeg(deg);
+        onYawChangeRef.current?.(deg);
       }
 
       renderer.render(scene, camera);
@@ -746,7 +774,7 @@ export function Interactive3DAvatarStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compactHud, inertiaSpin, seamlessStage, showHud]);
 
-  // 2. Equip / Swap Individual 3D Garment Meshes Atomically onto the 3D Character (Zero Flicker!)
+  // 2. Equip / Swap Individual 3D Garment Meshes Atomically onto the 3D Turntable!
   useEffect(() => {
     const ctx = threeCtxRef.current;
     if (!ctx) return;
@@ -754,10 +782,7 @@ export function Interactive3DAvatarStage({
     const reqId = ++equipReqIdRef.current;
 
     if (mode === "product") {
-      ctx.frontStackGroup.visible = false;
-      ctx.sideStackGroup.visible = false;
-      ctx.backStackGroup.visible = false;
-      ctx.ringsGroup.visible = false;
+      ctx.avatarTurntable.visible = false;
       ctx.productTurntable.visible = true;
 
       const prod = singleProduct || wornPieces[0]?.product;
@@ -783,15 +808,14 @@ export function Interactive3DAvatarStage({
       return;
     }
 
-    // `mode === "avatar"` — Lifelike 3D Character + Individual 3D Garment Meshes!
     ctx.productTurntable.visible = false;
-    ctx.faceDecalGroup.visible = Boolean(faceOvalDataUrl);
+    ctx.avatarTurntable.visible = true;
 
     if (slotEquippedProducts.length === 0) {
       ctx.equippedFrontGroup.clear();
       ctx.equippedBackGroup.clear();
       ctx.sideOutfitGroup.clear();
-      ctx.sideOutfitUniforms = null;
+      ctx.sideOutfitRig = null;
       ctx.itemRigs = [];
       if (ctx.charRig) {
         ctx.charRig.frontUniforms.uMaskBaseHeels.value = 0.0;
@@ -816,12 +840,17 @@ export function Interactive3DAvatarStage({
     );
     const hasShinCoveringPants =
       !hasDress &&
-      slotEquippedProducts.some((p) => Boolean(MOD_BOT_SLUG[p.id]?.coversShins));
+      slotEquippedProducts.some(
+        (p) =>
+          Boolean(MOD_BOT_SLUG[p.id]?.coversShins) ||
+          (classifyWearableSlotAndAnchors(p).slot === "bottom" &&
+            p.silhouette !== "mini-skirt")
+      );
 
+    const tintHex = LIGHT_MOOD_TINTS[lightingPresetId];
     const itemPromises = slotEquippedProducts.map(async (prod) => {
       const rig = await loadWearable3DItemRig(prod, hasShinCoveringPants);
       const fit = fitByProductIdRef.current.get(prod.id);
-      const tintHex = LIGHT_MOOD_TINTS[lightingPresetId];
       rig.frontUniforms.uLightMoodTint.value.set(tintHex);
       rig.backUniforms.uLightMoodTint.value.set(tintHex);
       syncBodyMorphUniforms(
@@ -845,14 +874,13 @@ export function Interactive3DAvatarStage({
       return rig;
     });
 
-    const sidePromise = loadMatchedSideOutfitReliefMesh(slotEquippedProducts);
+    const sidePromise = loadMatchedSideOutfit3DRig(slotEquippedProducts);
 
     void Promise.all([Promise.all(itemPromises), sidePromise])
-      .then(([loadedRigs, sideLoaded]) => {
+      .then(([loadedRigs, sideRig]) => {
         clearTimeout(loadTimer);
         if (equipReqIdRef.current !== reqId) return;
 
-        // ATOMIC ZERO-FLICKER SWAP: all textures are 100% decoded before replacing meshes!
         ctx.equippedFrontGroup.clear();
         ctx.equippedBackGroup.clear();
         ctx.sideOutfitGroup.clear();
@@ -862,18 +890,24 @@ export function Interactive3DAvatarStage({
           ctx.equippedBackGroup.add(rig.backMesh);
         }
 
-        sideLoaded.uniforms.uLightMoodTint.value.set(
-          LIGHT_MOOD_TINTS[lightingPresetId]
-        );
+        sideRig.rightUniforms.uLightMoodTint.value.set(tintHex);
+        sideRig.leftUniforms.uLightMoodTint.value.set(tintHex);
         syncBodyMorphUniforms(
-          sideLoaded.uniforms,
+          sideRig.rightUniforms,
           safeDimensions,
           activeVisualMode,
           true,
           false
         );
-        ctx.sideOutfitGroup.add(sideLoaded.mesh);
-        ctx.sideOutfitUniforms = sideLoaded.uniforms;
+        syncBodyMorphUniforms(
+          sideRig.leftUniforms,
+          safeDimensions,
+          activeVisualMode,
+          true,
+          false
+        );
+        ctx.sideOutfitGroup.add(sideRig.rightMesh, sideRig.leftMesh);
+        ctx.sideOutfitRig = sideRig;
         ctx.itemRigs = loadedRigs;
 
         const hasShoes = loadedRigs.some((r) => r.slot === "shoes");
@@ -894,7 +928,6 @@ export function Interactive3DAvatarStage({
           ctx.charRig.frontUniforms.uHasTop.value = hasTop ? 1.0 : 0.0;
           ctx.charRig.backUniforms.uHasTop.value = hasTop ? 1.0 : 0.0;
         }
-
         setIsLoading3D(false);
       })
       .catch(() => {
@@ -915,11 +948,13 @@ export function Interactive3DAvatarStage({
     const tintHex = LIGHT_MOOD_TINTS[lightingPresetId];
     if (ctx.charRig) {
       ctx.charRig.frontUniforms.uLightMoodTint.value.set(tintHex);
-      ctx.charRig.sideUniforms.uLightMoodTint.value.set(tintHex);
+      ctx.charRig.rightSideUniforms.uLightMoodTint.value.set(tintHex);
       ctx.charRig.backUniforms.uLightMoodTint.value.set(tintHex);
+      ctx.charRig.leftSideUniforms.uLightMoodTint.value.set(tintHex);
     }
-    if (ctx.sideOutfitUniforms) {
-      ctx.sideOutfitUniforms.uLightMoodTint.value.set(tintHex);
+    if (ctx.sideOutfitRig) {
+      ctx.sideOutfitRig.rightUniforms.uLightMoodTint.value.set(tintHex);
+      ctx.sideOutfitRig.leftUniforms.uLightMoodTint.value.set(tintHex);
     }
     for (const rig of ctx.itemRigs) {
       rig.frontUniforms.uLightMoodTint.value.set(tintHex);
@@ -933,31 +968,25 @@ export function Interactive3DAvatarStage({
     if (!ctx) return;
 
     if (ctx.charRig) {
-      syncBodyMorphUniforms(
+      for (const u of [
         ctx.charRig.frontUniforms,
-        safeDimensions,
-        activeVisualMode,
-        false,
-        false
-      );
-      syncBodyMorphUniforms(
-        ctx.charRig.sideUniforms,
-        safeDimensions,
-        activeVisualMode,
-        false,
-        false
-      );
-      syncBodyMorphUniforms(
+        ctx.charRig.rightSideUniforms,
         ctx.charRig.backUniforms,
+        ctx.charRig.leftSideUniforms,
+      ]) {
+        syncBodyMorphUniforms(u, safeDimensions, activeVisualMode, false, false);
+      }
+    }
+    if (ctx.sideOutfitRig) {
+      syncBodyMorphUniforms(
+        ctx.sideOutfitRig.rightUniforms,
         safeDimensions,
         activeVisualMode,
-        false,
+        true,
         false
       );
-    }
-    if (ctx.sideOutfitUniforms) {
       syncBodyMorphUniforms(
-        ctx.sideOutfitUniforms,
+        ctx.sideOutfitRig.leftUniforms,
         safeDimensions,
         activeVisualMode,
         true,
@@ -991,18 +1020,18 @@ export function Interactive3DAvatarStage({
       mode === "avatar" && (effectiveShowRings || activeVisualMode === "xray");
     ctx.ringsGroup.visible = show3DRings;
     if (show3DRings) {
-      const hs = clamp(safeDimensions.heightInches / 62.0, 0.92, 1.14);
+      const hs = clamp(safeDimensions.heightInches / 62.0, 0.92, 1.15);
       const by = clamp(safeDimensions.bustInches / 32.25, 0.88, 1.28);
       const bz = clamp(safeDimensions.waistInches / 27.0, 0.82, 1.28);
       const bw = clamp(safeDimensions.hipsInches / 34.0, 0.88, 1.3);
       ctx.ringsGroup.add(
-        create3DTapeRing(0.115 * by, 0.088 * by, 1.14 * hs, "#10B981")
+        create3DTapeRing(0.118 * by, 0.092 * by, 1.14 * hs, "#10B981")
       );
       ctx.ringsGroup.add(
-        create3DTapeRing(0.095 * bz, 0.072 * bz, 0.98 * hs, "#244B3B")
+        create3DTapeRing(0.098 * bz, 0.076 * bz, 0.98 * hs, "#244B3B")
       );
       ctx.ringsGroup.add(
-        create3DTapeRing(0.125 * bw, 0.092 * bw, 0.81 * hs, "#0EA5E9")
+        create3DTapeRing(0.128 * bw, 0.098 * bw, 0.81 * hs, "#0EA5E9")
       );
     }
   }, [activeVisualMode, effectiveShowRings, fitByProductId, mode, safeDimensions]);
@@ -1026,22 +1055,26 @@ export function Interactive3DAvatarStage({
       })
     );
     plane.renderOrder = 80;
-    const hs = clamp(safeDimensions.heightInches / 62.0, 0.92, 1.14);
+    const hs = clamp(safeDimensions.heightInches / 62.0, 0.92, 1.15);
     const chinM = 1.58 * 0.848;
-    plane.position.set(0, chinM * hs + (1.43 - chinM), 0.062);
+    plane.position.set(0, chinM * hs + (1.43 - chinM), 0.075);
     ctx.faceDecalGroup.add(plane);
   }, [faceOvalDataUrl, mode, safeDimensions.heightInches]);
 
   const snapAngle = (deg: number) => {
     setAutoSpin(false);
     velYawRef.current = 0;
-    targetYawRef.current = (deg * Math.PI) / 180;
-    targetPitchRef.current = 0.01;
+    const desiredRad = (deg * Math.PI) / 180;
+    targetYawRef.current =
+      yawRef.current + shortestAngleDeltaRad(yawRef.current, desiredRad);
+    targetPitchRef.current = 0.015;
   };
 
   return (
     <div
       data-3d-engine="webgl-glb-character"
+      data-3d-topology="orthogonal-360-turntable"
+      data-realism-spec={MASTER_REALISM_SPEC_VERSION}
       data-3d-mode={mode}
       data-worn-count={mode === "product" ? 1 : slotEquippedProducts.length}
       className={`relative w-full h-full select-none overflow-hidden ${className}`}
@@ -1061,12 +1094,12 @@ export function Interactive3DAvatarStage({
         <div className="pointer-events-none hidden sm:flex absolute top-2.5 left-2.5 z-10 flex-wrap items-center gap-1.5">
           <span className="px-2.5 py-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-xs text-[10.5px] font-bold text-[#141518] inline-flex items-center gap-1">
             <Ruler className="w-3 h-3 text-[#244B3B]" />
-            3D Character • {formatHeightFeetInches(safeDimensions.heightInches)} •{" "}
+            360° 3D Twin • {formatHeightFeetInches(safeDimensions.heightInches)} •{" "}
             {safeDimensions.bustInches}&quot; B • {safeDimensions.waistInches}&quot; W •{" "}
             {safeDimensions.hipsInches}&quot; H
           </span>
           <span className="px-2 py-1 rounded-full bg-[#141518]/85 text-white text-[10px] font-bold">
-            {liveDeg}°
+            {liveDeg}° 3D
           </span>
         </div>
       )}
@@ -1230,7 +1263,7 @@ export function Interactive3DAvatarStage({
                   type="button"
                   onClick={() => {
                     targetZoomRef.current = Math.min(
-                      1.55,
+                      1.62,
                       targetZoomRef.current + 0.14
                     );
                   }}
@@ -1243,7 +1276,7 @@ export function Interactive3DAvatarStage({
                   type="button"
                   onClick={() => {
                     targetZoomRef.current = Math.max(
-                      0.78,
+                      0.76,
                       targetZoomRef.current - 0.14
                     );
                   }}
@@ -1256,7 +1289,7 @@ export function Interactive3DAvatarStage({
                   type="button"
                   onClick={() => {
                     targetYawRef.current = 0;
-                    targetPitchRef.current = 0.01;
+                    targetPitchRef.current = 0.015;
                     targetZoomRef.current = 1.0;
                   }}
                   aria-label="Reset view"

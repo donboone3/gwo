@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BookmarkPlus,
@@ -254,6 +255,8 @@ export function VellGwoStudio() {
   const [activeSlotFilter, setActiveSlotFilter] = useState<
     "all" | DressSlotKey
   >("all");
+  const [outfitCatFilter, setOutfitCatFilter] = useState<string>("all");
+  const [outfitQuery, setOutfitQuery] = useState<string>("");
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [aiSuggestionNote, setAiSuggestionNote] = useState<string | null>(
     "Tap any piece to dress your 3D scanned body, or use AI Hybrid Stylist to pair your owned closet clothes with 1 new store piece!"
@@ -1276,45 +1279,112 @@ export function VellGwoStudio() {
               </div>
             )}
 
-            {/* VIEW A: FULL OUTFIT PRESETS (10 AliExpress Full Outfits) */}
+            {/* VIEW A: FULL OUTFIT PRESETS (100 Curated Boutique Outfits) */}
             {activeWardrobeTab === "outfits" && (
-              <div className="grid grid-cols-2 gap-2">
-                {STUDIO_LOOKS.map((lk) => {
-                  const isCurrent = lookIdx === lk.index;
-                  const ids = (lk.relatedProductIds || [lk.productId]).filter(
-                    (id): id is string => Boolean(id)
-                  );
-                  const sumPrice = ids.reduce(
-                    (s, id) => s + (allWearableById.get(id)?.price || 0),
-                    0
-                  );
-                  return (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={outfitQuery}
+                    onChange={(e) => setOutfitQuery(e.target.value)}
+                    placeholder="Search 100 outfits (e.g., sapphire, tweed, date night)..."
+                    className="w-full px-3 py-1.5 rounded-full bg-[#F4F5F7] border border-black/[0.08] text-[11px] text-[#141518]"
+                  />
+                </div>
+                <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+                  {(
+                    [
+                      ["all", "All 100"],
+                      ["party", "Cocktail & Night"],
+                      ["formal", "Tailored & Work"],
+                      ["everyday", "Brunch & Off-Duty"],
+                      ["street", "Street Luxe"],
+                      ["athletic", "Pilates & Travel"],
+                    ] as const
+                  ).map(([cid, lbl]) => (
                     <button
-                      key={lk.index}
+                      key={cid}
                       type="button"
-                      onClick={() => applyPresetLook(lk.index)}
-                      className={`rounded-2xl p-2 border text-left transition cursor-pointer ${
-                        isCurrent
-                          ? "border-[#141518] ring-2 ring-[#141518]/15 bg-[#F4F8F5]"
-                          : "border-black/[0.08] bg-[#FAFBFD] hover:bg-white"
+                      onClick={() => setOutfitCatFilter(cid)}
+                      className={`px-2 py-1 rounded-full text-[10px] font-bold whitespace-nowrap border cursor-pointer ${
+                        outfitCatFilter === cid
+                          ? "bg-[#244B3B] text-white border-[#244B3B]"
+                          : "bg-white text-[#686D76] border-black/[0.08]"
                       }`}
                     >
-                      <div className="h-28 rounded-xl bg-white overflow-hidden flex items-end justify-center mb-1.5">
-                        <img
-                          src={H(lk.file, 260)}
-                          alt={lk.name}
-                          className="h-full object-contain object-bottom"
-                        />
-                      </div>
-                      <p className="text-[11px] font-bold text-[#141518] truncate">
-                        {lk.name}
-                      </p>
-                      <p className="text-[10px] font-semibold text-[#244B3B]">
-                        {ids.length} Pieces • ${sumPrice} Full Set
-                      </p>
+                      {lbl}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {STUDIO_LOOKS.filter((lk) => {
+                    if (outfitCatFilter !== "all" && lk.category !== outfitCatFilter)
+                      return false;
+                    if (!outfitQuery.trim()) return true;
+                    const q = outfitQuery.trim().toLowerCase();
+                    return `${lk.name} ${lk.occasion || ""} ${lk.stylistNote || ""}`
+                      .toLowerCase()
+                      .includes(q);
+                  }).map((lk) => {
+                    const isCurrent = lookIdx === lk.index;
+                    const ids = (lk.relatedProductIds || [lk.productId]).filter(
+                      (id): id is string => Boolean(id)
+                    );
+                    const sumPrice = ids.reduce(
+                      (s, id) => s + (allWearableById.get(id)?.price || 0),
+                      0
+                    );
+                    const previewPieces = ids
+                      .slice(0, 2)
+                      .map((id) => allWearableById.get(id))
+                      .filter((p): p is Product => Boolean(p));
+
+                    return (
+                      <button
+                        key={lk.index}
+                        type="button"
+                        onClick={() => applyPresetLook(lk.index)}
+                        className={`rounded-2xl p-2 border text-left transition cursor-pointer ${
+                          isCurrent
+                            ? "border-[#141518] ring-2 ring-[#141518]/15 bg-[#F4F8F5]"
+                            : "border-black/[0.08] bg-[#FAFBFD] hover:bg-white"
+                        }`}
+                      >
+                        <div className="relative h-28 rounded-xl bg-white overflow-hidden flex items-end justify-center mb-1.5 border border-black/[0.04]">
+                          <span className="absolute top-1.5 left-1.5 z-10 px-1.5 py-0.5 rounded-md bg-[#141518] text-white text-[8.5px] font-extrabold">
+                            #{String(lk.index + 1).padStart(3, "0")}
+                          </span>
+                          {lk.isModularRemix && previewPieces.length >= 2 ? (
+                            <div className="w-full h-full grid grid-cols-2 gap-0.5 p-1 items-center">
+                              {previewPieces.map((pp) => (
+                                <GarmentArtwork
+                                  key={pp.id}
+                                  product={pp}
+                                  className="w-full h-24"
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <img
+                              src={H(lk.file, 260)}
+                              alt={lk.name}
+                              loading="lazy"
+                              className="h-full object-contain object-bottom"
+                            />
+                          )}
+                        </div>
+                        <p className="text-[11px] font-bold text-[#141518] truncate">
+                          {lk.name}
+                        </p>
+                        <p className="text-[10px] font-semibold text-[#244B3B] truncate">
+                          {lk.occasion ? `${lk.occasion} • ` : ""}
+                          {ids.length} Pcs • ${sumPrice}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -1484,9 +1554,20 @@ export function VellGwoStudio() {
                         <p className="text-[11px] font-bold text-[#141518] line-clamp-1">
                           {prod.title}
                         </p>
-                        <p className="text-[10px] font-semibold text-[#244B3B]">
-                          Size {fit.recommendedSize} • {fit.confidencePct}% Fit
-                        </p>
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-[10px] font-semibold text-[#244B3B] truncate">
+                            Size {fit.recommendedSize} • {fit.confidencePct}% Fit
+                          </p>
+                          {!prod.id.startsWith("uploaded-") && (
+                            <Link
+                              href={`/product/${encodeURIComponent(prod.id)}`}
+                              onClick={(ev) => ev.stopPropagation()}
+                              className="text-[9.5px] font-bold text-[#244B3B] hover:underline shrink-0"
+                            >
+                              Page →
+                            </Link>
+                          )}
+                        </div>
                       </div>
 
                       <div className="mt-1.5 flex items-center gap-1">

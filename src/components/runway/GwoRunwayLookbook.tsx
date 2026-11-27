@@ -87,7 +87,8 @@ export function GwoRunwayLookbook() {
   );
 
   const [browseMode, setBrowseMode] = useState<"outfits" | "pieces">("outfits");
-  const [extraAiCount, setExtraAiCount] = useState(4);
+  const [occasionFilter, setOccasionFilter] = useState<string>("all");
+  const [extraAiCount, setExtraAiCount] = useState(0);
   const [runwayYawDeg, setRunwayYawDeg] = useState<number>(0);
   const runwayAngle: "front" | "back" =
     runwayYawDeg >= 110 && runwayYawDeg <= 250 ? "back" : "front";
@@ -194,6 +195,7 @@ export function GwoRunwayLookbook() {
       catalog: boutiqueCatalog,
       avatar: avatarStats,
       socialDna,
+      occasionFilter,
       extraGeneratedCount: extraAiCount,
     });
 
@@ -243,6 +245,7 @@ export function GwoRunwayLookbook() {
     boutiqueCatalog,
     browseMode,
     extraAiCount,
+    occasionFilter,
     savedCustomOutfits,
     socialDna,
   ]);
@@ -321,46 +324,57 @@ export function GwoRunwayLookbook() {
     [swappedPieceBySlot]
   );
 
-  // Sync Front 0° / Back 180° + Live Modular Piece Swaps & AI Remixes seamlessly!
-  useEffect(() => {
-    const targetAngle = runwayAngle;
-    modelTopImgElsRef.current.forEach((imgEl, i) => {
-      const outfit = runwayOutfits[i];
-      if (!imgEl || !outfit) return;
+  // Sync Front 0° / Back 180° + Live Modular Piece Swaps & AI Remixes lazily for near-stage window!
+  const hydrateNearWindowModular = useCallback(
+    (centerIdx: number, targetAngle: "front" | "back") => {
+      const N = runwayOutfits.length;
+      if (N === 0) return;
+      for (let offset = -2; offset <= 6; offset++) {
+        const i = ((centerIdx + offset) % N + N) % N;
+        const imgEl = modelTopImgElsRef.current[i];
+        const outfit = runwayOutfits[i];
+        if (!imgEl || !outfit) continue;
 
-      const { products: effProducts, hasSwap } =
-        resolveEffectiveOutfitProducts(outfit);
-      const needsModular =
-        Boolean(outfit.isModularRemix) ||
-        outfit.id.startsWith("custom-runway-") ||
-        hasSwap;
+        const { products: effProducts, hasSwap } =
+          resolveEffectiveOutfitProducts(outfit);
+        const needsModular =
+          Boolean(outfit.isModularRemix) ||
+          outfit.id.startsWith("custom-runway-") ||
+          hasSwap;
 
-      if (!needsModular) {
-        imgEl.src =
-          targetAngle === "back" ? outfit.backAvatarUrl : outfit.frontAvatarUrl;
-        return;
-      }
-
-      const cacheKey = `${targetAngle}:${effProducts
-        .map((p) => p.id)
-        .join("|")}`;
-      const cached = modularDataUrlCacheRef.current[cacheKey];
-      if (cached) {
-        imgEl.src = cached;
-        return;
-      }
-
-      void renderModularOutfitDataUrlAsync(effProducts, targetAngle).then(
-        (dataUrl) => {
-          if (!dataUrl) return;
-          modularDataUrlCacheRef.current[cacheKey] = dataUrl;
-          const latestEl = modelTopImgElsRef.current[i];
-          if (latestEl && runwayAngleRef.current === targetAngle) {
-            latestEl.src = dataUrl;
-          }
+        if (!needsModular) {
+          const want =
+            targetAngle === "back" ? outfit.backAvatarUrl : outfit.frontAvatarUrl;
+          if (imgEl.getAttribute("src") !== want) imgEl.src = want;
+          continue;
         }
-      );
-    });
+
+        const cacheKey = `${targetAngle}:${effProducts
+          .map((p) => p.id)
+          .join("|")}`;
+        const cached = modularDataUrlCacheRef.current[cacheKey];
+        if (cached) {
+          if (imgEl.getAttribute("src") !== cached) imgEl.src = cached;
+          continue;
+        }
+
+        void renderModularOutfitDataUrlAsync(effProducts, targetAngle).then(
+          (dataUrl) => {
+            if (!dataUrl) return;
+            modularDataUrlCacheRef.current[cacheKey] = dataUrl;
+            const latestEl = modelTopImgElsRef.current[i];
+            if (latestEl && runwayAngleRef.current === targetAngle) {
+              latestEl.src = dataUrl;
+            }
+          }
+        );
+      }
+    },
+    [resolveEffectiveOutfitProducts, runwayOutfits]
+  );
+
+  useEffect(() => {
+    hydrateNearWindowModular(safeActiveIdx, runwayAngle);
 
     faceImgElsRef.current.forEach((faceEl) => {
       if (!faceEl) return;
@@ -374,9 +388,9 @@ export function GwoRunwayLookbook() {
     });
   }, [
     customAvatar,
-    resolveEffectiveOutfitProducts,
+    hydrateNearWindowModular,
     runwayAngle,
-    runwayOutfits,
+    safeActiveIdx,
   ]);
 
   // Iconic Diagonal Depth-of-Field Multi-Model Lifelike Runway Physics (Original Prompt Properties!)
@@ -425,10 +439,11 @@ export function GwoRunwayLookbook() {
         (runwayAngle === "back" ? outfit.backAvatarUrl : outfit.frontAvatarUrl);
       img.alt = outfit.title;
       img.decoding = "async";
+      img.loading = i <= 6 ? "eager" : "lazy";
       e.append(img);
       createdTopImgs.push(img);
 
-      if (needsModular && !cachedMod) {
+      if (needsModular && !cachedMod && i <= 6) {
         const reqAngle = runwayAngle;
         void renderModularOutfitDataUrlAsync(effProducts, reqAngle).then(
           (dataUrl) => {
@@ -514,7 +529,19 @@ export function GwoRunwayLookbook() {
 
       people.forEach((m, i) => {
         let d = wrap(i - p, N);
-        if (d > N - 1) d -= N;
+        if (d > N * 0.5) d -= N;
+        if (d < -1.35 || d > 5.85) {
+          if (m.o !== "0") {
+            m.o = "0";
+            m.e.style.opacity = "0";
+            m.e.style.display = "none";
+          }
+          m.vis = false;
+          return;
+        }
+        if (m.e.style.display === "none") {
+          m.e.style.display = "block";
+        }
         const k = clamp(d + 1, 0, 6);
         const a = Math.floor(k);
         const t = k - a;
@@ -897,23 +924,48 @@ export function GwoRunwayLookbook() {
               <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-black/[0.08] shrink-0">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded-full bg-[#141518] text-white text-[10px] font-extrabold tracking-wide shrink-0">
+                      #{String(activeOutfit.outfitNumber).padStart(3, "0")}/{runwayOutfits.length}
+                    </span>
                     <h1 className="text-xs sm:text-sm font-extrabold text-[#141518] truncate">
                       {activeOutfit.title}
                     </h1>
                   </div>
                   <p className="text-[10.5px] font-semibold text-[#244B3B] truncate">
                     {browseMode === "pieces"
-                      ? `Single Piece • Calibrated for ${activeHeightStr} (Size ${recSize})`
-                      : `${activeOutfit.pieces.length} Pieces • Calibrated for ${activeHeightStr} (Size ${recSize})`}
+                      ? `Single 360° Piece • Calibrated for ${activeHeightStr} (Size ${recSize})`
+                      : `${activeOutfit.occasion} • ${activeOutfit.pieces.length} 360° Pieces • ${activeHeightStr} (Size ${recSize})`}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {browseMode === "outfits" && (
+                    <select
+                      aria-label="Filter 100 outfits by occasion"
+                      value={occasionFilter}
+                      onChange={(e) => {
+                        setOccasionFilter(e.target.value);
+                        currentPosRef.current = 0;
+                        setActiveLookIdx(0);
+                        setTimeout(() => jumpLookRef.current?.(0), 30);
+                      }}
+                      className="px-2.5 py-1 rounded-full bg-white border border-black/[0.08] text-[10.5px] font-bold text-[#141518] min-h-[26px] cursor-pointer"
+                    >
+                      <option value="all">All 100 Outfits</option>
+                      <option value="Date Night">Date Night</option>
+                      <option value="Cocktail">Cocktail &amp; Gala</option>
+                      <option value="Party">Party &amp; Night Out</option>
+                      <option value="Work">Work &amp; Executive</option>
+                      <option value="Brunch">Brunch &amp; Chic</option>
+                      <option value="Street">Street &amp; Off-Duty</option>
+                      <option value="Pilates">Pilates &amp; Travel</option>
+                    </select>
+                  )}
                   <div className="inline-flex items-center p-0.5 rounded-full bg-white border border-black/[0.08]">
                     {(
                       [
-                        ["outfits", "Outfits"],
-                        ["pieces", "Pieces"],
+                        ["outfits", `Outfits (${browseMode === "outfits" ? runwayOutfits.length : 100})`],
+                        ["pieces", `Pieces (${boutiqueCatalog.length})`],
                       ] as const
                     ).map(([modeKey, lbl]) => (
                       <button
@@ -992,7 +1044,7 @@ export function GwoRunwayLookbook() {
                 {activeOutfit.pieces.map((spec, slotIdx) => {
                   const prod = spec.product;
                   const isOwned = ownedIds.has(prod.id);
-                  const pdpHref = `/product?id=${encodeURIComponent(prod.id)}`;
+                  const pdpHref = `/product/${encodeURIComponent(prod.id)}`;
 
                   return (
                     <article
@@ -1054,6 +1106,17 @@ export function GwoRunwayLookbook() {
                           <p className="text-[11px] font-bold text-[#244B3B] truncate">
                             ${prod.price} • {prod.colorName}
                           </p>
+                          <div className="flex items-center justify-between gap-1 mt-0.5">
+                            <span className="text-[9.5px] font-medium text-[#686D76] truncate">
+                              {spec.fitVerdict}
+                            </span>
+                            <Link
+                              href={pdpHref}
+                              className="text-[9.5px] font-bold text-[#244B3B] hover:underline shrink-0"
+                            >
+                              Product Page →
+                            </Link>
+                          </div>
                         </div>
                       </div>
 

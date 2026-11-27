@@ -57,6 +57,7 @@ export function readLocalDb(): LocalDatabaseSchema {
             imageUrl: seedMatch.imageUrl,
             studioLookIndex: seedMatch.studioLookIndex ?? p.studioLookIndex,
             fitMetadata: seedMatch.fitMetadata ?? p.fitMetadata,
+            availableSizes: seedMatch.availableSizes ?? p.availableSizes,
             sizeChartInches: seedMatch.sizeChartInches ?? p.sizeChartInches,
             sourceType: seedMatch.sourceType ?? p.sourceType,
             dropship: seedMatch.dropship ?? p.dropship,

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
@@ -868,9 +869,12 @@ export function GwoEndlessOutfitFeed() {
                             className="p-2 rounded-xl bg-[#F8F9FB] border border-black/[0.05] flex items-center justify-between gap-2"
                           >
                             <div className="min-w-0">
-                              <p className="text-xs font-bold text-[#141518] truncate">
+                              <Link
+                                href={`/product/${encodeURIComponent(item.id)}`}
+                                className="block text-xs font-bold text-[#141518] hover:underline truncate"
+                              >
                                 {item.title}
-                              </p>
+                              </Link>
                               <p className="text-[10.5px] text-[#686D76] truncate">
                                 {item.brand} • <strong>${item.price}</strong> •
                                 Size {szInfo?.usSize || "S"}
@@ -881,20 +885,28 @@ export function GwoEndlessOutfitFeed() {
                               </p>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openAvatar360({
-                                  title: `${item.brand} — ${item.title}`,
-                                  primaryProduct: item,
-                                  initialAngleMode: "split",
-                                })
-                              }
-                              title="Inspect Front & Back 360° Look"
-                              className="px-2.5 py-1.5 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[10.5px] font-bold text-[#141518] inline-flex items-center gap-1 cursor-pointer shrink-0"
-                            >
-                              <Rotate3d className="w-3 h-3 text-[#244B3B]" /> 360°
-                            </button>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Link
+                                href={`/product/${encodeURIComponent(item.id)}`}
+                                className="px-2 py-1.5 rounded-full bg-[#E7F3EE] hover:bg-[#D5E9DE] text-[10px] font-bold text-[#1D4232]"
+                              >
+                                Page →
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openAvatar360({
+                                    title: `${item.brand} — ${item.title}`,
+                                    primaryProduct: item,
+                                    initialAngleMode: "split",
+                                  })
+                                }
+                                title="Inspect Front & Back 360° Look"
+                                className="px-2.5 py-1.5 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[10.5px] font-bold text-[#141518] inline-flex items-center gap-1 cursor-pointer shrink-0"
+                              >
+                                <Rotate3d className="w-3 h-3 text-[#244B3B]" /> 360°
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
