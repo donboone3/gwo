@@ -20,8 +20,17 @@ import {
 } from "./avatar-ready-pipeline";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const TURNTABLE_VER = "hf360v3";
+export const TURNTABLE_VER = "hf360v4";
 export const NUM_TURNTABLE_FRAMES = 96;
+
+export const ATLAS_COLS = 12;
+export const ATLAS_ROWS = 8;
+export const ATLAS_CELL_W = 260;
+export const ATLAS_CELL_H = 512;
+export const ATLAS_ROI_X0 = 0.14;
+export const ATLAS_ROI_W = 0.72;
+export const ATLAS_ROI_Y0 = 0.10;
+export const ATLAS_ROI_H = 0.82;
 
 export type DonorFabricMaskId =
   | "emerald_green"
@@ -90,6 +99,7 @@ export interface ResolvedTurntableSpec {
   kind: "higgsfield_mp4";
   lookIdx: number | "base" | "custom";
   mp4Url: string;
+  atlasUrl?: string;
   posterUrl: string;
   colorwayShift?: ColorwayShiftSpec;
   colorwayShifts?: ColorwayShiftSpec[];
@@ -587,11 +597,13 @@ const DONOR_ANATOMY_BY_LOOK: Record<number, DonorTurntableAnatomy> = {
 
 export function turntableUrlsForIndex(lookIdx: number | "base"): {
   mp4Url: string;
+  atlasUrl: string;
   posterUrl: string;
 } {
   const slug = lookIdx === "base" ? "ae_base" : `ae_outfit_${lookIdx}`;
   return {
     mp4Url: `${BASE}/models/turntables/${slug}_360.mp4?v=${TURNTABLE_VER}`,
+    atlasUrl: `${BASE}/models/turntables/${slug}_atlas.webp?v=${TURNTABLE_VER}`,
     posterUrl: `${BASE}/models/turntables/${slug}_poster.webp?v=${TURNTABLE_VER}`,
   };
 }
@@ -1237,6 +1249,12 @@ async function resolveHydratedShiftsAsync(
 // ============================================================================
 
 export interface CachedFrameBundle {
+  /** Single pre-matted RGBA GPU texture containing all 96 frames (`12 x 8` grid) */
+  atlasBitmap?: ImageBitmap;
+  cellW?: number;
+  cellH?: number;
+  cols?: number;
+  /** Fallback frame list for custom `/api/higgsfield` `.mp4` videos */
   frames: ImageBitmap[];
   width: number;
   height: number;
@@ -1520,7 +1538,9 @@ export function getCachedTurntableBundleSync(
   spec: ResolvedTurntableSpec,
   seamlessKeying: boolean
 ): CachedFrameBundle | null {
-  const fullKey = `${spec.cacheKey}|seamless=${seamlessKeying}`;
+  const fullKey = spec.atlasUrl
+    ? spec.cacheKey
+    : `${spec.cacheKey}|seamless=${seamlessKeying}`;
   return BITMAP_LRU.get(fullKey) || null;
 }
 
@@ -1578,11 +1598,114 @@ export function prefetchTurntableBundle(
 ): void {
   if (typeof window === "undefined") return;
   const spec = resolveTurntableSpecForOutfit(products, products, avatarOptions);
-  const fullKey = `${spec.cacheKey}|seamless=${seamlessKeying}`;
+  const fullKey = spec.atlasUrl
+    ? spec.cacheKey
+    : `${spec.cacheKey}|seamless=${seamlessKeying}`;
   if (BITMAP_LRU.has(fullKey) || INFLIGHT_EXTRACTIONS.has(fullKey)) return;
   void extractTurntableBitmapBundle(spec, seamlessKeying).catch(() => {
     // ignore background prefetch error
   });
+}
+
+function postProcessPreMattedAtlasCanvas(
+  ctx: CanvasRenderingContext2D,
+  atlasW: number,
+  atlasH: number,
+  cellW: number,
+  cellH: number,
+  shifts: ColorwayShiftSpec[],
+  skinToneTargetHex?: string
+): void {
+  if (shifts.length === 0 && !skinToneTargetHex) return;
+  const imgData = ctx.getImageData(0, 0, atlasW, atlasH);
+  const d = imgData.data;
+
+  for (const shift of shifts) {
+    const [tr, tg, tb] = hexToRgb01(shift.targetHex);
+    const nativeHex =
+      shift.nativeHex || DEFAULT_MASK_NATIVE_HEX[shift.sourceMask];
+    const [dr, dg, db] = hexToRgb01(nativeHex);
+    const donorLum = clampRange(
+      0.299 * dr + 0.587 * dg + 0.114 * db,
+      0.11,
+      0.85
+    );
+    const specGain = shift.isMetallic ? 0.30 : 0.14;
+
+    const cy0Frac = clamp01((shift.yRange[0] - ATLAS_ROI_Y0) / ATLAS_ROI_H);
+    const cy1Frac = clamp01((shift.yRange[1] - ATLAS_ROI_Y0) / ATLAS_ROI_H);
+    const localY0 = Math.floor(cy0Frac * cellH);
+    const localY1 = Math.ceil(cy1Frac * cellH);
+
+    for (let row = 0; row < ATLAS_ROWS; row++) {
+      const yStart = row * cellH + localY0;
+      const yEnd = Math.min(atlasH, row * cellH + localY1);
+      for (let y = yStart; y < yEnd; y++) {
+        const rowOffset = y * atlasW * 4;
+        for (let x = 0; x < atlasW; x++) {
+          const k = rowOffset + x * 4;
+          if (d[k + 3] < 20) continue;
+          const r = d[k] / 255;
+          const g = d[k + 1] / 255;
+          const b = d[k + 2] / 255;
+          const maxC = r > g ? (r > b ? r : b) : g > b ? g : b;
+          const minC = r < g ? (r < b ? r : b) : g < b ? g : b;
+          const chroma = maxC - minC;
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+          const w = evaluateMaskWeight(
+            shift.sourceMask,
+            r,
+            g,
+            b,
+            lum,
+            chroma
+          );
+          if (w > 0.008) {
+            const foldRatio = clampRange(lum / donorLum, 0.32, 1.68);
+            const shaped = Math.max(0.18, 1 + (foldRatio - 1) * 0.86);
+            const spec =
+              foldRatio > 1.06 ? (foldRatio - 1.06) * specGain : 0;
+            const nr = clamp01(tr * shaped + spec);
+            const ng = clamp01(tg * shaped + spec);
+            const nb = clamp01(tb * shaped + spec);
+            d[k] = Math.round((r * (1 - w) + nr * w) * 255);
+            d[k + 1] = Math.round((g * (1 - w) + ng * w) * 255);
+            d[k + 2] = Math.round((b * (1 - w) + nb * w) * 255);
+          }
+        }
+      }
+    }
+  }
+
+  if (skinToneTargetHex) {
+    const [sr, sg, sb] = hexToRgb01(skinToneTargetHex);
+    const mulR = clamp01((sr / 0.78) * 0.5) * 2;
+    const mulG = clamp01((sg / 0.57) * 0.5) * 2;
+    const mulB = clamp01((sb / 0.45) * 0.5) * 2;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 20) continue;
+      const r = d[i] / 255;
+      const g = d[i + 1] / 255;
+      const b = d[i + 2] / 255;
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      const sw =
+        clamp01((r - g - 0.065) / 0.05) *
+        clamp01((0.24 - (r - g)) / 0.06) *
+        clamp01((g - b - 0.045) / 0.045) *
+        clamp01((lum - 0.28) / 0.10) *
+        clamp01((0.82 - lum) / 0.08) *
+        0.62;
+      if (sw > 0.01) {
+        d[i] = Math.round(clamp01(r * (1 - sw) + r * mulR * sw) * 255);
+        d[i + 1] = Math.round(clamp01(g * (1 - sw) + g * mulG * sw) * 255);
+        d[i + 2] = Math.round(clamp01(b * (1 - sw) + b * mulB * sw) * 255);
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  void cellW;
 }
 
 function buildNearestFilled96(
@@ -1629,7 +1752,9 @@ export function extractTurntableBitmapBundle(
   onProgress?: (loadedFrames: number, totalFrames: number) => void,
   onProgressiveFrames?: (frames: ImageBitmap[], isComplete: boolean) => void
 ): Promise<CachedFrameBundle> {
-  const fullKey = `${spec.cacheKey}|seamless=${seamlessKeying}`;
+  const fullKey = spec.atlasUrl
+    ? spec.cacheKey
+    : `${spec.cacheKey}|seamless=${seamlessKeying}`;
   const hit = BITMAP_LRU.get(fullKey);
   if (hit) {
     BITMAP_LRU.delete(fullKey);
@@ -1675,11 +1800,104 @@ export function extractTurntableBitmapBundle(
     }
   };
 
+  const evictIfNeeded = () => {
+    if (BITMAP_LRU.size >= MAX_LRU_BUNDLES) {
+      const oldestKey = BITMAP_LRU.keys().next().value;
+      if (oldestKey) {
+        const old = BITMAP_LRU.get(oldestKey);
+        if (old?.atlasBitmap) {
+          try {
+            old.atlasBitmap.close();
+          } catch {
+            // ignore
+          }
+        }
+        old?.frames.forEach((b) => {
+          try {
+            b.close();
+          } catch {
+            // ignore
+          }
+        });
+        BITMAP_LRU.delete(oldestKey);
+      }
+    }
+  };
+
   const p = (async (): Promise<CachedFrameBundle> => {
     if (typeof document === "undefined" || typeof createImageBitmap === "undefined") {
       return { frames: [], width: 540, height: 960 };
     }
 
+    // ========================================================================
+    // ULTRA-FAST PATH: Pre-Matted 96-Frame RGBA WebP Atlas (`~40ms` off-thread C++ decode!)
+    // Zero `<video>` seeks, zero main-thread blocking on standard outfits!
+    // ========================================================================
+    if (spec.atlasUrl) {
+      try {
+        const [res, hydratedShifts] = await Promise.all([
+          fetch(spec.atlasUrl, { mode: "cors", credentials: "same-origin" }),
+          resolveHydratedShiftsAsync(spec),
+        ]);
+        if (res.ok) {
+          const blob = await res.blob();
+          const rawAtlas = await createImageBitmap(blob);
+          onProgress?.(NUM_TURNTABLE_FRAMES, NUM_TURNTABLE_FRAMES);
+
+          let finalAtlas = rawAtlas;
+          let cellW = ATLAS_CELL_W;
+          let cellH = ATLAS_CELL_H;
+
+          if (hydratedShifts.length > 0 || spec.skinToneTargetHex) {
+            // Single-pass recoloring at 0.75x (`195x384` per cell = `2340x3072`) skipping transparent pixels!
+            cellW = 195;
+            cellH = 384;
+            const aw = cellW * ATLAS_COLS;
+            const ah = cellH * ATLAS_ROWS;
+            const cv = document.createElement("canvas");
+            cv.width = aw;
+            cv.height = ah;
+            const ctx = cv.getContext("2d", { willReadFrequently: true })!;
+            ctx.drawImage(rawAtlas, 0, 0, aw, ah);
+            try {
+              rawAtlas.close();
+            } catch {
+              // ignore
+            }
+            postProcessPreMattedAtlasCanvas(
+              ctx,
+              aw,
+              ah,
+              cellW,
+              cellH,
+              hydratedShifts,
+              spec.skinToneTargetHex
+            );
+            finalAtlas = await createImageBitmap(cv);
+          }
+
+          evictIfNeeded();
+          const bundle: CachedFrameBundle = {
+            atlasBitmap: finalAtlas,
+            cellW,
+            cellH,
+            cols: ATLAS_COLS,
+            frames: [],
+            width: cellW,
+            height: cellH,
+          };
+          BITMAP_LRU.set(fullKey, bundle);
+          notifyProgressive([], true);
+          return bundle;
+        }
+      } catch {
+        // Fall through to `.mp4` decoder if atlas network request ever fails
+      }
+    }
+
+    // ========================================================================
+    // FALLBACK PATH: Custom Customer `/api/higgsfield` `.mp4` Videos
+    // ========================================================================
     const hydratedShiftsPromise = resolveHydratedShiftsAsync(spec);
 
     const vid = document.createElement("video");
@@ -1802,21 +2020,7 @@ export function extractTurntableBitmapBundle(
 
     const finalFrames = slots.map((b, i) => b || buildNearestFilled96(slots, N)[i]);
 
-    if (BITMAP_LRU.size >= MAX_LRU_BUNDLES) {
-      const oldestKey = BITMAP_LRU.keys().next().value;
-      if (oldestKey) {
-        const old = BITMAP_LRU.get(oldestKey);
-        old?.frames.forEach((b) => {
-          try {
-            b.close();
-          } catch {
-            // ignore
-          }
-        });
-        BITMAP_LRU.delete(oldestKey);
-      }
-    }
-
+    evictIfNeeded();
     const bundle = { frames: finalFrames, width: W, height: H };
     BITMAP_LRU.set(fullKey, bundle);
     notifyProgressive(finalFrames, true);

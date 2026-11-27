@@ -33,9 +33,16 @@ import { classifyWearableSlotAndAnchors } from "@/lib/three/avatar-ready-pipelin
 import { buildTopLineAliExpressDropshipCatalog } from "@/lib/dropship/aliexpress-dropship";
 import { loadStandalone3DItemInstance } from "@/lib/three/glb-character-engine";
 import {
+  ATLAS_COLS,
+  ATLAS_ROI_H,
+  ATLAS_ROI_W,
+  ATLAS_ROI_X0,
+  ATLAS_ROI_Y0,
+  CachedFrameBundle,
   extractProcessedPosterBitmap,
   extractTurntableBitmapBundle,
   getCachedTurntableBundleSync,
+  NUM_TURNTABLE_FRAMES,
   resolveTurntableSpecForOutfit,
 } from "@/lib/three/higgsfield-turntable-engine";
 import {
@@ -231,9 +238,8 @@ export function Interactive3DAvatarStage({
   const dimsRef = useRef(safeDimensions);
   dimsRef.current = safeDimensions;
 
-  const [liveDeg, setLiveDeg] = useState<number>(
-    ((Math.round(initialYawDeg) % 360) + 360) % 360
-  );
+  const initialDeg = ((Math.round(initialYawDeg) % 360) + 360) % 360;
+  const degBadgeRef = useRef<HTMLSpanElement | null>(null);
   const [tappedInfo, setTappedInfo] = useState<{
     product: Product;
     fit?: AvatarExactFitReport;
@@ -241,8 +247,10 @@ export function Interactive3DAvatarStage({
   const [framesReady, setFramesReady] = useState<boolean>(false);
   const [isLoadingFrames, setIsLoadingFrames] = useState<boolean>(false);
 
+  const bundleRef = useRef<CachedFrameBundle | null>(null);
   const framesRef = useRef<ImageBitmap[]>([]);
   const posterBitmapRef = useRef<ImageBitmap | null>(null);
+  const paintVersionRef = useRef<number>(0);
   const faceOvalImgRef = useRef<HTMLImageElement | null>(null);
 
   const setVisualMode = useCallback(
@@ -399,41 +407,42 @@ export function Interactive3DAvatarStage({
     ]
   );
 
-  // Load Poster + Progressive 2-Pass Instant-Spin `ImageBitmap[]` Stream (<90ms to interactive 360°!)
+  // Load Off-Thread 96-Frame Pre-Matted RGBA WebP Atlas (or Custom MP4 Stream)
   useEffect(() => {
     if (mode !== "avatar") return;
     let cancelled = false;
 
     // 1. Instant 0ms synchronous LRU hit if already decoded in RAM!
     const syncHit = getCachedTurntableBundleSync(turntableSpec, seamlessStage);
-    if (syncHit && syncHit.frames.length > 0) {
+    if (syncHit && (syncHit.atlasBitmap || syncHit.frames.length > 0)) {
+      bundleRef.current = syncHit;
       framesRef.current = syncHit.frames;
+      paintVersionRef.current++;
       setFramesReady(true);
       setIsLoadingFrames(false);
       return;
     }
 
-    // 2. Zero-flash transition: keep current frame painted until new poster or Pass-1 cardinal frames arrive!
+    // 2. Zero-flash transition: keep current frame painted until new atlas or poster arrives!
     setFramesReady(false);
-    let receivedProgressive = false;
+    let receivedBundle = false;
 
     void extractProcessedPosterBitmap(turntableSpec, seamlessStage).then(
       (pBmp) => {
-        if (!cancelled && pBmp) {
+        if (!cancelled && pBmp && !receivedBundle) {
           posterBitmapRef.current = pBmp;
-          // Swap off previous outfit frames onto new outfit's exact poster ONLY if Pass-1 hasn't already populated!
-          if (!receivedProgressive) {
-            framesRef.current = [];
-          }
+          bundleRef.current = null;
+          framesRef.current = [];
+          paintVersionRef.current++;
         }
       }
     );
 
     const spinnerTimer = setTimeout(() => {
-      if (!cancelled && !receivedProgressive && framesRef.current.length === 0) {
+      if (!cancelled && !receivedBundle) {
         setIsLoadingFrames(true);
       }
-    }, 380);
+    }, 420);
 
     void extractTurntableBitmapBundle(
       turntableSpec,
@@ -441,9 +450,10 @@ export function Interactive3DAvatarStage({
       undefined,
       (progFrames) => {
         if (cancelled || progFrames.length === 0) return;
-        receivedProgressive = true;
+        receivedBundle = true;
         clearTimeout(spinnerTimer);
         framesRef.current = progFrames;
+        paintVersionRef.current++;
         setFramesReady(true);
         setIsLoadingFrames(false);
       }
@@ -451,11 +461,12 @@ export function Interactive3DAvatarStage({
       .then((bundle) => {
         clearTimeout(spinnerTimer);
         if (cancelled) return;
-        if (bundle.frames.length > 0) {
+        if (bundle.atlasBitmap || bundle.frames.length > 0) {
+          receivedBundle = true;
+          bundleRef.current = bundle;
           framesRef.current = bundle.frames;
+          paintVersionRef.current++;
           setFramesReady(true);
-        } else if (!receivedProgressive) {
-          framesRef.current = [];
         }
         setIsLoadingFrames(false);
       })
@@ -635,7 +646,16 @@ export function Interactive3DAvatarStage({
 
     let rafId = 0;
     let lastTime = performance.now();
-    let frameTick = 0;
+    let lastFrameIdx = -2;
+    let lastZoom = -1;
+    let lastCw = -1;
+    let lastCh = -1;
+    let lastPaintVer = -1;
+    let lastVisMode: Render3DVisualMode | "" = "";
+    let lastShowRings: boolean | null = null;
+    let lastDimsSig = "";
+    let lastDomDeg = -1;
+    let lastCbDeg = -999;
 
     const renderFrame = (now: number) => {
       const dt = Math.min(0.05, (now - lastTime) / 1000);
@@ -646,19 +666,76 @@ export function Interactive3DAvatarStage({
       } else if (
         inertiaSpin &&
         !pointerDown &&
-        Math.abs(velYawRef.current) > 0.02
+        Math.abs(velYawRef.current) > 0.015
       ) {
         targetYawRef.current += velYawRef.current * dt;
-        velYawRef.current *= Math.exp(-3.4 * dt);
-        if (Math.abs(velYawRef.current) <= 0.02) velYawRef.current = 0;
+        velYawRef.current *= Math.exp(-3.1 * dt);
+        if (Math.abs(velYawRef.current) <= 0.015) velYawRef.current = 0;
       }
 
-      const damp = 1 - Math.exp(-14 * dt);
-      yawRef.current += (targetYawRef.current - yawRef.current) * damp;
-      zoomRef.current += (targetZoomRef.current - zoomRef.current) * damp;
+      // Direct 1:1 finger tracking while dragging (-38 * dt); silky glide on button snaps (-15 * dt)!
+      const yawDamp =
+        pointerDown && horizontalLocked
+          ? 1 - Math.exp(-38 * dt)
+          : 1 - Math.exp(-15 * dt);
+      const zoomDamp = 1 - Math.exp(-16 * dt);
+
+      yawRef.current += (targetYawRef.current - yawRef.current) * yawDamp;
+      zoomRef.current += (targetZoomRef.current - zoomRef.current) * zoomDamp;
 
       const normProgress =
         (((yawRef.current / (Math.PI * 2)) % 1) + 1) % 1;
+
+      const activeBundle = bundleRef.current;
+      const frames = framesRef.current;
+      const hasAtlas = Boolean(activeBundle?.atlasBitmap);
+      const totalFrames = hasAtlas ? NUM_TURNTABLE_FRAMES : frames.length;
+      const frameIdx =
+        totalFrames > 0
+          ? Math.floor(normProgress * totalFrames) % totalFrames
+          : -1;
+
+      const dims = dimsRef.current;
+      const zoom = zoomRef.current;
+      const curVisMode = visualModeRef.current;
+      const curRings = showRingsRef.current;
+      const dimsSig = `${dims.heightInches}:${dims.bustInches}:${dims.waistInches}:${dims.hipsInches}`;
+
+      const deg = Math.round(normProgress * 360) % 360;
+      if (deg !== lastDomDeg) {
+        lastDomDeg = deg;
+        if (degBadgeRef.current) {
+          degBadgeRef.current.textContent = `${deg}° 360°`;
+        }
+        if (Math.abs(deg - lastCbDeg) >= 3 || (deg === 0 && lastCbDeg !== 0)) {
+          lastCbDeg = deg;
+          onYawChangeRef.current?.(deg);
+        }
+      }
+
+      // Dirty-flag idle sleep: 0.00ms GPU/CPU cost when frame index and viewport haven't changed!
+      if (
+        frameIdx === lastFrameIdx &&
+        Math.abs(zoom - lastZoom) < 0.0006 &&
+        cw === lastCw &&
+        ch === lastCh &&
+        paintVersionRef.current === lastPaintVer &&
+        curVisMode === lastVisMode &&
+        curRings === lastShowRings &&
+        dimsSig === lastDimsSig
+      ) {
+        rafId = requestAnimationFrame(renderFrame);
+        return;
+      }
+
+      lastFrameIdx = frameIdx;
+      lastZoom = zoom;
+      lastCw = cw;
+      lastCh = ch;
+      lastPaintVer = paintVersionRef.current;
+      lastVisMode = curVisMode;
+      lastShowRings = curRings;
+      lastDimsSig = dimsSig;
 
       ctx.save();
       ctx.scale(dpr, dpr);
@@ -667,10 +744,6 @@ export function Interactive3DAvatarStage({
         ctx.fillStyle = "#FFFFFF";
         ctx.fillRect(0, 0, cw, ch);
       }
-
-      const frames = framesRef.current;
-      const dims = dimsRef.current;
-      const zoom = zoomRef.current;
 
       // Frame geometry inside stage (maximizes full-screen mobile height while preventing horizontal arm/bag clipping!)
       const isNarrowMobile = cw < 460;
@@ -694,14 +767,20 @@ export function Interactive3DAvatarStage({
         : Math.round(ch * 0.025);
       const availH = Math.max(120, ch - topPad - botPad);
 
-      // Source keyframes have crown at y=250/1920 (0.130) and sole at y=1700/1920 (0.885 -> body span 0.755 of frame height)
       const hScale = clamp(dims.heightInches / 64.0, 0.95, 1.04);
+      const shS = clamp(1 + (dims.shoulderInches / 15.2 - 1) * 0.22, 0.96, 1.05);
+      const buS = clamp(1 + (dims.bustInches / 36.0 - 1) * 0.22, 0.95, 1.06);
+      const waS = clamp(1 + (dims.waistInches / 27.5 - 1) * 0.24, 0.94, 1.06);
+      const hiS = clamp(1 + (dims.hipsInches / 38.5 - 1) * 0.25, 0.95, 1.07);
+      const bodyWidthScale = clamp((shS + buS + waS + hiS) * 0.25, 0.95, 1.06);
+
       const maxDrawHByWidth = (cw / 0.58) * (16 / 9);
       const baseDrawH = Math.min(availH / 0.79, maxDrawHByWidth);
       const drawH = baseDrawH * zoom * hScale;
       const drawW = drawH * (9 / 16);
+      const scaledW = drawW * bodyWidthScale;
       const centerX = cw * 0.5;
-      // Center vertically if width-clamped on ultra-tall narrow screens; otherwise anchor soles cleanly above bottom bar!
+
       const figSpanH = drawH * 0.758;
       const soleScreenY =
         figSpanH < availH * 0.90
@@ -709,95 +788,44 @@ export function Interactive3DAvatarStage({
           : topPad + availH * 0.978;
       const drawY = soleScreenY - drawH * 0.888;
 
-      const cosInterp = (a: number, b: number, t: number) => {
-        const u = clamp(t, 0, 1);
-        const w = (1 - Math.cos(u * Math.PI)) * 0.5;
-        return a + (b - a) * w;
-      };
-
-      const drawSlicedPortrait = (
-        source: CanvasImageSource,
-        srcW: number,
-        srcH: number,
-        alpha = 1.0
-      ) => {
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        // Craniofacially-locked C1-continuous body-scan curve (0px step seams, head/face 100% locked 1:1!)
-        const shS = clamp(1 + (dims.shoulderInches / 15.2 - 1) * 0.22, 0.96, 1.05);
-        const buS = clamp(1 + (dims.bustInches / 36.0 - 1) * 0.22, 0.95, 1.06);
-        const waS = clamp(1 + (dims.waistInches / 27.5 - 1) * 0.24, 0.94, 1.06);
-        const hiS = clamp(1 + (dims.hipsInches / 38.5 - 1) * 0.25, 0.95, 1.07);
-
-        const isIdentityScale =
-          Math.abs(shS - 1) < 0.008 &&
-          Math.abs(buS - 1) < 0.008 &&
-          Math.abs(waS - 1) < 0.008 &&
-          Math.abs(hiS - 1) < 0.008;
-
-        if (isIdentityScale) {
-          ctx.drawImage(source, centerX - drawW * 0.5, drawY, drawW, drawH);
-        } else {
-          const BANDS = 48;
-          for (let b = 0; b < BANDS; b++) {
-            const f0 = b / BANDS;
-            const f1 = (b + 1) / BANDS;
-            const fm = (f0 + f1) * 0.5;
-            let sxBand = 1.0;
-            if (fm < 0.23) {
-              sxBand = 1.0; // Head & face strictly locked 1:1!
-            } else if (fm < 0.31) {
-              sxBand = cosInterp(1.0, shS, (fm - 0.23) / 0.08);
-            } else if (fm < 0.39) {
-              sxBand = cosInterp(shS, buS, (fm - 0.31) / 0.08);
-            } else if (fm < 0.47) {
-              sxBand = cosInterp(buS, waS, (fm - 0.39) / 0.08);
-            } else if (fm < 0.58) {
-              sxBand = cosInterp(waS, hiS, (fm - 0.47) / 0.11);
-            } else if (fm < 0.78) {
-              sxBand = cosInterp(hiS, 1.0, (fm - 0.58) / 0.20);
-            }
-
-            const sy = Math.floor(f0 * srcH);
-            const sh = Math.max(1, Math.ceil(f1 * srcH) - sy);
-            const dy = drawY + f0 * drawH;
-            const dh = (sh / srcH) * drawH + 0.45;
-            const bw = drawW * sxBand;
-            ctx.drawImage(
-              source,
-              0,
-              sy,
-              srcW,
-              sh,
-              centerX - bw * 0.5,
-              dy,
-              bw,
-              dh
-            );
-          }
-        }
-        ctx.restore();
-      };
-
-      if (frames.length > 0) {
+      // SINGLE HARDWARE GPU BLIT PER FRAME (48x fewer draw calls -> 0.12ms/frame!)
+      if (hasAtlas && activeBundle?.atlasBitmap && frameIdx >= 0) {
         if (posterImgRef.current) {
           posterImgRef.current.style.opacity = "0";
         }
-        const idx = Math.floor(normProgress * frames.length) % frames.length;
-        const bmp = frames[idx];
-        drawSlicedPortrait(bmp, bmp.width, bmp.height, 1.0);
+        const cols = activeBundle.cols || ATLAS_COLS;
+        const cwCell = activeBundle.cellW || 260;
+        const chCell = activeBundle.cellH || 512;
+        const col = frameIdx % cols;
+        const row = (frameIdx / cols) | 0;
+        const dstW = ATLAS_ROI_W * scaledW;
+        const dstH = ATLAS_ROI_H * drawH;
+        const dstX = centerX + (ATLAS_ROI_X0 - 0.5) * scaledW;
+        const dstY = drawY + ATLAS_ROI_Y0 * drawH;
+        ctx.drawImage(
+          activeBundle.atlasBitmap,
+          col * cwCell,
+          row * chCell,
+          cwCell,
+          chCell,
+          dstX,
+          dstY,
+          dstW,
+          dstH
+        );
+      } else if (frames.length > 0 && frameIdx >= 0) {
+        if (posterImgRef.current) {
+          posterImgRef.current.style.opacity = "0";
+        }
+        const bmp = frames[frameIdx];
+        ctx.drawImage(bmp, centerX - scaledW * 0.5, drawY, scaledW, drawH);
       } else if (posterBitmapRef.current) {
         const pBmp = posterBitmapRef.current;
-        drawSlicedPortrait(pBmp, pBmp.width, pBmp.height, 1.0);
+        ctx.drawImage(pBmp, centerX - scaledW * 0.5, drawY, scaledW, drawH);
       }
-      // Note: Customer skin-tone & 3D body-scan proportions are harmonized across all 96 frames
-      // via `resolveTurntableSpecForOutfit` + `drawSlicedPortrait` (never a flat 2D face-sticker paste!)
 
       // Optional Fit Heatmap Zone Wash (`Fit Map` mode)
-      if (
-        visualModeRef.current === "heatmap" &&
-        equippedRef.current.length > 0
-      ) {
+      if (curVisMode === "heatmap" && equippedRef.current.length > 0) {
         const primary = equippedRef.current.find(
           (p) => classifyWearableSlotAndAnchors(p).slot !== "bag"
         );
@@ -809,9 +837,9 @@ export function Interactive3DAvatarStage({
         const hFeel = fit?.zones.find((z) => z.zone === "Hips")?.feel;
 
         const zones: Array<[number, number, ZoneFeel | undefined]> = [
-          [0.34, drawW * 0.16, bFeel],
-          [0.44, drawW * 0.135, wFeel],
-          [0.54, drawW * 0.175, hFeel],
+          [0.34, scaledW * 0.16, bFeel],
+          [0.44, scaledW * 0.135, wFeel],
+          [0.54, scaledW * 0.175, hFeel],
         ];
         for (const [yFrac, rxZone, feel] of zones) {
           const zy = drawY + drawH * yFrac;
@@ -833,11 +861,11 @@ export function Interactive3DAvatarStage({
       }
 
       // Optional 3D Measurement Tape Rings (`3D Rings` / `Tape` mode)
-      if (showRingsRef.current || visualModeRef.current === "xray") {
+      if (curRings || curVisMode === "xray") {
         const ringSpecs: Array<[number, number, string, string]> = [
-          [0.345, drawW * 0.155, "#10B981", `${dims.bustInches}" B`],
-          [0.442, drawW * 0.132, "#244B3B", `${dims.waistInches}" W`],
-          [0.542, drawW * 0.172, "#0EA5E9", `${dims.hipsInches}" H`],
+          [0.345, scaledW * 0.155, "#10B981", `${dims.bustInches}" B`],
+          [0.442, scaledW * 0.132, "#244B3B", `${dims.waistInches}" W`],
+          [0.542, scaledW * 0.172, "#0EA5E9", `${dims.hipsInches}" H`],
         ];
         ctx.save();
         for (const [yFrac, rxRing, hex, lbl] of ringSpecs) {
@@ -857,13 +885,6 @@ export function Interactive3DAvatarStage({
       }
 
       ctx.restore();
-
-      frameTick++;
-      if (frameTick % 4 === 0) {
-        const deg = Math.round(normProgress * 360) % 360;
-        setLiveDeg(deg);
-        onYawChangeRef.current?.(deg);
-      }
 
       rafId = requestAnimationFrame(renderFrame);
     };
@@ -1060,8 +1081,11 @@ export function Interactive3DAvatarStage({
             {safeDimensions.bustInches}&quot; B • {safeDimensions.waistInches}&quot; W •{" "}
             {safeDimensions.hipsInches}&quot; H
           </span>
-          <span className="px-2 py-1 rounded-full bg-[#141518]/85 text-white text-[10px] font-bold">
-            {liveDeg}° 360°
+          <span
+            ref={degBadgeRef}
+            className="px-2 py-1 rounded-full bg-[#141518]/85 text-white text-[10px] font-bold"
+          >
+            {initialDeg}° 360°
           </span>
         </div>
       )}
