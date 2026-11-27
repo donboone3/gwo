@@ -29,16 +29,16 @@ import {
   AvatarExactFitReport,
 } from "@/lib/catalog/fit-intelligence";
 import { classifyWearableSlotAndAnchors } from "@/lib/three/avatar-ready-pipeline";
-import { MOD_BOT_SLUG } from "@/lib/three/modular-outfit-compositor";
 import {
   Character3DRig,
-  SideOutfit3DRig,
-  Wearable3DItemRig,
+  Conformal3DOutfitBundle,
+  Purse3DQuadrantRig,
+  buildConformal3DOutfitTextures,
   loadCharacter3DRig,
-  loadMatchedSideOutfit3DRig,
+  loadSocketMounted3DPurseRig,
   loadStandalone3DItemInstance,
-  loadWearable3DItemRig,
   preloadCore3DGlbs,
+  sampleAlphaGridAtUv,
   sampleMeshAlphaAtUv,
   syncBodyMorphUniforms,
 } from "@/lib/three/glb-character-engine";
@@ -153,10 +153,13 @@ const LIGHT_MOOD_TINTS: Record<ImmersiveLightingPresetId, string> = {
 };
 
 /**
- * ORTHOGONAL 4-QUADRANT TRUE-3D INTERACTIVE CHARACTER & GARMENT TURNTABLE (`THREE.WebGLRenderer`)
+ * CONFORMAL 4-QUADRANT TRUE-3D CHARACTER & SCULPTED PURSE TURNTABLE (`THREE.WebGLRenderer`)
  * - Rotates `avatarTurntable.rotation.y = yawRef.current` continuously at true 1:1 3D angular velocity
  *   around the Y-axis (`0° -> 90° -> 180° -> 270° -> 360°`) + vertical 3D pitch + wheel/pinch zoom!
- * - Zero 2D card rock-and-snap; every garment mounts as its own physical 3D depth shell (`+5mm..+54mm`).
+ * - Conformal pre-composited 3D garment shells with hardware Z-buffer depth (`depthWrite: true`) and
+ *   4×4 Bayer dithered handoffs eliminate 100% of multi-layer clothes blending & oblique sleeve parallax.
+ * - Sculpted 3D coronal-socket Purse Rig welds straps/handles within `2.6mm` of her shoulder/hand
+ *   while swelling smoothly to `+20mm` 3D leather relief across the bag body at every angle!
  */
 export function Interactive3DAvatarStage({
   mode = "avatar",
@@ -262,16 +265,15 @@ export function Interactive3DAvatarStage({
     stageRoot: THREE.Group;
     avatarTurntable: THREE.Group;
     charGroup: THREE.Group;
-    equippedFrontGroup: THREE.Group;
-    equippedBackGroup: THREE.Group;
-    sideOutfitGroup: THREE.Group;
+    bagSocketGroup: THREE.Group;
     productTurntable: THREE.Group;
     ringsGroup: THREE.Group;
     faceDecalGroup: THREE.Group;
     shadowPlane: THREE.Mesh;
     charRig: Character3DRig | null;
-    sideOutfitRig: SideOutfit3DRig | null;
-    itemRigs: Wearable3DItemRig[];
+    outfitBundle: Conformal3DOutfitBundle | null;
+    purseRig: Purse3DQuadrantRig | null;
+    hasEquippedClothes: boolean;
   } | null>(null);
 
   const equipReqIdRef = useRef<number>(0);
@@ -359,6 +361,9 @@ export function Interactive3DAvatarStage({
     return Array.from(chosen.values());
   }, [wornPieces]);
 
+  const slotEquippedRef = useRef(slotEquippedProducts);
+  slotEquippedRef.current = slotEquippedProducts;
+
   const equippedSignature = useMemo(
     () =>
       mode === "product"
@@ -371,7 +376,67 @@ export function Interactive3DAvatarStage({
     [mode, singleProduct, slotEquippedProducts, wornPieces]
   );
 
-  // 1. Mount WebGL Three.js Renderer & True 360° Orthogonal 3D Turntable!
+  const applyOutfitStateToCharRig = useCallback(
+    (
+      charRig: Character3DRig,
+      outfitBundle: Conformal3DOutfitBundle | null,
+      dims: BodyScanDimensions,
+      vMode: Render3DVisualMode,
+      tintHex: string,
+      primaryFit?: AvatarExactFitReport
+    ) => {
+      if (outfitBundle) {
+        charRig.frontUniforms.uMap.value = outfitBundle.frontTex;
+        charRig.backUniforms.uMap.value = outfitBundle.backTex;
+        charRig.rightSideUniforms.uMap.value = outfitBundle.sideTex;
+        charRig.leftSideUniforms.uMap.value = outfitBundle.sideTex;
+        charRig.frontMesh.userData.alphaGrid = outfitBundle.frontGrid;
+        charRig.backMesh.userData.alphaGrid = outfitBundle.backGrid;
+        charRig.rightSideMesh.userData.alphaGrid = outfitBundle.sideGrid;
+        charRig.leftSideMesh.userData.alphaGrid = outfitBundle.sideGrid;
+
+        for (const u of [
+          charRig.frontUniforms,
+          charRig.rightSideUniforms,
+          charRig.backUniforms,
+          charRig.leftSideUniforms,
+        ]) {
+          u.uLightMoodTint.value.set(tintHex);
+          syncBodyMorphUniforms(
+            u,
+            dims,
+            vMode,
+            true,
+            false,
+            primaryFit,
+            outfitBundle.dominantFabric
+          );
+        }
+      } else {
+        charRig.frontUniforms.uMap.value = charRig.baseTextures.frontTex;
+        charRig.backUniforms.uMap.value = charRig.baseTextures.backTex;
+        charRig.rightSideUniforms.uMap.value = charRig.baseTextures.sideTex;
+        charRig.leftSideUniforms.uMap.value = charRig.baseTextures.sideTex;
+        charRig.frontMesh.userData.alphaGrid = charRig.baseTextures.frontGrid;
+        charRig.backMesh.userData.alphaGrid = charRig.baseTextures.backGrid;
+        charRig.rightSideMesh.userData.alphaGrid = charRig.baseTextures.sideGrid;
+        charRig.leftSideMesh.userData.alphaGrid = charRig.baseTextures.sideGrid;
+
+        for (const u of [
+          charRig.frontUniforms,
+          charRig.rightSideUniforms,
+          charRig.backUniforms,
+          charRig.leftSideUniforms,
+        ]) {
+          u.uLightMoodTint.value.set(tintHex);
+          syncBodyMorphUniforms(u, dims, vMode, false, false);
+        }
+      }
+    },
+    []
+  );
+
+  // 1. Mount WebGL Three.js Renderer & True 360° Conformal 3D Turntable!
   useEffect(() => {
     const wrapEl = wrapRef.current;
     if (!wrapEl) return;
@@ -412,17 +477,13 @@ export function Interactive3DAvatarStage({
 
     const avatarTurntable = new THREE.Group();
     const charGroup = new THREE.Group();
-    const equippedFrontGroup = new THREE.Group();
-    const equippedBackGroup = new THREE.Group();
-    const sideOutfitGroup = new THREE.Group();
+    const bagSocketGroup = new THREE.Group();
     const productTurntable = new THREE.Group();
     const ringsGroup = new THREE.Group();
     const faceDecalGroup = new THREE.Group();
 
     avatarTurntable.add(charGroup);
-    avatarTurntable.add(equippedFrontGroup);
-    avatarTurntable.add(equippedBackGroup);
-    avatarTurntable.add(sideOutfitGroup);
+    avatarTurntable.add(bagSocketGroup);
     avatarTurntable.add(faceDecalGroup);
     avatarTurntable.add(ringsGroup);
 
@@ -436,22 +497,22 @@ export function Interactive3DAvatarStage({
       stageRoot,
       avatarTurntable,
       charGroup,
-      equippedFrontGroup,
-      equippedBackGroup,
-      sideOutfitGroup,
+      bagSocketGroup,
       productTurntable,
       ringsGroup,
       faceDecalGroup,
       shadowPlane,
       charRig: null,
-      sideOutfitRig: null,
-      itemRigs: [],
+      outfitBundle: null,
+      purseRig: null,
+      hasEquippedClothes: false,
     };
 
     let disposed = false;
     void loadCharacter3DRig().then((charRig) => {
       if (disposed || !threeCtxRef.current) return;
-      threeCtxRef.current.charRig = charRig;
+      const cRef = threeCtxRef.current;
+      cRef.charRig = charRig;
       charGroup.add(
         charRig.frontMesh,
         charRig.rightSideMesh,
@@ -459,35 +520,20 @@ export function Interactive3DAvatarStage({
         charRig.leftSideMesh
       );
 
-      const rigs = threeCtxRef.current.itemRigs;
-      const hasShoes = rigs.some((r) => r.slot === "shoes");
-      const hasDress = rigs.some((r) => r.slot === "dress");
-      const hasBottom = rigs.some((r) => r.slot === "bottom");
-      const hasTop = rigs.some((r) => r.slot === "top");
-      const hasShinPants =
-        !hasDress &&
-        rigs.some(
-          (r) =>
-            Boolean(MOD_BOT_SLUG[r.product.id]?.coversShins) ||
-            (r.slot === "bottom" && r.product.silhouette !== "mini-skirt")
-        );
-      const heelMaskVal = hasShoes ? (hasShinPants ? 2.0 : 1.0) : 0.0;
-      charRig.frontUniforms.uMaskBaseHeels.value = heelMaskVal;
-      charRig.backUniforms.uMaskBaseHeels.value = heelMaskVal;
-      charRig.frontUniforms.uMaskDressUpper.value = hasDress ? 1.0 : 0.0;
-      charRig.backUniforms.uMaskDressUpper.value = hasDress ? 1.0 : 0.0;
-      charRig.frontUniforms.uHasBottom.value = hasBottom ? 1.0 : 0.0;
-      charRig.backUniforms.uHasBottom.value = hasBottom ? 1.0 : 0.0;
-      charRig.frontUniforms.uHasTop.value = hasTop ? 1.0 : 0.0;
-      charRig.backUniforms.uHasTop.value = hasTop ? 1.0 : 0.0;
-      for (const u of [
-        charRig.frontUniforms,
-        charRig.rightSideUniforms,
-        charRig.backUniforms,
-        charRig.leftSideUniforms,
-      ]) {
-        syncBodyMorphUniforms(u, safeDimensions, activeVisualMode, false, false);
-      }
+      const primaryProd = slotEquippedRef.current.find(
+        (p) => classifyWearableSlotAndAnchors(p).slot !== "bag"
+      );
+      const primaryFit = primaryProd
+        ? fitByProductIdRef.current.get(primaryProd.id)
+        : undefined;
+      applyOutfitStateToCharRig(
+        charRig,
+        cRef.outfitBundle,
+        safeDimensions,
+        activeVisualMode,
+        LIGHT_MOOD_TINTS[lightingPresetId],
+        primaryFit
+      );
     });
 
     const updateLayout = () => {
@@ -561,30 +607,86 @@ export function Interactive3DAvatarStage({
         // ignore
       }
 
-      if (movedDist < 6 && !productTurntable.visible) {
-        const normRad =
-          ((yawRef.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-        const isBack = angDistRad(normRad, Math.PI) < Math.PI * 0.5;
-        const activeGroup = isBack ? equippedBackGroup : equippedFrontGroup;
-        if (activeGroup.children.length > 0) {
-          const rect = dom.getBoundingClientRect();
-          ndc.x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
-          ndc.y = -((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
-          raycaster.setFromCamera(ndc, camera);
-          const hits = raycaster.intersectObjects(activeGroup.children, true);
-          hits.sort(
-            (a, b) => (b.object.renderOrder || 0) - (a.object.renderOrder || 0)
+      const cRef = threeCtxRef.current;
+      if (movedDist < 6 && cRef && !productTurntable.visible) {
+        const rect = dom.getBoundingClientRect();
+        ndc.x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+        ndc.y = -((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
+        raycaster.setFromCamera(ndc, camera);
+
+        // 1. Check 3D Coronal-Socket Purse Rig first (topmost 3D accessory)
+        if (cRef.purseRig) {
+          const bagMeshes = [
+            cRef.purseRig.frontMesh,
+            cRef.purseRig.rightSideMesh,
+            cRef.purseRig.backMesh,
+            cRef.purseRig.leftSideMesh,
+          ].filter((m) => m.visible);
+          const bagHits = raycaster.intersectObjects(bagMeshes, false);
+          const validBagHit = bagHits.find(
+            (h) => sampleMeshAlphaAtUv(h.object, h.uv) > 75
           );
-          const hitMesh = hits.find(
-            (h) =>
-              h.object.userData?.product &&
-              sampleMeshAlphaAtUv(h.object, h.uv) > 65
-          );
-          if (hitMesh) {
-            const prod = hitMesh.object.userData.product as Product;
+          if (validBagHit) {
+            const prod = cRef.purseRig.product;
             const fit = fitByProductIdRef.current.get(prod.id);
             setTappedInfo({ product: prod, fit });
             onSelectProductRef.current?.(prod, fit);
+            return;
+          }
+        }
+
+        // 2. Check Conformal 3D Outfit Hit-Grids across Front / Back / Side shells
+        if (cRef.charRig && cRef.outfitBundle) {
+          const charMeshes = [
+            cRef.charRig.frontMesh,
+            cRef.charRig.rightSideMesh,
+            cRef.charRig.backMesh,
+            cRef.charRig.leftSideMesh,
+          ].filter((m) => m.visible);
+          const charHits = raycaster.intersectObjects(charMeshes, false);
+          const hit = charHits.find(
+            (h) => sampleMeshAlphaAtUv(h.object, h.uv) > 75
+          );
+          if (hit && hit.uv) {
+            const role = hit.object.userData?.viewRole as string | undefined;
+            let matchedProd: Product | undefined;
+            if (role === "front" || role === "back") {
+              const isBack = role === "back";
+              for (const layer of cRef.outfitBundle.hitLayers) {
+                const a = sampleAlphaGridAtUv(
+                  isBack ? layer.backGrid : layer.frontGrid,
+                  hit.uv
+                );
+                if (a > 75) {
+                  matchedProd = layer.product;
+                  break;
+                }
+              }
+            } else {
+              const vy = hit.uv.y;
+              if (vy <= 0.16) {
+                matchedProd = cRef.outfitBundle.hitLayers.find(
+                  (l) => l.slot === "shoes"
+                )?.product;
+              } else if (vy <= 0.61) {
+                matchedProd = cRef.outfitBundle.hitLayers.find(
+                  (l) => l.slot === "bottom" || l.slot === "dress"
+                )?.product;
+              } else {
+                matchedProd = cRef.outfitBundle.hitLayers.find(
+                  (l) =>
+                    l.slot === "outerwear" ||
+                    l.slot === "top" ||
+                    l.slot === "dress"
+                )?.product;
+              }
+            }
+
+            if (matchedProd) {
+              const fit = fitByProductIdRef.current.get(matchedProd.id);
+              setTappedInfo({ product: matchedProd, fit });
+              onSelectProductRef.current?.(matchedProd, fit);
+            }
           }
         }
       }
@@ -660,79 +762,81 @@ export function Interactive3DAvatarStage({
         const dBack = (angDistRad(normRad, Math.PI) * 180) / Math.PI;
         const dLeft = (angDistRad(normRad, Math.PI * 1.5) * 180) / Math.PI;
 
-        // Orthogonal 3D Quadrant Visibility Weights (each shell is ALREADY rotating in 3D inside avatarTurntable!)
+        // Tight 10° Bayer-dithered opaque quadrant handoffs (63°..73° & 107°..117°) -> ZERO semi-transparent ghosting!
         let wFront = 0;
         let wRight = 0;
         let wBack = 0;
         let wLeft = 0;
 
-        if (dFront <= 58) {
+        if (dFront <= 63) {
           wFront = 1.0;
-        } else if (dFront < 74) {
-          const t = (74 - dFront) / 16;
-          wFront = Math.sqrt(t);
-          if (dRight < dLeft) wRight = Math.sqrt(1 - t);
-          else wLeft = Math.sqrt(1 - t);
-        } else if (dRight <= 16) {
+        } else if (dFront < 73) {
+          const t = (73 - dFront) / 10;
+          wFront = t;
+          if (dRight < dLeft) wRight = 1.0 - t;
+          else wLeft = 1.0 - t;
+        } else if (dRight <= 17) {
           wRight = 1.0;
-        } else if (dLeft <= 16) {
+        } else if (dLeft <= 17) {
           wLeft = 1.0;
-        } else if (dBack < 74 && dBack > 58) {
-          const t = (74 - dBack) / 16;
-          wBack = Math.sqrt(t);
-          if (dRight < dLeft) wRight = Math.sqrt(1 - t);
-          else wLeft = Math.sqrt(1 - t);
+        } else if (dBack < 73 && dBack > 63) {
+          const t = (73 - dBack) / 10;
+          wBack = t;
+          if (dRight < dLeft) wRight = 1.0 - t;
+          else wLeft = 1.0 - t;
         } else {
           wBack = 1.0;
         }
 
         const cRef = threeCtxRef.current;
         if (cRef) {
-          const hasWorn = cRef.itemRigs.length > 0;
           if (cRef.charRig) {
-            cRef.charRig.frontMesh.visible = wFront > 0.01;
+            cRef.charRig.frontMesh.visible = wFront > 0.02;
             cRef.charRig.frontUniforms.uViewOpacity.value = wFront;
             cRef.charRig.frontUniforms.uYawAngle.value = normRad;
 
-            cRef.charRig.backMesh.visible = wBack > 0.01;
+            cRef.charRig.backMesh.visible = wBack > 0.02;
             cRef.charRig.backUniforms.uViewOpacity.value = wBack;
             cRef.charRig.backUniforms.uYawAngle.value = normRad;
 
-            cRef.charRig.rightSideMesh.visible = !hasWorn && wRight > 0.01;
+            cRef.charRig.rightSideMesh.visible = wRight > 0.02;
             cRef.charRig.rightSideUniforms.uViewOpacity.value = wRight;
             cRef.charRig.rightSideUniforms.uYawAngle.value = normRad;
 
-            cRef.charRig.leftSideMesh.visible = !hasWorn && wLeft > 0.01;
+            cRef.charRig.leftSideMesh.visible = wLeft > 0.02;
             cRef.charRig.leftSideUniforms.uViewOpacity.value = wLeft;
             cRef.charRig.leftSideUniforms.uYawAngle.value = normRad;
           }
 
-          cRef.equippedFrontGroup.visible = wFront > 0.01;
-          cRef.equippedBackGroup.visible = wBack > 0.01;
-          cRef.faceDecalGroup.visible = Boolean(faceOvalDataUrl) && wFront > 0.25;
+          if (cRef.purseRig) {
+            cRef.purseRig.frontMesh.visible = wFront > 0.02;
+            cRef.purseRig.frontUniforms.uViewOpacity.value = wFront;
+            cRef.purseRig.frontUniforms.uYawAngle.value = normRad;
 
-          cRef.sideOutfitGroup.visible =
-            hasWorn && (wRight > 0.01 || wLeft > 0.01);
-          if (cRef.sideOutfitRig) {
-            cRef.sideOutfitRig.rightMesh.visible = hasWorn && wRight > 0.01;
-            cRef.sideOutfitRig.rightUniforms.uViewOpacity.value = wRight;
-            cRef.sideOutfitRig.rightUniforms.uYawAngle.value = normRad;
+            cRef.purseRig.backMesh.visible = wBack > 0.02;
+            cRef.purseRig.backUniforms.uViewOpacity.value = wBack;
+            cRef.purseRig.backUniforms.uYawAngle.value = normRad;
 
-            cRef.sideOutfitRig.leftMesh.visible = hasWorn && wLeft > 0.01;
-            cRef.sideOutfitRig.leftUniforms.uViewOpacity.value = wLeft;
-            cRef.sideOutfitRig.leftUniforms.uYawAngle.value = normRad;
+            cRef.purseRig.rightSideMesh.visible = wRight > 0.02;
+            cRef.purseRig.rightSideUniforms.uViewOpacity.value = wRight;
+            cRef.purseRig.rightSideUniforms.uYawAngle.value = normRad;
+
+            cRef.purseRig.leftSideMesh.visible = wLeft > 0.02;
+            cRef.purseRig.leftSideUniforms.uViewOpacity.value = wLeft;
+            cRef.purseRig.leftSideUniforms.uYawAngle.value = normRad;
           }
 
-          for (const rig of cRef.itemRigs) {
-            rig.frontUniforms.uViewOpacity.value = wFront;
-            rig.frontUniforms.uYawAngle.value = normRad;
-            rig.backUniforms.uViewOpacity.value = wBack;
-            rig.backUniforms.uYawAngle.value = normRad;
-          }
+          cRef.faceDecalGroup.visible = Boolean(faceOvalDataUrl) && wFront > 0.35;
 
           const hScale = cRef.charRig?.frontUniforms.uHeightScale.value ?? 1.0;
           const charTop = 1.58 * hScale;
-          const hudPadFactor = showHud ? (compactHud ? 1.11 : 1.13) : 1.015;
+          const hudPadFactor = showHud
+            ? dom.clientHeight < 440 || camera.aspect < 0.85
+              ? 1.28
+              : compactHud
+              ? 1.12
+              : 1.14
+            : 1.015;
           const halfFovRad = (camera.fov * Math.PI) / 360;
           const reqDistH =
             (charTop * hudPadFactor * 0.5) / Math.tan(halfFovRad);
@@ -748,7 +852,7 @@ export function Interactive3DAvatarStage({
       frameTick++;
       if (frameTick % 4 === 0) {
         const deg =
-          (((Math.round((yawRef.current * 180) / Math.PI) % 360) + 360) % 360);
+          ((Math.round((yawRef.current * 180) / Math.PI) % 360) + 360) % 360;
         setLiveDeg(deg);
         onYawChangeRef.current?.(deg);
       }
@@ -767,6 +871,12 @@ export function Interactive3DAvatarStage({
       dom.removeEventListener("pointerup", onPointerUp);
       dom.removeEventListener("pointercancel", onPointerUp);
       dom.removeEventListener("wheel", onWheel);
+      if (threeCtxRef.current?.outfitBundle) {
+        threeCtxRef.current.outfitBundle.frontTex.dispose();
+        threeCtxRef.current.outfitBundle.backTex.dispose();
+        threeCtxRef.current.outfitBundle.sideTex.dispose();
+      }
+      threeCtxRef.current?.purseRig?.dispose();
       shadowTex.dispose();
       renderer.dispose();
       threeCtxRef.current = null;
@@ -774,7 +884,7 @@ export function Interactive3DAvatarStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compactHud, inertiaSpin, seamlessStage, showHud]);
 
-  // 2. Equip / Swap Individual 3D Garment Meshes Atomically onto the 3D Turntable!
+  // 2. Equip / Swap Conformal 3D Garment Shells & Sculpted 3D Purse Rig Atomically!
   useEffect(() => {
     const ctx = threeCtxRef.current;
     if (!ctx) return;
@@ -811,21 +921,27 @@ export function Interactive3DAvatarStage({
     ctx.productTurntable.visible = false;
     ctx.avatarTurntable.visible = true;
 
+    const tintHex = LIGHT_MOOD_TINTS[lightingPresetId];
+
     if (slotEquippedProducts.length === 0) {
-      ctx.equippedFrontGroup.clear();
-      ctx.equippedBackGroup.clear();
-      ctx.sideOutfitGroup.clear();
-      ctx.sideOutfitRig = null;
-      ctx.itemRigs = [];
+      ctx.bagSocketGroup.clear();
+      ctx.purseRig?.dispose();
+      ctx.purseRig = null;
+      if (ctx.outfitBundle) {
+        ctx.outfitBundle.frontTex.dispose();
+        ctx.outfitBundle.backTex.dispose();
+        ctx.outfitBundle.sideTex.dispose();
+        ctx.outfitBundle = null;
+      }
+      ctx.hasEquippedClothes = false;
       if (ctx.charRig) {
-        ctx.charRig.frontUniforms.uMaskBaseHeels.value = 0.0;
-        ctx.charRig.backUniforms.uMaskBaseHeels.value = 0.0;
-        ctx.charRig.frontUniforms.uMaskDressUpper.value = 0.0;
-        ctx.charRig.backUniforms.uMaskDressUpper.value = 0.0;
-        ctx.charRig.frontUniforms.uHasBottom.value = 0.0;
-        ctx.charRig.backUniforms.uHasBottom.value = 0.0;
-        ctx.charRig.frontUniforms.uHasTop.value = 0.0;
-        ctx.charRig.backUniforms.uHasTop.value = 0.0;
+        applyOutfitStateToCharRig(
+          ctx.charRig,
+          null,
+          safeDimensions,
+          activeVisualMode,
+          tintHex
+        );
       }
       setIsLoading3D(false);
       return;
@@ -835,99 +951,86 @@ export function Interactive3DAvatarStage({
       if (equipReqIdRef.current === reqId) setIsLoading3D(true);
     }, 140);
 
-    const hasDress = slotEquippedProducts.some(
-      (p) => classifyWearableSlotAndAnchors(p).slot === "dress"
+    const bagProd = slotEquippedProducts.find(
+      (p) => classifyWearableSlotAndAnchors(p).slot === "bag"
     );
-    const hasShinCoveringPants =
-      !hasDress &&
-      slotEquippedProducts.some(
-        (p) =>
-          Boolean(MOD_BOT_SLUG[p.id]?.coversShins) ||
-          (classifyWearableSlotAndAnchors(p).slot === "bottom" &&
-            p.silhouette !== "mini-skirt")
-      );
+    const nonBagProducts = slotEquippedProducts.filter(
+      (p) => classifyWearableSlotAndAnchors(p).slot !== "bag"
+    );
 
-    const tintHex = LIGHT_MOOD_TINTS[lightingPresetId];
-    const itemPromises = slotEquippedProducts.map(async (prod) => {
-      const rig = await loadWearable3DItemRig(prod, hasShinCoveringPants);
-      const fit = fitByProductIdRef.current.get(prod.id);
-      rig.frontUniforms.uLightMoodTint.value.set(tintHex);
-      rig.backUniforms.uLightMoodTint.value.set(tintHex);
-      syncBodyMorphUniforms(
-        rig.frontUniforms,
-        safeDimensions,
-        activeVisualMode,
-        true,
-        rig.isRigidBag,
-        fit,
-        rig.fabric
-      );
-      syncBodyMorphUniforms(
-        rig.backUniforms,
-        safeDimensions,
-        activeVisualMode,
-        true,
-        rig.isRigidBag,
-        fit,
-        rig.fabric
-      );
-      return rig;
-    });
+    const outfitPromise = buildConformal3DOutfitTextures(nonBagProducts);
+    const pursePromise = bagProd
+      ? loadSocketMounted3DPurseRig(bagProd)
+      : Promise.resolve(null);
 
-    const sidePromise = loadMatchedSideOutfit3DRig(slotEquippedProducts);
-
-    void Promise.all([Promise.all(itemPromises), sidePromise])
-      .then(([loadedRigs, sideRig]) => {
+    void Promise.all([outfitPromise, pursePromise])
+      .then(([newOutfitBundle, newPurseRig]) => {
         clearTimeout(loadTimer);
-        if (equipReqIdRef.current !== reqId) return;
-
-        ctx.equippedFrontGroup.clear();
-        ctx.equippedBackGroup.clear();
-        ctx.sideOutfitGroup.clear();
-
-        for (const rig of loadedRigs) {
-          ctx.equippedFrontGroup.add(rig.frontMesh);
-          ctx.equippedBackGroup.add(rig.backMesh);
+        if (equipReqIdRef.current !== reqId) {
+          newOutfitBundle.frontTex.dispose();
+          newOutfitBundle.backTex.dispose();
+          newOutfitBundle.sideTex.dispose();
+          newPurseRig?.dispose();
+          return;
         }
 
-        sideRig.rightUniforms.uLightMoodTint.value.set(tintHex);
-        sideRig.leftUniforms.uLightMoodTint.value.set(tintHex);
-        syncBodyMorphUniforms(
-          sideRig.rightUniforms,
-          safeDimensions,
-          activeVisualMode,
-          true,
-          false
-        );
-        syncBodyMorphUniforms(
-          sideRig.leftUniforms,
-          safeDimensions,
-          activeVisualMode,
-          true,
-          false
-        );
-        ctx.sideOutfitGroup.add(sideRig.rightMesh, sideRig.leftMesh);
-        ctx.sideOutfitRig = sideRig;
-        ctx.itemRigs = loadedRigs;
+        // Swap out previous GPU canvas textures cleanly
+        const prevBundle = ctx.outfitBundle;
+        ctx.outfitBundle = newOutfitBundle;
+        ctx.hasEquippedClothes = true;
 
-        const hasShoes = loadedRigs.some((r) => r.slot === "shoes");
-        const hasBottom = loadedRigs.some((r) => r.slot === "bottom");
-        const hasTop = loadedRigs.some((r) => r.slot === "top");
-        const heelMaskVal = hasShoes
-          ? hasShinCoveringPants
-            ? 2.0
-            : 1.0
-          : 0.0;
+        const primaryProd = nonBagProducts[0];
+        const primaryFit = primaryProd
+          ? fitByProductIdRef.current.get(primaryProd.id)
+          : undefined;
+
         if (ctx.charRig) {
-          ctx.charRig.frontUniforms.uMaskBaseHeels.value = heelMaskVal;
-          ctx.charRig.backUniforms.uMaskBaseHeels.value = heelMaskVal;
-          ctx.charRig.frontUniforms.uMaskDressUpper.value = hasDress ? 1.0 : 0.0;
-          ctx.charRig.backUniforms.uMaskDressUpper.value = hasDress ? 1.0 : 0.0;
-          ctx.charRig.frontUniforms.uHasBottom.value = hasBottom ? 1.0 : 0.0;
-          ctx.charRig.backUniforms.uHasBottom.value = hasBottom ? 1.0 : 0.0;
-          ctx.charRig.frontUniforms.uHasTop.value = hasTop ? 1.0 : 0.0;
-          ctx.charRig.backUniforms.uHasTop.value = hasTop ? 1.0 : 0.0;
+          applyOutfitStateToCharRig(
+            ctx.charRig,
+            newOutfitBundle,
+            safeDimensions,
+            activeVisualMode,
+            tintHex,
+            primaryFit
+          );
         }
+        if (prevBundle) {
+          prevBundle.frontTex.dispose();
+          prevBundle.backTex.dispose();
+          prevBundle.sideTex.dispose();
+        }
+
+        ctx.bagSocketGroup.clear();
+        ctx.purseRig?.dispose();
+        ctx.purseRig = newPurseRig;
+
+        if (newPurseRig) {
+          const bagFit = fitByProductIdRef.current.get(newPurseRig.product.id);
+          for (const u of [
+            newPurseRig.frontUniforms,
+            newPurseRig.rightSideUniforms,
+            newPurseRig.backUniforms,
+            newPurseRig.leftSideUniforms,
+          ]) {
+            u.uLightMoodTint.value.set(tintHex);
+            syncBodyMorphUniforms(
+              u,
+              safeDimensions,
+              activeVisualMode,
+              true,
+              true,
+              bagFit,
+              newPurseRig.fabric
+            );
+          }
+          ctx.bagSocketGroup.add(
+            newPurseRig.frontMesh,
+            newPurseRig.rightSideMesh,
+            newPurseRig.backMesh,
+            newPurseRig.leftSideMesh
+          );
+        }
+
         setIsLoading3D(false);
       })
       .catch(() => {
@@ -952,13 +1055,11 @@ export function Interactive3DAvatarStage({
       ctx.charRig.backUniforms.uLightMoodTint.value.set(tintHex);
       ctx.charRig.leftSideUniforms.uLightMoodTint.value.set(tintHex);
     }
-    if (ctx.sideOutfitRig) {
-      ctx.sideOutfitRig.rightUniforms.uLightMoodTint.value.set(tintHex);
-      ctx.sideOutfitRig.leftUniforms.uLightMoodTint.value.set(tintHex);
-    }
-    for (const rig of ctx.itemRigs) {
-      rig.frontUniforms.uLightMoodTint.value.set(tintHex);
-      rig.backUniforms.uLightMoodTint.value.set(tintHex);
+    if (ctx.purseRig) {
+      ctx.purseRig.frontUniforms.uLightMoodTint.value.set(tintHex);
+      ctx.purseRig.rightSideUniforms.uLightMoodTint.value.set(tintHex);
+      ctx.purseRig.backUniforms.uLightMoodTint.value.set(tintHex);
+      ctx.purseRig.leftSideUniforms.uLightMoodTint.value.set(tintHex);
     }
   }, [lightingPresetId]);
 
@@ -967,6 +1068,13 @@ export function Interactive3DAvatarStage({
     const ctx = threeCtxRef.current;
     if (!ctx) return;
 
+    const primaryProd = slotEquippedProducts.find(
+      (p) => classifyWearableSlotAndAnchors(p).slot !== "bag"
+    );
+    const primaryFit = primaryProd
+      ? fitByProductId.get(primaryProd.id)
+      : undefined;
+
     if (ctx.charRig) {
       for (const u of [
         ctx.charRig.frontUniforms,
@@ -974,45 +1082,36 @@ export function Interactive3DAvatarStage({
         ctx.charRig.backUniforms,
         ctx.charRig.leftSideUniforms,
       ]) {
-        syncBodyMorphUniforms(u, safeDimensions, activeVisualMode, false, false);
+        syncBodyMorphUniforms(
+          u,
+          safeDimensions,
+          activeVisualMode,
+          Boolean(ctx.outfitBundle),
+          false,
+          primaryFit,
+          ctx.outfitBundle?.dominantFabric
+        );
       }
     }
-    if (ctx.sideOutfitRig) {
-      syncBodyMorphUniforms(
-        ctx.sideOutfitRig.rightUniforms,
-        safeDimensions,
-        activeVisualMode,
-        true,
-        false
-      );
-      syncBodyMorphUniforms(
-        ctx.sideOutfitRig.leftUniforms,
-        safeDimensions,
-        activeVisualMode,
-        true,
-        false
-      );
-    }
-    for (const rig of ctx.itemRigs) {
-      const fit = fitByProductId.get(rig.product.id);
-      syncBodyMorphUniforms(
-        rig.frontUniforms,
-        safeDimensions,
-        activeVisualMode,
-        true,
-        rig.isRigidBag,
-        fit,
-        rig.fabric
-      );
-      syncBodyMorphUniforms(
-        rig.backUniforms,
-        safeDimensions,
-        activeVisualMode,
-        true,
-        rig.isRigidBag,
-        fit,
-        rig.fabric
-      );
+
+    if (ctx.purseRig) {
+      const bagFit = fitByProductId.get(ctx.purseRig.product.id);
+      for (const u of [
+        ctx.purseRig.frontUniforms,
+        ctx.purseRig.rightSideUniforms,
+        ctx.purseRig.backUniforms,
+        ctx.purseRig.leftSideUniforms,
+      ]) {
+        syncBodyMorphUniforms(
+          u,
+          safeDimensions,
+          activeVisualMode,
+          true,
+          true,
+          bagFit,
+          ctx.purseRig.fabric
+        );
+      }
     }
 
     ctx.ringsGroup.clear();
@@ -1034,7 +1133,14 @@ export function Interactive3DAvatarStage({
         create3DTapeRing(0.128 * bw, 0.098 * bw, 0.81 * hs, "#0EA5E9")
       );
     }
-  }, [activeVisualMode, effectiveShowRings, fitByProductId, mode, safeDimensions]);
+  }, [
+    activeVisualMode,
+    effectiveShowRings,
+    fitByProductId,
+    mode,
+    safeDimensions,
+    slotEquippedProducts,
+  ]);
 
   // 4. Optional Scanned Customer Face 3D Decal Projection
   useEffect(() => {
@@ -1057,7 +1163,7 @@ export function Interactive3DAvatarStage({
     plane.renderOrder = 80;
     const hs = clamp(safeDimensions.heightInches / 62.0, 0.92, 1.15);
     const chinM = 1.58 * 0.848;
-    plane.position.set(0, chinM * hs + (1.43 - chinM), 0.075);
+    plane.position.set(0, chinM * hs + (1.43 - chinM), 0.078);
     ctx.faceDecalGroup.add(plane);
   }, [faceOvalDataUrl, mode, safeDimensions.heightInches]);
 
@@ -1073,7 +1179,7 @@ export function Interactive3DAvatarStage({
   return (
     <div
       data-3d-engine="webgl-glb-character"
-      data-3d-topology="orthogonal-360-turntable"
+      data-3d-topology="conformal-360-turntable"
       data-realism-spec={MASTER_REALISM_SPEC_VERSION}
       data-3d-mode={mode}
       data-worn-count={mode === "product" ? 1 : slotEquippedProducts.length}

@@ -5,7 +5,7 @@ import {
 } from "./avatar-ready-pipeline";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const LAYER_VER = "mod17";
+export const LAYER_VER = "mod27";
 
 export type AvatarViewAngle = "front" | "side" | "back";
 
@@ -158,13 +158,130 @@ export function resolveSideOutfitFallbackIndex(products: Product[]): number {
     if (p.id in MOD_DRESS_SLUG) return MOD_DRESS_SLUG[p.id].sideOutfitIdx;
   }
   const ids = new Set(products.map((p) => p.id));
-  if (ids.has("prod-ae-blush-ruched-offshoulder") || ids.has("prod-ae-ivory-satin-bias-midi")) return 10;
-  if (ids.has("prod-ae-noir-halter-vest") || ids.has("prod-ae-charcoal-pinstripe-trousers")) return 11;
-  if (ids.has("prod-ae-butter-silk-cami") || ids.has("prod-ae-espresso-tailored-shorts")) return 15;
+  if (
+    ids.has("prod-ae-blush-ruched-offshoulder") ||
+    ids.has("prod-ae-ivory-satin-bias-midi") ||
+    ids.has("prod-ae-chocolate-satin-midi")
+  )
+    return 10;
+  if (
+    ids.has("prod-ae-noir-halter-vest") ||
+    ids.has("prod-ae-camel-tailored-vest") ||
+    ids.has("prod-ae-charcoal-pinstripe-trousers")
+  )
+    return 11;
+  if (
+    ids.has("prod-ae-butter-silk-cami") ||
+    ids.has("prod-ae-emerald-silk-cami") ||
+    ids.has("prod-ae-espresso-tailored-shorts")
+  )
+    return 15;
   if (ids.has("prod-ae-vintage-wide-denim")) return 9;
   if (ids.has("prod-ae-sage-flare-leggings")) return 8;
-  if (ids.has("prod-ae-noir-pleated-mini")) return 1;
+  if (
+    ids.has("prod-ae-noir-pleated-mini") ||
+    ids.has("prod-ae-burgundy-pleated-mini")
+  )
+    return 5;
   return 0;
+}
+
+function hexToRgb01(hex: string): [number, number, number] {
+  const clean = hex.replace("#", "");
+  const n = parseInt(clean.padEnd(6, "0").slice(0, 6), 16) || 0x222222;
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
+
+/**
+ * Dynamically recolors garment regions on the right-facing purse-free side canvas
+ * so 90° and 270° side profiles match the exact colorway of equipped garments!
+ */
+function applyDynamicSideColorwayTint(
+  ctx: CanvasRenderingContext2D,
+  products: Product[],
+  sideIdx: number
+): void {
+  const ids = new Map(products.map((p) => [p.id, p]));
+  let topTintHex: string | null = null;
+  let botTintHex: string | null = null;
+  let fullTintHex: string | null = null;
+
+  for (const p of products) {
+    if (
+      p.id === "prod-ae-sapphire-satin-midi" ||
+      p.id === "prod-ae-onyx-satin-midi" ||
+      p.id === "prod-ae-rosewood-corset-mini" ||
+      p.id === "prod-ae-noir-tuxedo-blazer-dress"
+    ) {
+      fullTintHex = p.colorHex;
+    } else if (
+      p.id === "prod-ae-emerald-tweed-blazer" ||
+      p.id === "prod-ae-espresso-tailored-blazer" ||
+      p.id === "prod-ae-charcoal-wool-coat" ||
+      p.id === "prod-ae-ivory-pearl-corset" ||
+      p.id === "prod-ae-noir-satin-corset" ||
+      p.id === "prod-ae-emerald-silk-cami" ||
+      p.id === "prod-ae-camel-tailored-vest"
+    ) {
+      topTintHex = p.colorHex;
+    } else if (
+      p.id === "prod-ae-obsidian-wide-trousers" ||
+      p.id === "prod-ae-olive-pleated-trousers" ||
+      p.id === "prod-ae-burgundy-pleated-mini" ||
+      p.id === "prod-ae-chocolate-satin-midi"
+    ) {
+      botTintHex = p.colorHex;
+    }
+  }
+
+  if (!fullTintHex && !topTintHex && !botTintHex) return;
+
+  const imgData = ctx.getImageData(0, 0, 900, 1355);
+  const d = imgData.data;
+
+  const fullRgb = fullTintHex ? hexToRgb01(fullTintHex) : null;
+  const topRgb = topTintHex ? hexToRgb01(topTintHex) : null;
+  const botRgb = botTintHex ? hexToRgb01(botTintHex) : null;
+
+  for (let y = 235; y < 1255; y++) {
+    for (let x = 280; x < 620; x++) {
+      const idx = (y * 900 + x) * 4;
+      const a = d[idx + 3];
+      if (a < 35) continue;
+      const r = d[idx] / 255;
+      const g = d[idx + 1] / 255;
+      const b = d[idx + 2] / 255;
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      const sat = Math.max(r, g, b) - Math.min(r, g, b);
+
+      // Protect warm human skin & dark hair
+      const isSkin =
+        r > g + 0.038 && g > b + 0.018 && r - b > 0.088 && r > 0.22 && r < 0.92;
+      const isHair = lum < 0.22 && sat < 0.14 && y < 560;
+      if (isSkin || isHair) continue;
+
+      let target: [number, number, number] | null = null;
+      if (fullRgb && y >= 240 && y <= 1165) {
+        if (sideIdx === 2 && g <= r * 1.01 && y < 480) continue;
+        if (sideIdx === 6 && r - g <= 0.24) continue;
+        target = fullRgb;
+      } else if (topRgb && y >= 240 && y <= 595) {
+        target = topRgb;
+      } else if (botRgb && y >= 520 && y <= 1250) {
+        target = botRgb;
+      }
+
+      if (target) {
+        const shade = 0.45 + lum * 0.95;
+        const spec = Math.max(0, (lum - 0.74) * 1.6);
+        d[idx] = Math.min(255, Math.max(0, Math.round((target[0] * shade + spec) * 255)));
+        d[idx + 1] = Math.min(255, Math.max(0, Math.round((target[1] * shade + spec) * 255)));
+        d[idx + 2] = Math.min(255, Math.max(0, Math.round((target[2] * shade + spec) * 255)));
+      }
+    }
+  }
+  void ids;
+  ctx.putImageData(imgData, 0, 0);
 }
 
 interface CustomLayerSpec {
@@ -185,6 +302,7 @@ export function composeModularOutfitToCanvas(params: {
   products: Product[];
   angle: AvatarViewAngle;
   mirrorHorizontal?: boolean;
+  includeBag?: boolean;
   faceOvalDataUrl?: string | null;
   onAssetReady?: () => void;
 }): "ready" | "loading" {
@@ -193,25 +311,46 @@ export function composeModularOutfitToCanvas(params: {
     products,
     angle,
     mirrorHorizontal = false,
+    includeBag = true,
     faceOvalDataUrl,
     onAssetReady,
   } = params;
 
-  // Side 90° profile uses registered full-body side cutout for crisp 90° silhouette
+  // Side 90°/270° profile uses right-facing purse-free side_clean_{idx} + dynamic colorway tint + optional side bag!
   if (angle === "side") {
     const sideIdx = resolveSideOutfitFallbackIndex(products);
-    const sideUrl = `${BASE}/models/runway_ai/ae_outfit_${sideIdx}_side.webp?v=${LAYER_VER}`;
+    const sideUrl = modUrl(`side_clean_${sideIdx}`);
     const sideImg = getCachedOrLoadImage(sideUrl, onAssetReady);
-    if (!sideImg) return "loading";
+
+    const bagProdSide = includeBag
+      ? products.find((p) => classifyWearableSlotAndAnchors(p).slot === "bag")
+      : undefined;
+    const sideBagSlug = bagProdSide ? MOD_BAG_SLUG[bagProdSide.id] : undefined;
+    const sideBagImg = sideBagSlug
+      ? getCachedOrLoadImage(modUrl(`${sideBagSlug}_side`), onAssetReady)
+      : null;
+
+    if (!sideImg || (sideBagSlug && !sideBagImg)) return "loading";
 
     ctx.clearRect(0, 0, 900, 1355);
-    ctx.save();
+    ctx.drawImage(sideImg, 0, 0, 900, 1355);
+    applyDynamicSideColorwayTint(ctx, products, sideIdx);
+    if (sideBagImg) {
+      ctx.drawImage(sideBagImg, 0, 0, 900, 1355);
+    }
+
     if (mirrorHorizontal) {
+      const tmp = document.createElement("canvas");
+      tmp.width = 900;
+      tmp.height = 1355;
+      tmp.getContext("2d")!.drawImage(ctx.canvas, 0, 0);
+      ctx.clearRect(0, 0, 900, 1355);
+      ctx.save();
       ctx.translate(900, 0);
       ctx.scale(-1, 1);
+      ctx.drawImage(tmp, 0, 0, 900, 1355);
+      ctx.restore();
     }
-    ctx.drawImage(sideImg, 0, 0, 900, 1355);
-    ctx.restore();
     return "ready";
   }
 
@@ -320,7 +459,7 @@ export function composeModularOutfitToCanvas(params: {
     const tm = topProd ? MOD_TOP_SLUG[topProd.id] : undefined;
     const topOverWaist = Boolean(tm?.overWaist);
 
-    if (!topOverWaist) {
+    if (!topOverWaist && !(angle === "back" && outerProd)) {
       if (tm) orderedUrls.push(modUrl(`${tm.slug}_${sfx}`));
       else if (topProd?.imageUrl) {
         customOverlays.push({ product: topProd, cleanUrl: topProd.imageUrl });
@@ -333,7 +472,7 @@ export function composeModularOutfitToCanvas(params: {
       customOverlays.push({ product: botProd, cleanUrl: botProd.imageUrl });
     }
 
-    if (topOverWaist) {
+    if (topOverWaist && !(angle === "back" && outerProd)) {
       if (tm) orderedUrls.push(modUrl(`${tm.slug}_${sfx}`));
       else if (topProd?.imageUrl) {
         customOverlays.push({ product: topProd, cleanUrl: topProd.imageUrl });
@@ -346,6 +485,11 @@ export function composeModularOutfitToCanvas(params: {
     orderedUrls.push(modUrl(`${shoeSlug}_${sfx}`));
   } else if (shoeProd && !MOD_SHOE_SLUG[shoeProd.id] && shoeProd.imageUrl) {
     customOverlays.push({ product: shoeProd, cleanUrl: shoeProd.imageUrl });
+  }
+
+  // Cascade natural studio hair locks over sleeveless/strapless tops and over the back collar of jackets!
+  if (!dressProd && (!outerProd || angle === "back")) {
+    orderedUrls.push(modUrl(`hair_over_${sfx}`));
   }
 
   // Optional Waist Belt (sits over waist, under open blazer lapels!)
@@ -368,8 +512,8 @@ export function composeModularOutfitToCanvas(params: {
     }
   }
 
-  // Optional Bag — ONLY drawn when a bag is actually in `products` (ZERO phantom/double bags!)
-  if (bagProd) {
+  // Optional Bag — ONLY drawn when `includeBag` is true AND a bag is actually in `products`!
+  if (includeBag && bagProd) {
     const bagSlug = MOD_BAG_SLUG[bagProd.id];
     if (bagSlug) {
       orderedUrls.push(modUrl(`${bagSlug}_${sfx}`));
@@ -424,8 +568,42 @@ export function composeModularOutfitToCanvas(params: {
     ctx.scale(-1, 1);
   }
 
-  for (const ly of decodedLayers) {
-    ctx.drawImage(ly, 0, 0, 900, 1355);
+  for (let i = 0; i < decodedLayers.length; i++) {
+    const ly = decodedLayers[i];
+    if (i === 0) {
+      // Base character layer: strip cream shapewear under garments and clear base pointed pumps below ankle!
+      ctx.drawImage(ly, 0, 0, 900, 1355);
+      if (dressProd) {
+        ctx.clearRect(0, 0, 900, 915);
+      } else {
+        // Strip base cream bandeau & shapewear shorts (y=305..776, x=335..565) while keeping warm tan skin 100% intact!
+        const sub = ctx.getImageData(335, 305, 230, 472);
+        const sd = sub.data;
+        for (let k = 0; k < sd.length; k += 4) {
+          if (sd[k + 3] === 0) continue;
+          const r = sd[k];
+          const b = sd[k + 2];
+          // Cream/white shapewear has high blue (> 130) and low red-blue warmth (< 42); tan skin has r - b >= 45!
+          if (b > 115 && r - b < 42) {
+            sd[k + 3] = 0;
+          }
+        }
+        ctx.putImageData(sub, 335, 305);
+      }
+      if (coversShins) {
+        // Clear outer calves/heels below y=765 while keeping two 38px central ankle columns (y=1248..1284) so zero gap or outer foot overhang appears!
+        ctx.clearRect(335, 765, 230, 483);
+        ctx.clearRect(335, 1248, 66, 107);
+        ctx.clearRect(442, 1248, 16, 107);
+        ctx.clearRect(499, 1248, 66, 107);
+        ctx.clearRect(395, 1284, 110, 71);
+      } else if (shoeSlug) {
+        // Clear base pointed nude pumps below ankle (y=1208..1355) so strappy sandals/boots sit cleanly!
+        ctx.clearRect(345, 1208, 210, 147);
+      }
+    } else {
+      ctx.drawImage(ly, 0, 0, 900, 1355);
+    }
   }
 
   // Draw any custom URL-imported / photo-uploaded pieces onto their exact anatomical anchor slot!
