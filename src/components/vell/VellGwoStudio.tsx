@@ -36,6 +36,10 @@ import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { Interactive3DAvatarStage } from "../three/Interactive3DAvatarStage";
 import { useGwo, UploadedClosetPiece } from "@/context/GwoAppContext";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
+import {
+  formatCompactOutfitTitle,
+  formatCompactProductTitle,
+} from "@/lib/catalog/compact-title";
 import { buildSynthetic3DProductFromPiece } from "@/lib/catalog/closet-look-3d-mapper";
 import { deriveStandardApparelSize } from "@/lib/catalog/sizing";
 import { buildTopLineAliExpressDropshipCatalog } from "@/lib/dropship/aliexpress-dropship";
@@ -1323,8 +1327,8 @@ export function VellGwoStudio() {
                             />
                           )}
                         </div>
-                        <p className="text-[11px] font-bold text-[#141518] truncate">
-                          {lk.name}
+                        <p className="text-[11px] leading-snug font-bold text-[#141518] line-clamp-2">
+                          {formatCompactOutfitTitle(lk.name, 25)}
                         </p>
                         <p className="text-[10px] font-semibold text-[#244B3B] truncate">
                           {lk.occasion ? `${lk.occasion} • ` : ""}
@@ -1374,7 +1378,7 @@ export function VellGwoStudio() {
                             />
                           </div>
                           <p className="text-[11px] font-bold text-[#141518] truncate">
-                            {upProd.title}
+                            {formatCompactProductTitle(upProd, 22)}
                           </p>
                           {rawPiece && (
                             <button
@@ -1500,8 +1504,8 @@ export function VellGwoStudio() {
                           )}
                         </div>
 
-                        <p className="text-[11px] font-bold text-[#141518] line-clamp-1">
-                          {prod.title}
+                        <p className="text-[11px] leading-snug font-bold text-[#141518] line-clamp-2">
+                          {formatCompactProductTitle(prod, 24)}
                         </p>
                         <div className="flex items-center justify-between gap-1">
                           <p className="text-[10px] font-semibold text-[#244B3B] truncate">
@@ -1598,7 +1602,9 @@ export function VellGwoStudio() {
                   }`}
                 >
                   <Shirt className="w-2.5 h-2.5" />
-                  <span className="max-w-[110px] truncate">{w.product.title}</span>
+                  <span className="max-w-[116px] truncate">
+                    {formatCompactProductTitle(w.product, 20)}
+                  </span>
                   <span>
                     {w.isOwnedInCloset ? "✓" : `$${w.product.price}`}
                   </span>

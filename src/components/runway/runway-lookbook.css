@@ -38,15 +38,10 @@
   cursor: none;
   outline: none;
   background: linear-gradient(
-      transparent 62%,
-      rgba(255, 255, 255, 0.82) 100%
-    ),
-    linear-gradient(
-      90deg,
-      #eef1f6 0%,
-      #e6ecf3 38%,
-      #eef2f7 62%,
-      #f6f8fb 100%
+      180deg,
+      #ffffff 0%,
+      #f8f9fc 68%,
+      #ffffff 100%
     );
 }
 

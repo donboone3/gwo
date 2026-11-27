@@ -25,6 +25,10 @@ import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { buildTopLineAliExpressDropshipCatalog } from "@/lib/dropship/aliexpress-dropship";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 import {
+  formatCompactOutfitTitle,
+  formatCompactProductTitle,
+} from "@/lib/catalog/compact-title";
+import {
   deriveFullBodyDimensionsFromProfile,
   formatHeightFeetInches,
 } from "@/lib/three/body-scan-analyzer";
@@ -305,7 +309,7 @@ export function MotionSitesProductShowroom({
             </Link>
             <span className="text-black/25 hidden sm:inline">/</span>
             <span className="font-semibold text-[#244B3B] truncate">
-              {product.title}
+              {formatCompactProductTitle(product, 28)}
             </span>
           </div>
 
@@ -1106,7 +1110,7 @@ export function MotionSitesProductShowroom({
                     </div>
 
                     <h3 className="text-sm font-extrabold text-[#141518]">
-                      {outfit.title}
+                      {formatCompactOutfitTitle(outfit.title, 30)}
                     </h3>
                     <p className="text-[11px] text-[#5E636E] leading-snug">
                       {outfit.stylistNote}
@@ -1240,8 +1244,8 @@ export function MotionSitesProductShowroom({
                     <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#244B3B]">
                       {comp.brand} • Size {cFit.recommendedSize}
                     </p>
-                    <p className="text-xs font-bold text-[#141518] line-clamp-1 mt-0.5 group-hover:underline">
-                      {comp.title}
+                    <p className="text-xs font-bold text-[#141518] line-clamp-2 mt-0.5 group-hover:underline">
+                      {formatCompactProductTitle(comp, 24)}
                     </p>
                   </div>
                   <div className="flex items-center justify-between pt-1 border-t border-black/[0.05]">

@@ -31,6 +31,7 @@ import { useGwo } from "@/context/GwoAppContext";
 import { VERIFIED_LIVE_STORE_RACKS } from "@/lib/catalog/client-url-scraper";
 import { searchTopLineAliExpressFeed } from "@/lib/dropship/aliexpress-dropship";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
+import { formatCompactProductTitle } from "@/lib/catalog/compact-title";
 import { buildSynthetic3DProductFromPiece } from "@/lib/catalog/closet-look-3d-mapper";
 import {
   DEFAULT_AVATAR_MEASUREMENTS,
@@ -439,7 +440,7 @@ export function UnifiedGwoNav() {
                           {item.brand} • Size {item.size}
                         </p>
                         <p className="text-sm font-semibold text-[#141518] truncate mt-0.5">
-                          {item.title}
+                          {formatCompactProductTitle(item.title, 28)}
                         </p>
                         {item.friendRef && (
                           <p className="text-[11px] text-[#244B3B] font-medium mt-0.5">
@@ -712,8 +713,8 @@ export function UnifiedGwoNav() {
                                   ${prod.price}
                                 </span>
                               </div>
-                              <p className="text-xs font-bold text-[#141518] line-clamp-1">
-                                {prod.title}
+                              <p className="text-xs font-bold text-[#141518] line-clamp-2 leading-snug">
+                                {formatCompactProductTitle(prod, 24)}
                               </p>
                               <p className="text-[10.5px] text-[#5C6068] line-clamp-2 leading-snug">
                                 {prod.fitMetadata?.fabricComposition ||
@@ -951,7 +952,7 @@ export function UnifiedGwoNav() {
                     </div>
 
                     <h4 className="text-sm font-bold text-[#141518] leading-snug">
-                      {previewProduct.title}
+                      {formatCompactProductTitle(previewProduct, 36)}
                     </h4>
 
                     {/* Exact Avatar Size Verdict Banner */}

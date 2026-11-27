@@ -26,6 +26,10 @@ import {
   analyzeExactAvatarFit,
   ZoneFeel,
 } from "@/lib/catalog/fit-intelligence";
+import {
+  formatCompactOutfitTitle,
+  formatCompactProductTitle,
+} from "@/lib/catalog/compact-title";
 import { build3DOutfitForClosetLook } from "@/lib/catalog/closet-look-3d-mapper";
 import { resolveLifelikeAvatarPhotos } from "@/lib/catalog/avatar-photo-resolver";
 import { buildTopLineAliExpressDropshipCatalog } from "@/lib/dropship/aliexpress-dropship";
@@ -377,14 +381,15 @@ export function GwoSpinProduct() {
                 <optgroup label={`Full Boutique Outfits (${STUDIO_LOOKS.length} 3D Designs)`}>
                   {STUDIO_LOOKS.map((lk) => (
                     <option key={lk.index} value={`closet-look:${lk.index}`}>
-                      Outfit #{String(lk.index + 1).padStart(3, "0")}: {lk.name}
+                      Outfit #{String(lk.index + 1).padStart(3, "0")}:{" "}
+                      {formatCompactOutfitTitle(lk.name, 26)}
                     </option>
                   ))}
                 </optgroup>
                 <optgroup label={`Individual Store Pieces (${fullCatalog.length} SKUs)`}>
                   {fullCatalog.map((prod) => (
                     <option key={prod.id} value={prod.id}>
-                      {prod.brand} — {prod.title} (${prod.price})
+                      {prod.brand} — {formatCompactProductTitle(prod, 24)} (${prod.price})
                     </option>
                   ))}
                 </optgroup>
@@ -409,7 +414,7 @@ export function GwoSpinProduct() {
                               : "bg-white text-[#141518] border-black/10 hover:bg-[#EAECEF]"
                           }`}
                         >
-                          {piece.title} (${piece.price})
+                          {formatCompactProductTitle(piece, 22)} (${piece.price})
                         </button>
                       );
                     })}

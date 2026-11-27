@@ -74,6 +74,9 @@ export interface Interactive3DAvatarStageProps {
   externalYawDeg?: number;
   externalYawSeq?: number;
   seamlessStage?: boolean;
+  centerXFrac?: number;
+  bottomReservePx?: number;
+  ignoreLeftFraction?: number;
   inertiaSpin?: boolean;
   onYawChange?: (deg: number) => void;
   showHud?: boolean;
@@ -160,6 +163,9 @@ export function Interactive3DAvatarStage({
   externalYawDeg,
   externalYawSeq,
   seamlessStage = false,
+  centerXFrac = 0.5,
+  bottomReservePx = 0,
+  ignoreLeftFraction = 0,
   inertiaSpin = true,
   onYawChange,
   showHud = false,
@@ -426,8 +432,15 @@ export function Interactive3DAvatarStage({
       return;
     }
 
-    // 2. Zero-flash transition: keep current frame painted until new atlas or poster arrives!
+    // 2. Zero-flash transition: on opaque stages keep current frame painted until new atlas arrives;
+    // on seamless Runway stage, hand display back cleanly to the matching Runway sprite until ready!
     setFramesReady(false);
+    if (seamlessStage) {
+      bundleRef.current = null;
+      framesRef.current = [];
+      posterBitmapRef.current = null;
+      paintVersionRef.current++;
+    }
     let receivedBundle = false;
 
     void extractProcessedPosterBitmap(turntableSpec, seamlessStage).then(
@@ -632,6 +645,13 @@ export function Interactive3DAvatarStage({
 
     const onPointerDown = (e: PointerEvent) => {
       if ((e.target as HTMLElement)?.closest("button")) return;
+      if (ignoreLeftFraction > 0) {
+        const rect = stageEl.getBoundingClientRect();
+        const rx = (e.clientX - rect.left) / Math.max(1, rect.width);
+        if (rx < ignoreLeftFraction) {
+          return;
+        }
+      }
       pointerDown = true;
       horizontalLocked = e.pointerType !== "touch";
       movedDist = 0;
@@ -889,13 +909,15 @@ export function Interactive3DAvatarStage({
           ? 38
           : 50
         : Math.round(ch * 0.022);
-      const botPad = showHud
+      const baseBotPad = showHud
         ? isNarrowMobile
           ? 44
           : compactHud
           ? 44
           : 50
         : Math.round(ch * 0.022);
+      const botPad = baseBotPad + bottomReservePx;
+      const scaleAvailH = Math.max(120, ch - topPad - baseBotPad);
       const availH = Math.max(120, ch - topPad - botPad);
 
       const hScale = clamp(dims.heightInches / 64.0, 0.95, 1.04);
@@ -906,11 +928,13 @@ export function Interactive3DAvatarStage({
       const bodyWidthScale = clamp((shS + buS + waS + hiS) * 0.25, 0.95, 1.06);
 
       const maxDrawHByWidth = (cw / 0.58) * (16 / 9);
-      const baseDrawH = Math.min(availH / 0.79, maxDrawHByWidth);
-      const drawH = baseDrawH * zoom * hScale;
+      const baseDrawH = Math.min(scaleAvailH / 0.79, maxDrawHByWidth);
+      const maxDrawHByClearance =
+        bottomReservePx > 0 ? (availH * 0.985) / 0.758 : Infinity;
+      const drawH = Math.min(baseDrawH * hScale, maxDrawHByClearance) * zoom;
       const drawW = drawH * (9 / 16);
       const scaledW = drawW * bodyWidthScale;
-      const centerX = cw * 0.5;
+      const centerX = cw * centerXFrac;
 
       const figSpanH = drawH * 0.758;
       const soleScreenY =
@@ -966,6 +990,10 @@ export function Interactive3DAvatarStage({
         gl.uniform1f(uWhiteBgLoc, seamlessStage ? 0.0 : 1.0);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         renderedViaWebGL = true;
+      } else if (gl && seamlessStage && !hasAtlas) {
+        gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
       }
 
       // 2D Canvas path: used ONLY when Heatmap / Scan Rings overlays are active OR as fallback for custom MP4 frames!
@@ -1118,7 +1146,16 @@ export function Interactive3DAvatarStage({
         if (glProg) gl.deleteProgram(glProg);
       }
     };
-  }, [compactHud, inertiaSpin, mode, seamlessStage, showHud]);
+  }, [
+    bottomReservePx,
+    centerXFrac,
+    compactHud,
+    ignoreLeftFraction,
+    inertiaSpin,
+    mode,
+    seamlessStage,
+    showHud,
+  ]);
 
   // Standalone 3D Product Turntable (`mode === "product"`)
   useEffect(() => {
