@@ -207,6 +207,7 @@ export function GwoRunwayLookbook() {
     );
     const customHydrated: AiRunwayOutfit[] = savedCustomOutfits
       .map((co, idx): AiRunwayOutfit | null => {
+        if (!co || !Array.isArray(co.productIds)) return null;
         const resolved = co.productIds
           .map((id) => byId.get(id))
           .filter((p): p is Product => Boolean(p));
@@ -281,6 +282,7 @@ export function GwoRunwayLookbook() {
   useEffect(() => {
     const N = runwayOutfits.length;
     if (N < 2) return;
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 860;
     const t1 = setTimeout(() => {
       const next1 = runwayOutfits[(safeActiveIdx + 1) % N];
       if (next1) {
@@ -289,26 +291,28 @@ export function GwoRunwayLookbook() {
           true
         );
       }
-    }, 180);
-    const t2 = setTimeout(() => {
-      const next2 = runwayOutfits[(safeActiveIdx + 2) % N];
-      const prev1 = runwayOutfits[(safeActiveIdx - 1 + N) % N];
-      if (next2) {
-        prefetchTurntableBundle(
-          next2.pieces.map((p) => p.product),
-          true
-        );
-      }
-      if (prev1) {
-        prefetchTurntableBundle(
-          prev1.pieces.map((p) => p.product),
-          true
-        );
-      }
-    }, 650);
+    }, 220);
+    const t2 = isMobile
+      ? null
+      : setTimeout(() => {
+          const next2 = runwayOutfits[(safeActiveIdx + 2) % N];
+          const prev1 = runwayOutfits[(safeActiveIdx - 1 + N) % N];
+          if (next2) {
+            prefetchTurntableBundle(
+              next2.pieces.map((p) => p.product),
+              true
+            );
+          }
+          if (prev1) {
+            prefetchTurntableBundle(
+              prev1.pieces.map((p) => p.product),
+              true
+            );
+          }
+        }, 700);
     return () => {
       clearTimeout(t1);
-      clearTimeout(t2);
+      if (t2) clearTimeout(t2);
     };
   }, [runwayOutfits, safeActiveIdx]);
 
@@ -462,18 +466,27 @@ export function GwoRunwayLookbook() {
         ? modularDataUrlCacheRef.current[cacheKey]
         : undefined;
 
-      const img = document.createElement("img");
-      img.className = "mv-avatar-img";
-      img.src =
+      const isInitialNear = i <= 6 || i >= N - 1;
+      const defaultSrc =
         cachedMod ||
         (runwayAngle === "back" ? outfit.backAvatarUrl : outfit.frontAvatarUrl);
+
+      const img = document.createElement("img");
+      img.className = "mv-avatar-img";
       img.alt = outfit.title;
       img.decoding = "async";
-      img.loading = i <= 6 ? "eager" : "lazy";
+      img.loading = isInitialNear ? "eager" : "lazy";
+      // Only attach `img.src` for visible near-stage models so iOS Safari never decodes all 100 900x1355 images at once!
+      if (isInitialNear) {
+        img.src = defaultSrc;
+      } else {
+        e.style.display = "none";
+        e.style.opacity = "0";
+      }
       e.append(img);
       createdTopImgs.push(img);
 
-      if (needsModular && !cachedMod && i <= 6) {
+      if (needsModular && !cachedMod && i <= 5) {
         const reqAngle = runwayAngle;
         void renderModularOutfitDataUrlAsync(effProducts, reqAngle).then(
           (dataUrl) => {
@@ -496,12 +509,14 @@ export function GwoRunwayLookbook() {
       line.append(e);
       return {
         e,
+        img,
+        outfit,
         r: (900 / 1355) * hipRatio,
         f: "",
-        o: "",
+        o: isInitialNear ? "" : "0",
         cx: 0,
         sc: 1,
-        vis: true,
+        vis: isInitialNear,
       };
     });
 
@@ -568,6 +583,12 @@ export function GwoRunwayLookbook() {
         }
         if (m.e.style.display === "none") {
           m.e.style.display = "block";
+        }
+        if (!m.img.getAttribute("src")) {
+          m.img.src =
+            runwayAngleRef.current === "back"
+              ? m.outfit.backAvatarUrl
+              : m.outfit.frontAvatarUrl;
         }
         const k = clamp(d + 1, 0, 6);
         const a = Math.floor(k);
@@ -775,7 +796,13 @@ export function GwoRunwayLookbook() {
         p = target;
         dirty = true;
       }
-      if (dirty) paint();
+      if (dirty) {
+        try {
+          paint();
+        } catch {
+          dirty = false;
+        }
+      }
       if (Math.abs(mx - cx) > 0.25 || Math.abs(my - cy) > 0.25) {
         cx += (mx - cx) * 0.35;
         cy += (my - cy) * 0.35;

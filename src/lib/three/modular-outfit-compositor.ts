@@ -343,13 +343,18 @@ export function composeModularOutfitToCanvas(params: {
       const tmp = document.createElement("canvas");
       tmp.width = 900;
       tmp.height = 1355;
-      tmp.getContext("2d")!.drawImage(ctx.canvas, 0, 0);
-      ctx.clearRect(0, 0, 900, 1355);
-      ctx.save();
-      ctx.translate(900, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(tmp, 0, 0, 900, 1355);
-      ctx.restore();
+      const tmpCtx = tmp.getContext("2d");
+      if (tmpCtx) {
+        tmpCtx.drawImage(ctx.canvas, 0, 0);
+        ctx.clearRect(0, 0, 900, 1355);
+        ctx.save();
+        ctx.translate(900, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(tmp, 0, 0, 900, 1355);
+        ctx.restore();
+      }
+      tmp.width = 0;
+      tmp.height = 0;
     }
     return "ready";
   }
@@ -577,18 +582,22 @@ export function composeModularOutfitToCanvas(params: {
         ctx.clearRect(0, 0, 900, 915);
       } else {
         // Strip base cream bandeau & shapewear shorts (y=305..776, x=335..565) while keeping warm tan skin 100% intact!
-        const sub = ctx.getImageData(335, 305, 230, 472);
-        const sd = sub.data;
-        for (let k = 0; k < sd.length; k += 4) {
-          if (sd[k + 3] === 0) continue;
-          const r = sd[k];
-          const b = sd[k + 2];
-          // Cream/white shapewear has high blue (> 130) and low red-blue warmth (< 42); tan skin has r - b >= 45!
-          if (b > 115 && r - b < 42) {
-            sd[k + 3] = 0;
+        try {
+          const sub = ctx.getImageData(335, 305, 230, 472);
+          const sd = sub.data;
+          for (let k = 0; k < sd.length; k += 4) {
+            if (sd[k + 3] === 0) continue;
+            const r = sd[k];
+            const b = sd[k + 2];
+            // Cream/white shapewear has high blue (> 130) and low red-blue warmth (< 42); tan skin has r - b >= 45!
+            if (b > 115 && r - b < 42) {
+              sd[k + 3] = 0;
+            }
           }
+          ctx.putImageData(sub, 335, 305);
+        } catch {
+          // Guard against WebKit canvas memory or CORS taint exceptions
         }
-        ctx.putImageData(sub, 335, 305);
       }
       if (coversShins) {
         // Clear outer calves/heels below y=765 while keeping two 38px central ankle columns (y=1248..1284) so zero gap or outer foot overhang appears!
@@ -644,11 +653,15 @@ export function composeModularOutfitToCanvas(params: {
 }
 
 const DATA_URL_MEMO = new Map<string, string>();
+const INFLIGHT_DATA_URL = new Map<string, Promise<string | null>>();
+let renderQueueChain: Promise<void> = Promise.resolve();
 
 /**
- * Renders any arbitrary combination of `Product[]` into a crisp 900x1355 WebP Data URL
- * for instant use on the Diagonal Runway (`GwoRunwayLookbook`) whenever an outfit mixes pieces
- * or the shopper taps Swap (`↻`) on any piece card!
+ * Renders any arbitrary combination of `Product[]` into a crisp WebP Data URL
+ * for instant use on the Diagonal Runway (`GwoRunwayLookbook`).
+ * Serialized onto a single short-lived `<canvas>` (with immediate `width = 0` release
+ * and full `try/catch` guards) so iOS Safari / WKWebView NEVER exceeds its 224 MB
+ * 2D canvas memory ceiling or throws an uncaught `requestAnimationFrame` exception!
  */
 export function renderModularOutfitDataUrlAsync(
   products: Product[],
@@ -658,54 +671,114 @@ export function renderModularOutfitDataUrlAsync(
   const key = `${angle}:${products.map((p) => `${p.id}:${p.imageUrl || ""}`).join("|")}`;
   const hit = DATA_URL_MEMO.get(key);
   if (hit) return Promise.resolve(hit);
+  const inflight = INFLIGHT_DATA_URL.get(key);
+  if (inflight) return inflight;
 
-  return new Promise((resolve) => {
-    const cv = document.createElement("canvas");
-    cv.width = 900;
-    cv.height = 1355;
-    const ctx = cv.getContext("2d");
-    if (!ctx) {
-      resolve(null);
-      return;
-    }
+  const job = new Promise<string | null>((resolve) => {
+    renderQueueChain = renderQueueChain
+      .then(
+        () =>
+          new Promise<void>((doneJob) => {
+            const finish = (val: string | null) => {
+              resolve(val);
+              doneJob();
+            };
 
-    let settled = false;
-    const attempt = () => {
-      if (settled) return;
-      const status = composeModularOutfitToCanvas({
-        ctx,
-        products,
-        angle,
-        onAssetReady: () => {
-          requestAnimationFrame(attempt);
-        },
-      });
-      if (status === "ready") {
-        settled = true;
-        const url = cv.toDataURL("image/webp", 0.88);
-        DATA_URL_MEMO.set(key, url);
-        resolve(url);
-      }
-    };
-    attempt();
-    setTimeout(() => {
-      if (!settled) {
-        settled = true;
+            const memoHit = DATA_URL_MEMO.get(key);
+            if (memoHit) {
+              finish(memoHit);
+              return;
+            }
+
+            let cv: HTMLCanvasElement | null = document.createElement("canvas");
+            cv.width = 900;
+            cv.height = 1355;
+            const ctx = cv.getContext("2d");
+            if (!ctx) {
+              cv.width = 0;
+              cv.height = 0;
+              cv = null;
+              finish(null);
+              return;
+            }
+
+            let settled = false;
+            const releaseCanvas = () => {
+              if (cv) {
+                cv.width = 0;
+                cv.height = 0;
+                cv = null;
+              }
+            };
+
+            const attempt = () => {
+              if (settled || !cv) return;
+              try {
+                const status = composeModularOutfitToCanvas({
+                  ctx,
+                  products,
+                  angle,
+                  onAssetReady: () => {
+                    if (!settled) requestAnimationFrame(attempt);
+                  },
+                });
+                if (status === "ready") {
+                  settled = true;
+                  let url: string | null = null;
+                  try {
+                    url = cv.toDataURL("image/webp", 0.84);
+                  } catch {
+                    url = null;
+                  }
+                  releaseCanvas();
+                  if (url) {
+                    if (DATA_URL_MEMO.size > 24) {
+                      const oldest = DATA_URL_MEMO.keys().next().value;
+                      if (oldest) DATA_URL_MEMO.delete(oldest);
+                    }
+                    DATA_URL_MEMO.set(key, url);
+                  }
+                  finish(url);
+                }
+              } catch {
+                settled = true;
+                releaseCanvas();
+                finish(null);
+              }
+            };
+
+            attempt();
+            setTimeout(() => {
+              if (!settled) {
+                settled = true;
+                releaseCanvas();
+                finish(null);
+              }
+            }, 3500);
+          })
+      )
+      .catch(() => {
         resolve(null);
-      }
-    }, 4500);
+      });
   });
+
+  INFLIGHT_DATA_URL.set(key, job);
+  job.finally(() => {
+    INFLIGHT_DATA_URL.delete(key);
+  });
+  return job;
 }
 
 let preloadedCore = false;
 
 /**
- * Eagerly warms the browser image cache with base + core modular layers during idle frames
- * so switching tops, pants, jackets, dresses, shoes, belts, and bags feels 0ms instantaneous!
+ * Eagerly warms the browser image cache with base + core modular layers on desktop;
+ * skips bulk 24-image RAM preloading on mobile viewports (< 860px) to protect iOS WKWebView Jetsam limits!
  */
 export function preloadCoreModularLayers(): void {
   if (preloadedCore || typeof window === "undefined") return;
   preloadedCore = true;
+  if (window.innerWidth < 860) return;
   const starter = [
     modUrl("base_front"),
     modUrl("base_back"),

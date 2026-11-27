@@ -103,7 +103,7 @@ export function buildAiRunwayOutfits(params: {
   const hDisplay = `${hFt}'${hIn}"`;
 
   const scoredBase = CURATED_100_OUTFIT_DESIGNS.map((tpl) => {
-    const baseScore = socialDna.archetypeScores[tpl.archetype] || 78;
+    const baseScore = socialDna?.archetypeScores?.[tpl.archetype] || 78;
     let bonus = 0;
     const hay = `${tpl.title} ${tpl.occasion} ${tpl.stylistNote} ${tpl.keywords.join(" ")}`.toLowerCase();
     for (const tok of promptTokens) {
@@ -148,11 +148,11 @@ export function buildAiRunwayOutfits(params: {
         };
       });
 
-      const totalPriceUsd = pieces.reduce((s, x) => s + x.product.price, 0);
+      const totalPriceUsd = pieces.reduce((s, x) => s + (x.product?.price || 0), 0);
       const socialLabel =
-        socialDna.instagramHandle ||
-        (socialDna.pinterestBoard ? "Pinterest" : "AI Stylist");
-      const archLabel = ARCHETYPE_META[tpl.archetype].label;
+        socialDna?.instagramHandle ||
+        (socialDna?.pinterestBoard ? "Pinterest" : "AI Stylist");
+      const archLabel = ARCHETYPE_META[tpl.archetype]?.label || "Boutique";
 
       return {
         id: `runway-${tpl.key}`,
@@ -210,8 +210,10 @@ export function buildAiRunwayOutfits(params: {
         mode: "outfit",
         title: `AI Bespoke Capsule #${100 + k + 1}: ${t?.colorName || "Atelier"} & ${b?.colorName || "Tailored"}`,
         occasion: "AI Bespoke Remix",
-        archetype: socialDna.primaryArchetype,
-        archetypeLabel: ARCHETYPE_META[socialDna.primaryArchetype].label,
+        archetype: socialDna?.primaryArchetype || "siren_glam",
+        archetypeLabel:
+          ARCHETYPE_META[socialDna?.primaryArchetype || "siren_glam"]?.label ||
+          "Siren Going-Out",
         aiReason: `Live 3D modular capsule synthesized onto your ${hDisplay} body scan.`,
         fitHeadline: `Exact ${hDisplay} Scan Fit (${avatar.bustInches}" B • ${avatar.waistInches}" W • ${avatar.hipsInches}" H)`,
         matchScorePct: 96 - (k % 3),
@@ -259,18 +261,19 @@ export function buildSinglePieceRunwayLineup(params: {
       o.productIds.includes(prod.id)
     );
     const oIdx = matchingOutfit?.fallbackLookIdx ?? idx % 16;
+    const rawCat = String(prod.category || "top");
     const catLabel =
-      prod.category === "outerwear"
+      rawCat === "outerwear"
         ? "Coat / Jacket"
-        : prod.category.charAt(0).toUpperCase() + prod.category.slice(1);
+        : rawCat.charAt(0).toUpperCase() + rawCat.slice(1);
 
     return {
       id: `runway-piece-${prod.id}`,
       outfitNumber: idx + 1,
       mode: "piece",
-      title: prod.title,
-      occasion: `${catLabel} • $${prod.price}`,
-      archetype: socialDna.primaryArchetype,
+      title: prod.title || "Boutique Piece",
+      occasion: `${catLabel} • $${prod.price || 0}`,
+      archetype: socialDna?.primaryArchetype || "siren_glam",
       archetypeLabel: catLabel,
       aiReason: `Single 360° 3D Piece on Your ${hDisplay} Body Scan • Recommended Size ${fit.recommendedSize} (${fit.confidencePct}% Fit Match).`,
       fitHeadline: `Exact ${hDisplay} Fit • Size ${fit.recommendedSize}`,

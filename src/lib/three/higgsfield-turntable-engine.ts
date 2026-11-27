@@ -1811,27 +1811,34 @@ export function extractTurntableBitmapBundle(
   const evictIfNeeded = () => {
     const maxLru =
       typeof window !== "undefined" && window.innerWidth < 860
-        ? 2
+        ? 3
         : MAX_LRU_BUNDLES;
     while (BITMAP_LRU.size >= maxLru) {
       const oldestKey = BITMAP_LRU.keys().next().value;
       if (!oldestKey) break;
       const old = BITMAP_LRU.get(oldestKey);
-      if (old?.atlasBitmap) {
-        try {
-          old.atlasBitmap.close();
-        } catch {
-          // ignore
-        }
-      }
-      old?.frames.forEach((b) => {
-        try {
-          b.close();
-        } catch {
-          // ignore
-        }
-      });
       BITMAP_LRU.delete(oldestKey);
+      // Defer GPU `.close()` by 5s so any active canvas transitioning off `old`
+      // never hits `InvalidStateError: The image source is detached` mid-rAF!
+      if (old) {
+        setTimeout(() => {
+          if (BITMAP_LRU.get(oldestKey) === old) return;
+          if (old.atlasBitmap) {
+            try {
+              old.atlasBitmap.close();
+            } catch {
+              // ignore
+            }
+          }
+          old.frames.forEach((b) => {
+            try {
+              b.close();
+            } catch {
+              // ignore
+            }
+          });
+        }, 5000);
+      }
     }
   };
 

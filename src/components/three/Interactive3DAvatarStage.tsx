@@ -785,39 +785,43 @@ export function Interactive3DAvatarStage({
       const drawY = soleScreenY - drawH * 0.888;
 
       // SINGLE HARDWARE GPU BLIT PER FRAME (48x fewer draw calls -> 0.12ms/frame!)
-      if (hasAtlas && activeBundle?.atlasBitmap && frameIdx >= 0) {
-        if (posterImgRef.current) {
-          posterImgRef.current.style.opacity = "0";
+      try {
+        if (hasAtlas && activeBundle?.atlasBitmap && frameIdx >= 0) {
+          if (posterImgRef.current) {
+            posterImgRef.current.style.opacity = "0";
+          }
+          const cols = activeBundle.cols || ATLAS_COLS;
+          const cwCell = activeBundle.cellW || 260;
+          const chCell = activeBundle.cellH || 512;
+          const col = frameIdx % cols;
+          const row = (frameIdx / cols) | 0;
+          const dstW = ATLAS_ROI_W * scaledW;
+          const dstH = ATLAS_ROI_H * drawH;
+          const dstX = centerX + (ATLAS_ROI_X0 - 0.5) * scaledW;
+          const dstY = drawY + ATLAS_ROI_Y0 * drawH;
+          ctx.drawImage(
+            activeBundle.atlasBitmap,
+            col * cwCell,
+            row * chCell,
+            cwCell,
+            chCell,
+            dstX,
+            dstY,
+            dstW,
+            dstH
+          );
+        } else if (frames.length > 0 && frameIdx >= 0) {
+          if (posterImgRef.current) {
+            posterImgRef.current.style.opacity = "0";
+          }
+          const bmp = frames[frameIdx];
+          ctx.drawImage(bmp, centerX - scaledW * 0.5, drawY, scaledW, drawH);
+        } else if (posterBitmapRef.current) {
+          const pBmp = posterBitmapRef.current;
+          ctx.drawImage(pBmp, centerX - scaledW * 0.5, drawY, scaledW, drawH);
         }
-        const cols = activeBundle.cols || ATLAS_COLS;
-        const cwCell = activeBundle.cellW || 260;
-        const chCell = activeBundle.cellH || 512;
-        const col = frameIdx % cols;
-        const row = (frameIdx / cols) | 0;
-        const dstW = ATLAS_ROI_W * scaledW;
-        const dstH = ATLAS_ROI_H * drawH;
-        const dstX = centerX + (ATLAS_ROI_X0 - 0.5) * scaledW;
-        const dstY = drawY + ATLAS_ROI_Y0 * drawH;
-        ctx.drawImage(
-          activeBundle.atlasBitmap,
-          col * cwCell,
-          row * chCell,
-          cwCell,
-          chCell,
-          dstX,
-          dstY,
-          dstW,
-          dstH
-        );
-      } else if (frames.length > 0 && frameIdx >= 0) {
-        if (posterImgRef.current) {
-          posterImgRef.current.style.opacity = "0";
-        }
-        const bmp = frames[frameIdx];
-        ctx.drawImage(bmp, centerX - scaledW * 0.5, drawY, scaledW, drawH);
-      } else if (posterBitmapRef.current) {
-        const pBmp = posterBitmapRef.current;
-        ctx.drawImage(pBmp, centerX - scaledW * 0.5, drawY, scaledW, drawH);
+      } catch {
+        // Safely skip frame if GPU texture was reclaimed mid-transition
       }
 
       // Optional Fit Heatmap Zone Wash (`Fit Map` mode)

@@ -423,7 +423,38 @@ export function loadStoredSocialStyleDNA(): SocialStyleDNA | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as SocialStyleDNA;
+    const parsed = JSON.parse(raw) as Partial<SocialStyleDNA>;
+    if (!parsed || typeof parsed !== "object") return null;
+    const fallback = getDefaultSocialStyleDNA();
+    const validPrimary =
+      parsed.primaryArchetype && parsed.primaryArchetype in ARCHETYPE_META
+        ? parsed.primaryArchetype
+        : fallback.primaryArchetype;
+    const validSecondary =
+      parsed.secondaryArchetype && parsed.secondaryArchetype in ARCHETYPE_META
+        ? parsed.secondaryArchetype
+        : fallback.secondaryArchetype;
+    return {
+      ...fallback,
+      ...parsed,
+      primaryArchetype: validPrimary,
+      secondaryArchetype: validSecondary,
+      archetypeScores: {
+        ...fallback.archetypeScores,
+        ...(parsed.archetypeScores && typeof parsed.archetypeScores === "object"
+          ? parsed.archetypeScores
+          : {}),
+      },
+      extractedPaletteHex: Array.isArray(parsed.extractedPaletteHex)
+        ? parsed.extractedPaletteHex
+        : fallback.extractedPaletteHex,
+      likedProductIds: Array.isArray(parsed.likedProductIds)
+        ? parsed.likedProductIds
+        : [],
+      likedOutfitIds: Array.isArray(parsed.likedOutfitIds)
+        ? parsed.likedOutfitIds
+        : [],
+    };
   } catch {
     return null;
   }
