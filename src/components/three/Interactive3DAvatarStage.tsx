@@ -406,16 +406,24 @@ export function Interactive3DAvatarStage({
     [onVisualModeChange]
   );
 
+  const prevYawSeqRef = useRef<number | undefined>(externalYawSeq);
   useEffect(() => {
     if (typeof externalYawDeg === "number") {
       setAutoSpin(false);
       velYawRef.current = 0;
       const desiredRad = (externalYawDeg * Math.PI) / 180;
-      targetYawRef.current =
-        yawRef.current + shortestAngleDeltaRad(yawRef.current, desiredRad);
+      const seqChanged = externalYawSeq !== prevYawSeqRef.current;
+      prevYawSeqRef.current = externalYawSeq;
+      if (seamlessStage && seqChanged) {
+        yawRef.current = desiredRad;
+        targetYawRef.current = desiredRad;
+      } else {
+        targetYawRef.current =
+          yawRef.current + shortestAngleDeltaRad(yawRef.current, desiredRad);
+      }
       kickRenderRef.current?.();
     }
-  }, [externalYawDeg, externalYawSeq, setAutoSpin]);
+  }, [externalYawDeg, externalYawSeq, seamlessStage, setAutoSpin]);
 
   useEffect(() => {
     if (!faceOvalDataUrl) {
@@ -436,12 +444,15 @@ export function Interactive3DAvatarStage({
   );
   const macroRef = useRef(macroFraming);
   macroRef.current = macroFraming;
+  const centerXFracRef = useRef(centerXFrac);
+  centerXFracRef.current = centerXFrac;
 
   useEffect(() => {
     kickRenderRef.current?.();
   }, [
     activeVisualMode,
     autoSpin,
+    centerXFrac,
     effectiveShowRings,
     lightingPresetId,
     macroFraming,
@@ -731,6 +742,8 @@ export function Interactive3DAvatarStage({
     let uUvRectLoc: WebGLUniformLocation | null = null;
     let uCropYLoc: WebGLUniformLocation | null = null;
     let uMoodLoc: WebGLUniformLocation | null = null;
+    let uTexelLoc: WebGLUniformLocation | null = null;
+    let uCellBoundsLoc: WebGLUniformLocation | null = null;
 
     if (gl) {
       const compileShader = (type: number, src: string) => {
@@ -766,20 +779,100 @@ export function Interactive3DAvatarStage({
          uniform sampler2D uTex;
          uniform vec4 uCropY;
          uniform vec3 uMood;
+         uniform vec2 uTexel;
+         uniform vec4 uCellBounds;
+
+         float cycWhiteScore(vec4 s) {
+           if (s.a < 0.45) return 0.0;
+           vec3 rgb = s.rgb / s.a;
+           float mn = min(rgb.r, min(rgb.g, rgb.b));
+           float mx = max(rgb.r, max(rgb.g, rgb.b));
+           return smoothstep(0.955, 0.978, mn) * (1.0 - smoothstep(0.016, 0.032, mx - mn));
+         }
+
          void main() {
            if (vLocalY < uCropY.x || vLocalY > uCropY.y) {
              gl_FragColor = vec4(0.0);
              return;
            }
            vec4 c = texture2D(uTex, vUv);
+           if (c.a < 0.015) {
+             gl_FragColor = vec4(0.0);
+             return;
+           }
+
+           vec3 sRgb = clamp(c.rgb / c.a, 0.0, 1.0);
+           float alphaScale = 1.0;
+
+           // Key out enclosed studio-white cyclorama holes & inner-calf/tote-handle bloom
+           // while preserving 100% of face/eyes/teeth (vLocalY <= 0.17), ivory tops & silver heels!
+           if (vLocalY > 0.17) {
+             float w0 = cycWhiteScore(c);
+             vec2 sNear = uTexel * 1.8;
+             vec2 sFar = uTexel * 4.0;
+             vec2 sDiag = uTexel * 3.0;
+             float wNear = max(
+               max(
+                 cycWhiteScore(texture2D(uTex, vec2(max(uCellBounds.x, vUv.x - sNear.x), vUv.y))),
+                 cycWhiteScore(texture2D(uTex, vec2(min(uCellBounds.z, vUv.x + sNear.x), vUv.y)))
+               ),
+               max(
+                 cycWhiteScore(texture2D(uTex, vec2(vUv.x, max(uCellBounds.y, vUv.y - sNear.y)))),
+                 cycWhiteScore(texture2D(uTex, vec2(vUv.x, min(uCellBounds.w, vUv.y + sNear.y))))
+               )
+             );
+             float wFarCard = max(
+               max(
+                 cycWhiteScore(texture2D(uTex, vec2(max(uCellBounds.x, vUv.x - sFar.x), vUv.y))),
+                 cycWhiteScore(texture2D(uTex, vec2(min(uCellBounds.z, vUv.x + sFar.x), vUv.y)))
+               ),
+               max(
+                 cycWhiteScore(texture2D(uTex, vec2(vUv.x, max(uCellBounds.y, vUv.y - sFar.y)))),
+                 cycWhiteScore(texture2D(uTex, vec2(vUv.x, min(uCellBounds.w, vUv.y + sFar.y))))
+               )
+             );
+             float wFarDiag = max(
+               max(
+                 cycWhiteScore(texture2D(uTex, vec2(max(uCellBounds.x, vUv.x - sDiag.x), max(uCellBounds.y, vUv.y - sDiag.y)))),
+                 cycWhiteScore(texture2D(uTex, vec2(min(uCellBounds.z, vUv.x + sDiag.x), max(uCellBounds.y, vUv.y - sDiag.y))))
+               ),
+               max(
+                 cycWhiteScore(texture2D(uTex, vec2(max(uCellBounds.x, vUv.x - sDiag.x), min(uCellBounds.w, vUv.y + sDiag.y)))),
+                 cycWhiteScore(texture2D(uTex, vec2(min(uCellBounds.z, vUv.x + sDiag.x), min(uCellBounds.w, vUv.y + sDiag.y))))
+               )
+             );
+             float wFar = max(wNear, max(wFarCard, wFarDiag));
+             float holeKill = w0 * smoothstep(0.35, 0.85, wNear);
+
+             float mn = min(sRgb.r, min(sRgb.g, sRgb.b));
+             float mx = max(sRgb.r, max(sRgb.g, sRgb.b));
+             float rimKill = smoothstep(0.75, 0.96, wFar)
+               * smoothstep(0.84, 0.94, mn)
+               * (1.0 - smoothstep(0.028, 0.065, mx - mn));
+             if (vLocalY > 0.875) {
+               rimKill *= smoothstep(0.92, 0.96, mn);
+             }
+             alphaScale = 1.0 - max(holeKill, rimKill);
+             if (alphaScale < 0.015) {
+               gl_FragColor = vec4(0.0);
+               return;
+             }
+           }
+
+           // Exact inverse white-matte de-spill on semi-transparent edges (zero milky white halo!)
+           float effA = c.a * alphaScale;
+           float tightenA = smoothstep(0.08, 0.95, effA) * effA;
+           vec3 unmixedPremul = clamp(sRgb - vec3(1.0 - effA), 0.0, effA);
+           vec3 basePremul = mix(sRgb * effA, unmixedPremul, 0.85) * (tightenA / max(effA, 0.001));
+
            float mTop = uCropY.z > 0.0001
              ? smoothstep(uCropY.x, uCropY.x + uCropY.z, vLocalY)
              : 1.0;
            float mBot = uCropY.w > 0.0001
              ? 1.0 - smoothstep(uCropY.y - uCropY.w, uCropY.y, vLocalY)
              : 1.0;
-           vec3 rgb = clamp(c.rgb * uMood, 0.0, c.a);
-           gl_FragColor = vec4(rgb, c.a) * (mTop * mBot);
+           vec3 rgb = clamp(basePremul * uMood, 0.0, tightenA);
+           gl_FragColor = vec4(rgb, tightenA) * (mTop * mBot);
          }`
       );
       if (vs && fs) {
@@ -796,6 +889,8 @@ export function Interactive3DAvatarStage({
             uUvRectLoc = gl.getUniformLocation(p, "uUvRect");
             uCropYLoc = gl.getUniformLocation(p, "uCropY");
             uMoodLoc = gl.getUniformLocation(p, "uMood");
+            uTexelLoc = gl.getUniformLocation(p, "uTexel");
+            uCellBoundsLoc = gl.getUniformLocation(p, "uCellBounds");
             glQuadBuf = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, glQuadBuf);
             gl.bufferData(
@@ -952,7 +1047,9 @@ export function Interactive3DAvatarStage({
 
       if (movedDist < 6 && equippedRef.current.length > 0 && mode === "avatar") {
         const rect = stageEl.getBoundingClientRect();
-        const rx = (clientX - rect.left) / Math.max(1, rect.width);
+        const rx =
+          (clientX - rect.left) / Math.max(1, rect.width) -
+          (centerXFracRef.current - 0.5);
         const ry = (clientY - rect.top) / Math.max(1, rect.height);
         if (rx > 0.24 && rx < 0.76 && ry > 0.12 && ry < 0.92) {
           const items = equippedRef.current;
@@ -1130,7 +1227,8 @@ export function Interactive3DAvatarStage({
       const macroKey = macro
         ? `${macro.cropY0}:${macro.cropY1}:${macro.widthFrac}`
         : "full";
-      const dimsSig = `${dims.heightInches}:${dims.bustInches}:${dims.waistInches}:${dims.hipsInches}:${macroKey}`;
+      const curCxFrac = centerXFracRef.current;
+      const dimsSig = `${dims.heightInches}:${dims.bustInches}:${dims.waistInches}:${dims.hipsInches}:${macroKey}:${curCxFrac}`;
 
       const deg = Math.round(normProgress * 360) % 360;
       if (deg !== lastDomDeg) {
@@ -1274,7 +1372,10 @@ export function Interactive3DAvatarStage({
         drawH = Math.min(baseDrawH * hScale, maxDrawHByClearance) * zoom;
         const drawW = drawH * (9 / 16);
         scaledW = drawW * bodyWidthScale;
-        centerX = cw * centerXFrac;
+        centerX = cw * curCxFrac;
+        if (curCxFrac > 0.52) {
+          centerX = Math.min(centerX, cw - scaledW * 0.275);
+        }
 
         const figSpanH = drawH * 0.758;
         const soleScreenY =
@@ -1320,19 +1421,20 @@ export function Interactive3DAvatarStage({
             ? [1.06, 0.99, 0.92]
             : [1.0, 1.0, 1.0];
 
+        const u0 = col / cols + padU;
+        const v0 = row / rows + padV;
+        const uw = 1 / cols - 2 * padU;
+        const vh = 1 / rows - 2 * padV;
+
         gl.viewport(0, 0, glCanvas.width, glCanvas.height);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(glProg);
         gl.bindTexture(gl.TEXTURE_2D, useB ? glTexB : glTexA);
         gl.uniform4f(uRectLoc, dstX / cw, dstY / ch, dstW / cw, dstH / ch);
-        gl.uniform4f(
-          uUvRectLoc,
-          col / cols + padU,
-          row / rows + padV,
-          1 / cols - 2 * padU,
-          1 / rows - 2 * padV
-        );
+        gl.uniform4f(uUvRectLoc, u0, v0, uw, vh);
+        gl.uniform2f(uTexelLoc, 1 / sheetW, 1 / sheetH);
+        gl.uniform4f(uCellBoundsLoc, u0, v0, u0 + uw, v0 + vh);
         gl.uniform4f(
           uCropYLoc,
           cropLocalMinY,
@@ -1515,7 +1617,6 @@ export function Interactive3DAvatarStage({
     };
   }, [
     bottomReservePx,
-    centerXFrac,
     compactHud,
     ignoreLeftFraction,
     inertiaSpin,

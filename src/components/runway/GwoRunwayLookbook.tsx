@@ -52,14 +52,15 @@ interface CustomRunwayOutfitSaved {
   backAvatarUrl: string;
 }
 
-// Balanced Diagonal Runway Curves Matching Exact 360° Full-Stage Foreground Scale (`KH = 1.00`, `KX = 0.62`)
-const KX = [1.38, 0.62, 0.35, 0.22, 0.13, 0.07, 0.02];
-const KX_MOBILE = [1.42, 0.62, 0.29, 0.17, 0.09, 0.04, 0.00];
-const KF = [1.00, 0.922, 0.85, 0.78, 0.72, 0.67, 0.63];
-const KH = [1.08, 1.00, 0.78, 0.60, 0.46, 0.35, 0.27];
-const KH_MOBILE = [1.08, 1.00, 0.76, 0.58, 0.44, 0.34, 0.26];
-const KB = [0, 0, 1.4, 3.8, 7.5, 11.5, 16];
-const KO = [1, 1, 0.95, 0.87, 0.72, 0.46, 0];
+// Clean-Separated Diagonal Runway Curves: Full-Stage 360° Hero (`KH = 1.00`, `KX = 0.66/0.68`)
+// with generous open air gap from `d = 1` (`KX = 0.25/0.215`, `KH = 0.64/0.62`) even on wide tote bags!
+const KX = [1.42, 0.66, 0.25, 0.145, 0.08, 0.035, 0.00];
+const KX_MOBILE = [1.46, 0.68, 0.215, 0.11, 0.045, 0.00, -0.04];
+const KF = [1.00, 0.922, 0.845, 0.775, 0.715, 0.665, 0.625];
+const KH = [1.08, 1.00, 0.64, 0.48, 0.36, 0.27, 0.20];
+const KH_MOBILE = [1.08, 1.00, 0.62, 0.46, 0.35, 0.26, 0.19];
+const KB = [0, 0, 2.4, 5.2, 9.0, 13.0, 17.5];
+const KO = [1, 1, 0.86, 0.72, 0.54, 0.34, 0];
 
 const wrap = (x: number, n: number) => ((x % n) + n) % n;
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
@@ -96,10 +97,11 @@ export function GwoRunwayLookbook() {
   const [browseMode, setBrowseMode] = useState<"outfits" | "pieces">("outfits");
   const [occasionFilter, setOccasionFilter] = useState<string>("all");
   const [extraAiCount, setExtraAiCount] = useState(0);
-  const [runwayYawDeg, setRunwayYawDeg] = useState<number>(0);
+  const [runwayYawDeg] = useState<number>(0);
   const runwayAngle: "front" | "back" =
     runwayYawDeg >= 110 && runwayYawDeg <= 250 ? "back" : "front";
   const [activeLookIdx, setActiveLookIdx] = useState(0);
+  const [isMobileStage, setIsMobileStage] = useState(false);
 
   // Per-outfit piece swap overrides so shoppers can swap pieces live on the Runway!
   const [swappedPieceBySlot, setSwappedPieceBySlot] = useState<
@@ -343,6 +345,7 @@ export function GwoRunwayLookbook() {
 
   // Refs for Original Iconic Diagonal Multi-Model Runway Engine
   const stageRef = useRef<HTMLElement | null>(null);
+  const heroWrapRef = useRef<HTMLDivElement | null>(null);
   const lineRef = useRef<HTMLDivElement | null>(null);
   const ringRef = useRef<HTMLDivElement | null>(null);
   const rollRef = useRef<HTMLSpanElement | null>(null);
@@ -352,10 +355,11 @@ export function GwoRunwayLookbook() {
   const runwayAngleRef = useRef<"front" | "back">(runwayAngle);
   runwayAngleRef.current = runwayAngle;
   const jumpLookRef = useRef<((lookIndex: number) => void) | null>(null);
+  const stepLookRef = useRef<((delta: number) => void) | null>(null);
   const footerScrubRef = useRef<{
     start: () => void;
     move: (dx: number) => void;
-    end: () => void;
+    end: (wasDragging: boolean) => void;
   } | null>(null);
   const currentPosRef = useRef(0);
 
@@ -546,6 +550,8 @@ export function GwoRunwayLookbook() {
     let base = 0;
     let mobile = false;
     let dirty = true;
+    let drag = false;
+    let footerDragging = false;
     let p = clamp(currentPosRef.current, 0, Math.max(0, N - 1));
     let target = p;
     let last = 0;
@@ -562,8 +568,16 @@ export function GwoRunwayLookbook() {
     jumpLookRef.current = (lookIndex: number) => {
       const currMod = wrap(Math.round(target), N);
       let delta = lookIndex - currMod;
-      if (delta < 0) delta += N;
+      if (delta > N * 0.5) delta -= N;
+      if (delta < -N * 0.5) delta += N;
       target = Math.round(target) + delta;
+      dirty = true;
+      kickRunway();
+    };
+
+    stepLookRef.current = (delta: number) => {
+      target = Math.round(target) + delta;
+      dirty = true;
       kickRunway();
     };
 
@@ -573,11 +587,18 @@ export function GwoRunwayLookbook() {
         footerStartTarget = target;
       },
       move: (dx: number) => {
+        footerDragging = true;
         target = footerStartTarget - dx / Math.max(110, W * 0.28);
+        dirty = true;
         kickRunway();
       },
-      end: () => {
-        target = Math.round(target);
+      end: (wasDragging: boolean) => {
+        const hadDrag = footerDragging || wasDragging;
+        footerDragging = false;
+        if (hadDrag) {
+          target = Math.round(target);
+        }
+        dirty = true;
         kickRunway();
       },
     };
@@ -586,6 +607,7 @@ export function GwoRunwayLookbook() {
       W = stage.clientWidth;
       H = stage.clientHeight;
       mobile = window.innerWidth <= 820;
+      setIsMobileStage(mobile);
       base = mobile ? Math.min(H * 0.90, W * 1.88) : H * 0.92;
       people.forEach((m) => {
         m.e.style.width = `${base * m.r}px`;
@@ -601,6 +623,25 @@ export function GwoRunwayLookbook() {
       if (roundedIdx !== lastReportedIdx) {
         lastReportedIdx = roundedIdx;
         setActiveLookIdx(roundedIdx);
+      }
+
+      const heroReady = Boolean(
+        stage.querySelector('[data-frames-ready="true"]')
+      );
+      const distFromSlot = Math.abs(p - Math.round(p));
+      const isSettled =
+        !drag &&
+        !footerDragging &&
+        Math.abs(target - p) <= 0.028 &&
+        distFromSlot <= 0.028;
+      const showLiveHero = isSettled && heroReady;
+      const heroWrapEl = heroWrapRef.current;
+      if (heroWrapEl) {
+        const wantHeroOp = showLiveHero ? "1" : "0";
+        if (heroWrapEl.style.opacity !== wantHeroOp) {
+          heroWrapEl.style.opacity = wantHeroOp;
+          heroWrapEl.style.pointerEvents = showLiveHero ? "auto" : "none";
+        }
       }
 
       people.forEach((m, i) => {
@@ -635,13 +676,8 @@ export function GwoRunwayLookbook() {
         const y = H * L(KF) - base * sc;
         const bl = L(KB);
         const rawOp = d < -0.35 ? Math.max(0, 1 + (d + 0.35) * 2.4) : L(KO);
-        // Keep foreground slot visible until the live WebGL 360° hero finishes decoding so right side is NEVER empty!
-        const heroReady = Boolean(
-          stage.querySelector('[data-frames-ready="true"]')
-        );
-        const heroFade = heroReady
-          ? Math.min(1, Math.max(0, (Math.abs(d) - 0.14) / 0.34))
-          : 1;
+        // Atomic 1-frame handoff: NEVER show both the Runway sprite and the live 360° hero simultaneously!
+        const heroFade = showLiveHero && i === roundedIdx ? 0 : 1;
         const op = rawOp * heroFade;
         const f = bl > 0.25 ? `blur(${bl.toFixed(1)}px)` : "none";
         const o = op.toFixed(3);
@@ -678,7 +714,6 @@ export function GwoRunwayLookbook() {
     let my = 0;
     let cx = 0;
     let cy = 0;
-    let drag = false;
     let sx = 0;
     let sy = 0;
     let s0 = 0;
@@ -733,10 +768,11 @@ export function GwoRunwayLookbook() {
         return;
       }
       const stRect = stage.getBoundingClientRect();
-      if ((e.clientX - stRect.left) / Math.max(1, stRect.width) >= 0.34) {
+      if ((e.clientX - stRect.left) / Math.max(1, stRect.width) >= 0.39) {
         return;
       }
       drag = true;
+      dirty = true;
       moved = false;
       horizLocked = e.pointerType === "mouse";
       sx = e.clientX;
@@ -756,6 +792,7 @@ export function GwoRunwayLookbook() {
     const onRelease = (e: PointerEvent) => {
       if (!drag) return;
       drag = false;
+      dirty = true;
       ring.classList.remove("drag");
       try {
         if (stage.hasPointerCapture(e.pointerId)) {
@@ -1002,6 +1039,7 @@ export function GwoRunwayLookbook() {
           {/* Foreground Live WebGL 3D Character — Exact Same Full-Stage Scale as 360°! */}
           {activeOutfit && (
             <div
+              ref={heroWrapRef}
               data-runway-3d-hero="true"
               className="absolute inset-0 w-full h-full z-[25]"
               title="Drag horizontally to spin your 3D Character 360°"
@@ -1016,10 +1054,11 @@ export function GwoRunwayLookbook() {
                 faceOvalDataUrl={customAvatar?.faceOvalDataUrl || null}
                 customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
                 customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}
-                externalYawDeg={runwayYawDeg}
-                centerXFrac={0.62}
+                externalYawDeg={0}
+                externalYawSeq={safeActiveIdx}
+                centerXFrac={isMobileStage ? 0.68 : 0.66}
                 bottomReservePx={42}
-                ignoreLeftFraction={0.34}
+                ignoreLeftFraction={0.39}
                 showHud={false}
                 seamlessStage
               />
@@ -1070,15 +1109,15 @@ export function GwoRunwayLookbook() {
                     } catch {
                       // ignore
                     }
-                    footerScrubRef.current?.end();
                   }
+                  footerScrubRef.current?.end(wasDragging);
                 }}
                 onPointerCancel={(ev) => {
                   const el = ev.currentTarget as HTMLElement;
                   const wasDragging = el.dataset.dragging === "1";
                   delete el.dataset.sx;
                   delete el.dataset.dragging;
-                  if (wasDragging) footerScrubRef.current?.end();
+                  footerScrubRef.current?.end(wasDragging);
                   try {
                     if (el.hasPointerCapture(ev.pointerId)) {
                       el.releasePointerCapture(ev.pointerId);
@@ -1098,8 +1137,7 @@ export function GwoRunwayLookbook() {
                     ) {
                       return;
                     }
-                    const N = Math.max(1, runwayOutfits.length);
-                    jumpLookRef.current?.((safeActiveIdx - 1 + N) % N);
+                    stepLookRef.current?.(-1);
                   }}
                   aria-label="Previous outfit"
                   className="w-7 h-7 rounded-full bg-[#F5E9DF] hover:bg-[#ECDAD0] text-[#184535] inline-flex items-center justify-center shrink-0 cursor-pointer transition"
@@ -1116,8 +1154,7 @@ export function GwoRunwayLookbook() {
                     ) {
                       return;
                     }
-                    const N = Math.max(1, runwayOutfits.length);
-                    jumpLookRef.current?.((safeActiveIdx + 1) % N);
+                    stepLookRef.current?.(1);
                   }}
                   title="Tap or swipe to step through outfits"
                   className="px-2 min-w-0 flex items-center gap-1.5 cursor-pointer text-center"
@@ -1144,8 +1181,7 @@ export function GwoRunwayLookbook() {
                     ) {
                       return;
                     }
-                    const N = Math.max(1, runwayOutfits.length);
-                    jumpLookRef.current?.((safeActiveIdx + 1) % N);
+                    stepLookRef.current?.(1);
                   }}
                   aria-label="Next outfit"
                   className="w-7 h-7 rounded-full bg-[#F5E9DF] hover:bg-[#ECDAD0] text-[#184535] inline-flex items-center justify-center shrink-0 cursor-pointer transition"
