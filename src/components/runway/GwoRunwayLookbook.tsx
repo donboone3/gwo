@@ -277,18 +277,39 @@ export function GwoRunwayLookbook() {
       : 0;
   const rawActiveOutfit = runwayOutfits[safeActiveIdx] || runwayOutfits[0];
 
-  // Background pre-warm the next Runway outfit's Higgsfield 360° turntable in RAM!
+  // Background pre-warm adjacent Runway outfits' Higgsfield 360° turntables in RAM for 0ms stepping!
   useEffect(() => {
-    if (runwayOutfits.length < 2) return;
-    const nextOutfit = runwayOutfits[(safeActiveIdx + 1) % runwayOutfits.length];
-    if (!nextOutfit) return;
-    const timer = setTimeout(() => {
-      prefetchTurntableBundle(
-        nextOutfit.pieces.map((p) => p.product),
-        true
-      );
-    }, 350);
-    return () => clearTimeout(timer);
+    const N = runwayOutfits.length;
+    if (N < 2) return;
+    const t1 = setTimeout(() => {
+      const next1 = runwayOutfits[(safeActiveIdx + 1) % N];
+      if (next1) {
+        prefetchTurntableBundle(
+          next1.pieces.map((p) => p.product),
+          true
+        );
+      }
+    }, 180);
+    const t2 = setTimeout(() => {
+      const next2 = runwayOutfits[(safeActiveIdx + 2) % N];
+      const prev1 = runwayOutfits[(safeActiveIdx - 1 + N) % N];
+      if (next2) {
+        prefetchTurntableBundle(
+          next2.pieces.map((p) => p.product),
+          true
+        );
+      }
+      if (prev1) {
+        prefetchTurntableBundle(
+          prev1.pieces.map((p) => p.product),
+          true
+        );
+      }
+    }, 650);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [runwayOutfits, safeActiveIdx]);
 
   const activeOutfit = useMemo(() => {
@@ -847,8 +868,8 @@ export function GwoRunwayLookbook() {
       id: `custom-runway-${Date.now()}`,
       title,
       productIds: selectedCustomIds,
-      frontAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_0_front.webp?v=mod7`,
-      backAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_0_back.webp?v=mod7`,
+      frontAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_0_front.webp?v=mod28`,
+      backAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_0_back.webp?v=mod28`,
     };
     persistCustomRunway([created, ...savedCustomOutfits]);
     setBrowseMode("outfits");

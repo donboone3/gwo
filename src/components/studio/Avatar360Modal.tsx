@@ -201,6 +201,8 @@ export function Avatar360Modal() {
                   mode="avatar"
                   dimensions={bodyDims}
                   wornPieces={wornSpecs}
+                  focusProductId={primaryProduct.id}
+                  seamlessStage={false}
                   faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
                   customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
                   customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}

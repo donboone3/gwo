@@ -1179,8 +1179,8 @@ export const CURATED_100_OUTFIT_DESIGNS: CuratedOutfitDesign[] =
       keywords: seed.keywords,
       prebakedLookIdx: seed.prebakedLookIdx,
       fallbackLookIdx: seed.fallbackLookIdx,
-      frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${lookIdx}_front.webp?v=mod7`,
-      backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${lookIdx}_back.webp?v=mod7`,
+      frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${lookIdx}_front.webp?v=mod28`,
+      backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${lookIdx}_back.webp?v=mod28`,
       isModularRemix: seed.prebakedLookIdx === undefined,
     };
   });

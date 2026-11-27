@@ -11,8 +11,8 @@ export function H(file: string, w: number, q = 82): string {
   if (file.startsWith("ae:")) {
     const idx = file.slice(3);
     return w <= 360
-      ? `${BASE_PATH}/models/runway_ai/ae_outfit_${idx}_thumb.webp?v=mod7`
-      : `${BASE_PATH}/models/runway_ai/ae_outfit_${idx}_front.webp?v=mod7`;
+      ? `${BASE_PATH}/models/runway_ai/ae_outfit_${idx}_thumb.webp?v=mod28`
+      : `${BASE_PATH}/models/runway_ai/ae_outfit_${idx}_front.webp?v=mod28`;
   }
   if (file.startsWith("sig:")) {
     const idx = file.slice(4);
@@ -41,7 +41,7 @@ export function H(file: string, w: number, q = 82): string {
 export function H_BACK(file: string): string {
   if (file.startsWith("ae:")) {
     const idx = file.slice(3);
-    return `${BASE_PATH}/models/runway_ai/ae_outfit_${idx}_back.webp?v=mod7`;
+    return `${BASE_PATH}/models/runway_ai/ae_outfit_${idx}_back.webp?v=mod28`;
   }
   if (file.startsWith("sig:")) {
     const idx = file.slice(4);

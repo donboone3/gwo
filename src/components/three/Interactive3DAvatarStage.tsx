@@ -69,6 +69,7 @@ export interface Interactive3DAvatarStageProps {
   onYawChange?: (deg: number) => void;
   showHud?: boolean;
   compactHud?: boolean;
+  focusProductId?: string | null;
   selectedProductId?: string | null;
   onSelectProduct?: (product: Product, fit?: AvatarExactFitReport) => void;
   className?: string;
@@ -154,6 +155,7 @@ export function Interactive3DAvatarStage({
   onYawChange,
   showHud = true,
   compactHud = false,
+  focusProductId,
   selectedProductId,
   onSelectProduct,
   className = "",
@@ -383,18 +385,21 @@ export function Interactive3DAvatarStage({
           skinToneHex: safeDimensions.skinToneHex,
           customTurntableMp4Url: customAvatarTurntableMp4Url || undefined,
           customTurntablePosterUrl: customAvatarTurntablePosterUrl || undefined,
+          focusProductId: focusProductId || selectedProductId || undefined,
         }
       ),
     [
       customAvatarTurntableMp4Url,
       customAvatarTurntablePosterUrl,
       effectiveEquippedProducts,
+      focusProductId,
       safeDimensions.skinToneHex,
+      selectedProductId,
       userSelectedProducts,
     ]
   );
 
-  // Load Poster + Decode 96 `ImageBitmap` Frames from Higgsfield All-Intra MP4!
+  // Load Poster + Progressive 2-Pass Instant-Spin `ImageBitmap[]` Stream (<90ms to interactive 360°!)
   useEffect(() => {
     if (mode !== "avatar") return;
     let cancelled = false;
@@ -408,31 +413,50 @@ export function Interactive3DAvatarStage({
       return;
     }
 
-    // 2. Otherwise clear stale outfit frames immediately and paint the new outfit's processed poster (<25ms)!
-    framesRef.current = [];
-    posterBitmapRef.current = null;
+    // 2. Zero-flash transition: keep current frame painted until new poster or Pass-1 cardinal frames arrive!
     setFramesReady(false);
+    let receivedProgressive = false;
 
     void extractProcessedPosterBitmap(turntableSpec, seamlessStage).then(
       (pBmp) => {
         if (!cancelled && pBmp) {
           posterBitmapRef.current = pBmp;
+          // Swap off previous outfit frames onto new outfit's exact poster ONLY if Pass-1 hasn't already populated!
+          if (!receivedProgressive) {
+            framesRef.current = [];
+          }
         }
       }
     );
 
     const spinnerTimer = setTimeout(() => {
-      if (!cancelled && framesRef.current.length === 0) {
+      if (!cancelled && !receivedProgressive && framesRef.current.length === 0) {
         setIsLoadingFrames(true);
       }
-    }, 260);
+    }, 380);
 
-    void extractTurntableBitmapBundle(turntableSpec, seamlessStage)
+    void extractTurntableBitmapBundle(
+      turntableSpec,
+      seamlessStage,
+      undefined,
+      (progFrames) => {
+        if (cancelled || progFrames.length === 0) return;
+        receivedProgressive = true;
+        clearTimeout(spinnerTimer);
+        framesRef.current = progFrames;
+        setFramesReady(true);
+        setIsLoadingFrames(false);
+      }
+    )
       .then((bundle) => {
         clearTimeout(spinnerTimer);
         if (cancelled) return;
-        framesRef.current = bundle.frames;
-        setFramesReady(bundle.frames.length > 0);
+        if (bundle.frames.length > 0) {
+          framesRef.current = bundle.frames;
+          setFramesReady(true);
+        } else if (!receivedProgressive) {
+          framesRef.current = [];
+        }
         setIsLoadingFrames(false);
       })
       .catch(() => {

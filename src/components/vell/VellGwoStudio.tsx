@@ -45,6 +45,7 @@ import {
   deriveFullBodyDimensionsFromProfile,
   formatHeightFeetInches,
 } from "@/lib/three/body-scan-analyzer";
+import { prefetchTurntableBundle } from "@/lib/three/higgsfield-turntable-engine";
 import { isolateProductBackgroundClient } from "@/lib/three/avatar-ready-pipeline";
 import { Worn3DPieceSpec } from "@/lib/three/parametric-3d-engine";
 import { Product } from "@/lib/types";
@@ -272,6 +273,35 @@ export function VellGwoStudio() {
   const [hybridCycleIdx, setHybridCycleIdx] = useState(0);
   const [savedOutfits, setSavedOutfits] = useState<SavedCustom3DOutfit[]>([]);
   const [copiedCloset, setCopiedCloset] = useState(false);
+  const [scrolledPastAvatar, setScrolledPastAvatar] = useState(false);
+
+  // Track mobile scroll so customers picking clothes below the fold get a 1-tap "View on Avatar ↑" pill!
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onScroll = () => {
+      setScrolledPastAvatar(window.innerWidth < 1024 && window.scrollY > 240);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Idle-prefetch core Closet capsules so switching tops, skirts, dresses, blazers & bags is instant!
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const warmIds = [
+      "prod-ae-emerald-satin-midi",
+      "prod-ae-ivory-tweed-blazer",
+      "prod-ae-cobalt-draped-mini",
+      "prod-ae-butter-silk-cami",
+    ];
+    const t = setTimeout(() => {
+      for (const id of warmIds) {
+        const p = allWearableById.get(id);
+        if (p) prefetchTurntableBundle([p], false);
+      }
+    }, 900);
+    return () => clearTimeout(t);
+  }, [allWearableById]);
 
   // Photo upload modal state
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -318,6 +348,9 @@ export function VellGwoStudio() {
       );
       setDressedSlots(slotsFromProductIds(ids, allWearableById));
       triggerScanBeam();
+      if (typeof window !== "undefined" && window.innerWidth < 1024 && window.scrollY > 180) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     },
     [allWearableById, triggerScanBeam]
   );
@@ -355,6 +388,9 @@ export function VellGwoStudio() {
           if (next.dressId) {
             next.topId = null;
             next.bottomId = null;
+            if (prod.id !== "prod-ae-butter-lace-slip-midi") {
+              next.outerwearId = null;
+            }
           }
         } else if (slot === "top") {
           next.topId = !forceEquip && prev.topId === prod.id ? null : prod.id;
@@ -380,8 +416,11 @@ export function VellGwoStudio() {
       setSelectedPieceId(prod.id);
       setStageMode("3d");
       triggerScanBeam();
+      if (typeof window !== "undefined" && window.innerWidth < 1024 && window.scrollY > 240) {
+        showToast(`Dressed "${prod.title}" — tap View Avatar ↑ to spin 360°!`);
+      }
     },
-    [triggerScanBeam]
+    [showToast, triggerScanBeam]
   );
 
   // If user imports a store link via "+ Add Outfit", force-equip it right onto her 3D Avatar!
@@ -1108,6 +1147,7 @@ export function VellGwoStudio() {
                 initialYawDeg={0}
                 seamlessStage={false}
                 inertiaSpin={true}
+                focusProductId={selectedPieceId}
                 onSelectProduct={(prod) => {
                   setSelectedPieceId(prod.id);
                   setActiveSlotFilter(classifyProductSlot(prod));
@@ -1817,6 +1857,27 @@ export function VellGwoStudio() {
               Add to Closet &amp; Dress 3D Twin →
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Mobile Floating "View on 360° Avatar ↑" Bar When Browsing Closet Below the Fold */}
+      {scrolledPastAvatar && (
+        <div className="lg:hidden fixed bottom-4 inset-x-0 z-40 flex justify-center px-4 pointer-events-none">
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="pointer-events-auto px-4 py-2.5 rounded-full bg-[#141518]/95 text-white text-xs font-bold shadow-[0_10px_28px_rgba(20,21,24,0.32)] border border-white/15 inline-flex items-center gap-2 cursor-pointer"
+          >
+            <Rotate3d className="w-3.5 h-3.5 text-[#A7D7C5]" />
+            <span className="truncate max-w-[215px]">
+              {selectedPieceId && allWearableById.get(selectedPieceId)
+                ? `Wearing: ${allWearableById.get(selectedPieceId)!.title}`
+                : "View Equipped Outfit"}
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-[#244B3B] text-[#C8F0DF] text-[10.5px] font-extrabold shrink-0">
+              Avatar ↑
+            </span>
+          </button>
         </div>
       )}
     </div>

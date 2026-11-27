@@ -106,4 +106,68 @@ describe("Universal 96-Frame Higgsfield 360° Turntable Engine (Store Pulls, URL
       "/models/turntables/custom_customer_360.mp4"
     );
   });
+
+  it("switches Closet tops, skirts, bags, and shoes accurately without unwanted outerwear contamination", () => {
+    const corset = makeScrapedProduct({
+      id: "prod-ae-espresso-corset",
+      title: "Sculpted Espresso Boned Satin Basque Corset Top",
+      category: "top",
+      silhouette: "crop-tank",
+      colorName: "Espresso Mocha",
+      colorHex: "#4B3531",
+      sourceType: "aliexpress_dropship",
+    });
+    const pleatedMini = makeScrapedProduct({
+      id: "prod-ae-noir-pleated-mini",
+      title: "Noir Belted Knife-Pleated Mini Skirt",
+      category: "bottom",
+      silhouette: "mini-skirt",
+      colorName: "Studio Noir",
+      colorHex: "#1D1E22",
+      sourceType: "aliexpress_dropship",
+    });
+    const silverBag = makeScrapedProduct({
+      id: "prod-ae-silver-metallic-shoulder-bag",
+      title: "Liquid-Silver Ruched Metallic Crescent Shoulder Bag",
+      category: "accessory",
+      silhouette: "shoulder-bag",
+      colorName: "Liquid Silver",
+      colorHex: "#D4D8DF",
+      sourceType: "aliexpress_dropship",
+    });
+
+    // Focusing on Silver Metallic Shoulder Bag in Closet routes cleanly to pure photographed Outfit 12!
+    const bagFocusSpec = resolveTurntableSpecForOutfit(
+      [corset, pleatedMini, silverBag],
+      [corset, pleatedMini, silverBag],
+      { focusProductId: silverBag.id }
+    );
+    expect(bagFocusSpec.lookIdx).toBe(12);
+    expect(bagFocusSpec.colorwayShifts).toBeUndefined();
+
+    // Focusing on Noir Pleated Mini Skirt routes cleanly to pure photographed Outfit 1!
+    const miniFocusSpec = resolveTurntableSpecForOutfit(
+      [corset, pleatedMini],
+      [corset, pleatedMini],
+      { focusProductId: pleatedMini.id }
+    );
+    expect(miniFocusSpec.lookIdx).toBe(1);
+
+    // Pairing Espresso Corset + Vintage Wide Denim matches Canonical Capsule 9 natively!
+    const vintageDenim = makeScrapedProduct({
+      id: "prod-ae-vintage-wide-denim",
+      title: "High-Rise Vintage Indigo Wide-Leg Denim Jeans",
+      category: "bottom",
+      silhouette: "wide-denim",
+      colorName: "Vintage Indigo",
+      colorHex: "#4F6B8E",
+      sourceType: "aliexpress_dropship",
+    });
+    const denimPairSpec = resolveTurntableSpecForOutfit(
+      [corset, vintageDenim],
+      [corset, vintageDenim],
+      { focusProductId: vintageDenim.id }
+    );
+    expect(denimPairSpec.lookIdx).toBe(9);
+  });
 });
