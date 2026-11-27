@@ -5,7 +5,7 @@ import {
 } from "./avatar-ready-pipeline";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const LAYER_VER = "mod15";
+export const LAYER_VER = "mod17";
 
 export type AvatarViewAngle = "front" | "side" | "back";
 

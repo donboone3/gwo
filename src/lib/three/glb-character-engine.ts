@@ -54,7 +54,7 @@ import {
 } from "../realism/master-avatar-clothing-realism";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const GLB_ASSET_VER = "ortho3d5";
+export const GLB_ASSET_VER = "ortho3d7";
 export const BASE_CHAR_HEIGHT_M =
   MASTER_AVATAR_ANATOMY_STANDARD.canonicalHeightMeters;
 export const BASE_CHAR_WIDTH_M = BASE_CHAR_HEIGHT_M * (900 / 1355);
