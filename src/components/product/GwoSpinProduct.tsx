@@ -583,17 +583,17 @@ export function GwoSpinProduct() {
             </div>
           )}
 
-          {/* MODE 2: STANDALONE GARMENT 360° SPIN */}
+          {/* MODE 2: CLOSE-UP PHOTOREALISTIC ITEM 360° MACRO SPIN */}
           {stageDisplayMode === "product3d" && (
-            <div className="w-full h-full flex-1 min-h-0 lg:rounded-3xl bg-gradient-to-b from-[#F4F6FA] to-[#E5EAF2] lg:border lg:border-black/[0.08] overflow-hidden">
+            <div className="w-full h-full flex-1 min-h-0 lg:rounded-3xl gwo-couture-stage-bg lg:border lg:border-[#E5D7CA] overflow-hidden">
               <Interactive3DAvatarStage
                 mode="product"
                 dimensions={bodyDims}
                 singleProduct={activeProduct}
                 selectedSize={selectedSize}
                 externalYawDeg={externalYawDeg}
-                autoSpinDefault={true}
-                initialYawDeg={22}
+                autoSpinDefault={false}
+                initialYawDeg={0}
                 inertiaSpin={true}
                 onYawChange={setLiveSpinDeg}
                 showHud={false}

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
 import {
   Box,
   Eye,
@@ -31,7 +30,6 @@ import {
 } from "@/lib/catalog/fit-intelligence";
 import { classifyWearableSlotAndAnchors } from "@/lib/three/avatar-ready-pipeline";
 import { buildTopLineAliExpressDropshipCatalog } from "@/lib/dropship/aliexpress-dropship";
-import { loadStandalone3DItemInstance } from "@/lib/three/glb-character-engine";
 import {
   ATLAS_COLS,
   ATLAS_FRAMES_PER_SHEET,
@@ -136,6 +134,140 @@ function getNeutralCompanionDefaults() {
   return cachedCompanionDefaults;
 }
 
+interface ProductMacroFraming {
+  cropY0: number;
+  cropY1: number;
+  featherTop: number;
+  featherBot: number;
+  widthFrac: number;
+}
+
+/**
+ * Computes photorealistic close-up macro camera framing (`[cropY0, cropY1]` in virtual 1600p coords)
+ * for `mode === "product"` (`Item 360°`), replacing distorted 2.5D silhouette inflation with
+ * razor-sharp 72-frame real studio photography of the exact item across all 360° angles!
+ */
+function computeProductMacroFraming(product?: Product | null): ProductMacroFraming {
+  if (!product) {
+    return {
+      cropY0: 0.17,
+      cropY1: 0.62,
+      featherTop: 0.04,
+      featherBot: 0.05,
+      widthFrac: 0.50,
+    };
+  }
+  const slot = classifyWearableSlotAndAnchors(product).slot;
+  const t = `${product.title} ${product.category || ""}`.toLowerCase();
+
+  if (slot === "shoes") {
+    if (/\bboot\b/.test(t)) {
+      return {
+        cropY0: 0.53,
+        cropY1: 0.935,
+        featherTop: 0.055,
+        featherBot: 0.0,
+        widthFrac: 0.38,
+      };
+    }
+    return {
+      cropY0: 0.72,
+      cropY1: 0.935,
+      featherTop: 0.055,
+      featherBot: 0.0,
+      widthFrac: 0.32,
+    };
+  }
+
+  if (slot === "bag") {
+    const isLowHandCarry =
+      /\b(tote|mini bag|top-handle|clutch)\b/.test(t) &&
+      !/\b(shoulder|crescent|crossbody)\b/.test(t);
+    if (isLowHandCarry) {
+      return {
+        cropY0: 0.38,
+        cropY1: 0.76,
+        featherTop: 0.05,
+        featherBot: 0.05,
+        widthFrac: 0.50,
+      };
+    }
+    return {
+      cropY0: 0.115,
+      cropY1: 0.54,
+      featherTop: 0.0,
+      featherBot: 0.055,
+      widthFrac: 0.50,
+    };
+  }
+
+  if (slot === "belt") {
+    return {
+      cropY0: 0.31,
+      cropY1: 0.55,
+      featherTop: 0.045,
+      featherBot: 0.045,
+      widthFrac: 0.44,
+    };
+  }
+
+  if (slot === "dress") {
+    if (/\b(mini|blazer dress)\b/.test(t)) {
+      return {
+        cropY0: 0.115,
+        cropY1: 0.65,
+        featherTop: 0.0,
+        featherBot: 0.05,
+        widthFrac: 0.48,
+      };
+    }
+    return {
+      cropY0: 0.115,
+      cropY1: 0.85,
+      featherTop: 0.0,
+      featherBot: 0.04,
+      widthFrac: 0.48,
+    };
+  }
+
+  if (slot === "bottom") {
+    if (/\b(mini|short)\b/.test(t)) {
+      return {
+        cropY0: 0.35,
+        cropY1: 0.65,
+        featherTop: 0.045,
+        featherBot: 0.05,
+        widthFrac: 0.46,
+      };
+    }
+    return {
+      cropY0: 0.35,
+      cropY1: 0.935,
+      featherTop: 0.045,
+      featherBot: 0.0,
+      widthFrac: 0.46,
+    };
+  }
+
+  // `top` or `outerwear` — natural upper-body portrait zoomed onto garment
+  if (/\b(coat|trench)\b/.test(t)) {
+    return {
+      cropY0: 0.115,
+      cropY1: 0.80,
+      featherTop: 0.0,
+      featherBot: 0.05,
+      widthFrac: 0.50,
+    };
+  }
+  return {
+    cropY0: 0.115,
+    cropY1: 0.54,
+    featherTop: 0.0,
+    featherBot: 0.055,
+    widthFrac: 0.48,
+  };
+}
+
 /**
  * HIGGSFIELD 360° ALL-INTRA MP4 -> IMAGEBITMAP[] 60FPS INERTIA TURNTABLE STAGE
  * - Restores the Original-Prompt (`commit 5d13ab5`) `ImageBitmap[]` 60fps inertia turntable scrubber!
@@ -179,7 +311,6 @@ export function Interactive3DAvatarStage({
   const glCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const scrubCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const posterImgRef = useRef<HTMLImageElement | null>(null);
-  const prodWrapRef = useRef<HTMLDivElement | null>(null);
 
   const onYawChangeRef = useRef(onYawChange);
   onYawChangeRef.current = onYawChange;
@@ -292,7 +423,21 @@ export function Interactive3DAvatarStage({
     im.src = faceOvalDataUrl;
   }, [faceOvalDataUrl]);
 
+  const targetSingleProd = singleProduct || wornPieces[0]?.product || null;
+  const macroFraming = useMemo(
+    () => (mode === "product" ? computeProductMacroFraming(targetSingleProd) : null),
+    [mode, targetSingleProd]
+  );
+  const macroRef = useRef(macroFraming);
+  macroRef.current = macroFraming;
+
   const { userSelectedProducts, effectiveEquippedProducts } = useMemo(() => {
+    if (mode === "product" && targetSingleProd) {
+      return {
+        userSelectedProducts: [targetSingleProd],
+        effectiveEquippedProducts: [targetSingleProd],
+      };
+    }
     const chosen = new Map<string, Product>();
     let hasDress = false;
     for (const w of wornPieces) {
@@ -332,7 +477,7 @@ export function Interactive3DAvatarStage({
       userSelectedProducts: userList,
       effectiveEquippedProducts: Array.from(fullMap.values()),
     };
-  }, [wornPieces]);
+  }, [mode, targetSingleProd, wornPieces]);
 
   const equippedRef = useRef(effectiveEquippedProducts);
   equippedRef.current = effectiveEquippedProducts;
@@ -402,7 +547,11 @@ export function Interactive3DAvatarStage({
           skinToneHex: safeDimensions.skinToneHex,
           customTurntableMp4Url: customAvatarTurntableMp4Url || undefined,
           customTurntablePosterUrl: customAvatarTurntablePosterUrl || undefined,
-          focusProductId: focusProductId || selectedProductId || undefined,
+          focusProductId:
+            (mode === "product" ? targetSingleProd?.id : undefined) ||
+            focusProductId ||
+            selectedProductId ||
+            undefined,
         }
       ),
     [
@@ -410,15 +559,16 @@ export function Interactive3DAvatarStage({
       customAvatarTurntablePosterUrl,
       effectiveEquippedProducts,
       focusProductId,
+      mode,
       safeDimensions.skinToneHex,
       selectedProductId,
+      targetSingleProd?.id,
       userSelectedProducts,
     ]
   );
 
-  // Load Off-Thread 96-Frame Pre-Matted RGBA WebP Atlas (or Custom MP4 Stream)
+  // Load Off-Thread 72-Frame Dual-Sheet 1024p RGBA WebP Atlas (for BOTH `avatar` and `product` modes!)
   useEffect(() => {
-    if (mode !== "avatar") return;
     let cancelled = false;
 
     // 1. Instant 0ms synchronous LRU hit if already decoded in RAM!
@@ -499,7 +649,6 @@ export function Interactive3DAvatarStage({
 
   // HARDWARE WEBGL DUAL-SHEET 1024p RENDERER + 0ms 1:1 BIDIRECTIONAL TOUCH PHYSICS!
   useEffect(() => {
-    if (mode !== "avatar") return;
     const stageEl = avatarStageRef.current;
     const glCanvas = glCanvasRef.current;
     const canvas2d = scrubCanvasRef.current;
@@ -532,7 +681,7 @@ export function Interactive3DAvatarStage({
     let uploadedBundleRef: CachedFrameBundle | null = null;
     let uRectLoc: WebGLUniformLocation | null = null;
     let uUvRectLoc: WebGLUniformLocation | null = null;
-    let uWhiteBgLoc: WebGLUniformLocation | null = null;
+    let uCropYLoc: WebGLUniformLocation | null = null;
 
     if (gl) {
       const compileShader = (type: number, src: string) => {
@@ -552,25 +701,34 @@ export function Interactive3DAvatarStage({
          uniform vec4 uRect;
          uniform vec4 uUvRect;
          varying vec2 vUv;
+         varying float vLocalY;
          void main() {
            vec2 p = uRect.xy + aPos * uRect.zw;
            gl_Position = vec4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0);
            vUv = uUvRect.xy + aPos * uUvRect.zw;
+           vLocalY = aPos.y;
          }`
       );
       const fs = compileShader(
         gl.FRAGMENT_SHADER,
         `precision highp float;
          varying vec2 vUv;
+         varying float vLocalY;
          uniform sampler2D uTex;
-         uniform float uWhiteBg;
+         uniform vec4 uCropY;
          void main() {
-           vec4 c = texture2D(uTex, vUv);
-           if (uWhiteBg > 0.5) {
-             gl_FragColor = vec4(c.rgb + (1.0 - c.a), 1.0);
-           } else {
-             gl_FragColor = c;
+           if (vLocalY < uCropY.x || vLocalY > uCropY.y) {
+             gl_FragColor = vec4(0.0);
+             return;
            }
+           vec4 c = texture2D(uTex, vUv);
+           float mTop = uCropY.z > 0.0001
+             ? smoothstep(uCropY.x, uCropY.x + uCropY.z, vLocalY)
+             : 1.0;
+           float mBot = uCropY.w > 0.0001
+             ? 1.0 - smoothstep(uCropY.y - uCropY.w, uCropY.y, vLocalY)
+             : 1.0;
+           gl_FragColor = c * (mTop * mBot);
          }`
       );
       if (vs && fs) {
@@ -585,7 +743,7 @@ export function Interactive3DAvatarStage({
             const aPosLoc = gl.getAttribLocation(p, "aPos");
             uRectLoc = gl.getUniformLocation(p, "uRect");
             uUvRectLoc = gl.getUniformLocation(p, "uUvRect");
-            uWhiteBgLoc = gl.getUniformLocation(p, "uWhiteBg");
+            uCropYLoc = gl.getUniformLocation(p, "uCropY");
             glQuadBuf = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, glQuadBuf);
             gl.bufferData(
@@ -846,7 +1004,11 @@ export function Interactive3DAvatarStage({
       const zoom = zoomRef.current;
       const curVisMode = visualModeRef.current;
       const curRings = showRingsRef.current;
-      const dimsSig = `${dims.heightInches}:${dims.bustInches}:${dims.waistInches}:${dims.hipsInches}`;
+      const macro = macroRef.current;
+      const macroKey = macro
+        ? `${macro.cropY0}:${macro.cropY1}:${macro.widthFrac}`
+        : "full";
+      const dimsSig = `${dims.heightInches}:${dims.bustInches}:${dims.waistInches}:${dims.hipsInches}:${macroKey}`;
 
       const deg = Math.round(normProgress * 360) % 360;
       if (deg !== lastDomDeg) {
@@ -927,21 +1089,53 @@ export function Interactive3DAvatarStage({
       const hiS = clamp(1 + (dims.hipsInches / 38.5 - 1) * 0.25, 0.95, 1.07);
       const bodyWidthScale = clamp((shS + buS + waS + hiS) * 0.25, 0.95, 1.06);
 
-      const maxDrawHByWidth = (cw / 0.58) * (16 / 9);
-      const baseDrawH = Math.min(scaleAvailH / 0.79, maxDrawHByWidth);
-      const maxDrawHByClearance =
-        bottomReservePx > 0 ? (availH * 0.985) / 0.758 : Infinity;
-      const drawH = Math.min(baseDrawH * hScale, maxDrawHByClearance) * zoom;
-      const drawW = drawH * (9 / 16);
-      const scaledW = drawW * bodyWidthScale;
-      const centerX = cw * centerXFrac;
+      let drawH: number;
+      let scaledW: number;
+      let centerX: number;
+      let drawY: number;
+      let cropLocalMinY = -0.1;
+      let cropLocalMaxY = 1.1;
+      let cropFeatherTop = 0.0;
+      let cropFeatherBot = 0.0;
 
-      const figSpanH = drawH * 0.758;
-      const soleScreenY =
-        figSpanH < availH * 0.90
-          ? topPad + (availH + figSpanH) * 0.5
-          : topPad + availH * 0.978;
-      const drawY = soleScreenY - drawH * 0.888;
+      if (macro) {
+        // Photorealistic Close-Up Item 360° Macro Framing (`mode === "product"`)
+        const spanY = Math.max(0.18, macro.cropY1 - macro.cropY0);
+        const maxDrawHBySharpness = 1780 / ATLAS_ROI_H;
+        const maxDrawHByMacroW = ((cw * 0.90) / macro.widthFrac) * (16 / 9);
+        const macroBaseH = Math.min(
+          (ch * 0.78) / spanY,
+          maxDrawHByMacroW,
+          maxDrawHBySharpness
+        );
+        drawH = macroBaseH * zoom;
+        const drawW = drawH * (9 / 16);
+        scaledW = drawW * bodyWidthScale;
+        centerX = cw * 0.5;
+        const midY = (macro.cropY0 + macro.cropY1) * 0.5;
+        drawY = ch * 0.53 - midY * drawH;
+
+        cropLocalMinY = (macro.cropY0 - ATLAS_ROI_Y0) / ATLAS_ROI_H;
+        cropLocalMaxY = (macro.cropY1 - ATLAS_ROI_Y0) / ATLAS_ROI_H;
+        cropFeatherTop = macro.featherTop / ATLAS_ROI_H;
+        cropFeatherBot = macro.featherBot / ATLAS_ROI_H;
+      } else {
+        const maxDrawHByWidth = (cw / 0.58) * (16 / 9);
+        const baseDrawH = Math.min(scaleAvailH / 0.79, maxDrawHByWidth);
+        const maxDrawHByClearance =
+          bottomReservePx > 0 ? (availH * 0.985) / 0.758 : Infinity;
+        drawH = Math.min(baseDrawH * hScale, maxDrawHByClearance) * zoom;
+        const drawW = drawH * (9 / 16);
+        scaledW = drawW * bodyWidthScale;
+        centerX = cw * centerXFrac;
+
+        const figSpanH = drawH * 0.758;
+        const soleScreenY =
+          figSpanH < availH * 0.90
+            ? topPad + (availH + figSpanH) * 0.5
+            : topPad + availH * 0.978;
+        drawY = soleScreenY - drawH * 0.888;
+      }
 
       const dstW = ATLAS_ROI_W * scaledW;
       const dstH = ATLAS_ROI_H * drawH;
@@ -983,7 +1177,13 @@ export function Interactive3DAvatarStage({
           1 / cols - 2 * padU,
           1 / rows - 2 * padV
         );
-        gl.uniform1f(uWhiteBgLoc, 0.0);
+        gl.uniform4f(
+          uCropYLoc,
+          cropLocalMinY,
+          cropLocalMaxY,
+          cropFeatherTop,
+          cropFeatherBot
+        );
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         renderedViaWebGL = true;
       } else if (gl && seamlessStage && !hasAtlas) {
@@ -994,9 +1194,10 @@ export function Interactive3DAvatarStage({
 
       // 2D Canvas path: used ONLY when Heatmap / Scan Rings overlays are active OR as fallback for custom MP4 frames!
       const needsOverlay =
-        (curVisMode === "heatmap" && equippedRef.current.length > 0) ||
-        curRings ||
-        curVisMode === "xray";
+        mode === "avatar" &&
+        ((curVisMode === "heatmap" && equippedRef.current.length > 0) ||
+          curRings ||
+          curVisMode === "xray");
 
       if (ctx2d && (!renderedViaWebGL || needsOverlay || overlayWasDirty)) {
         ctx2d.save();
@@ -1004,6 +1205,16 @@ export function Interactive3DAvatarStage({
         ctx2d.clearRect(0, 0, cw, ch);
 
         if (!renderedViaWebGL) {
+          if (macro) {
+            ctx2d.beginPath();
+            ctx2d.rect(
+              0,
+              drawY + macro.cropY0 * drawH,
+              cw,
+              (macro.cropY1 - macro.cropY0) * drawH
+            );
+            ctx2d.clip();
+          }
           try {
             if (hasAtlas && activeBundle?.atlasBitmap && frameIdx >= 0) {
               if (posterImgRef.current) {
@@ -1149,120 +1360,6 @@ export function Interactive3DAvatarStage({
     showHud,
   ]);
 
-  // Standalone 3D Product Turntable (`mode === "product"`)
-  useEffect(() => {
-    if (mode !== "product") return;
-    const wrapEl = prodWrapRef.current;
-    if (!wrapEl) return;
-
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      powerPreference: "high-performance",
-    });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.domElement.style.width = "100%";
-    renderer.domElement.style.height = "100%";
-    renderer.domElement.style.display = "block";
-    renderer.domElement.style.touchAction = "pan-y";
-    wrapEl.innerHTML = "";
-    wrapEl.appendChild(renderer.domElement);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(27, 1, 0.08, 25);
-    const productTurntable = new THREE.Group();
-    scene.add(productTurntable);
-
-    const prod = singleProduct || wornPieces[0]?.product;
-    let disposed = false;
-    if (prod) {
-      void loadStandalone3DItemInstance(prod).then((itemSculpture) => {
-        if (disposed) return;
-        const holder = new THREE.Group();
-        holder.position.y = 0.42;
-        holder.add(itemSculpture);
-        productTurntable.add(holder);
-      });
-    }
-
-    const updateSize = () => {
-      const w = Math.max(120, wrapEl.clientWidth);
-      const h = Math.max(140, wrapEl.clientHeight);
-      renderer.setSize(w, h, false);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-    };
-    updateSize();
-    const ro = new ResizeObserver(updateSize);
-    ro.observe(wrapEl);
-
-    const dom = renderer.domElement;
-    let dragging = false;
-    let horizLocked = false;
-    let sx = 0;
-    let sy = 0;
-    let startYaw = 0;
-
-    const onDown = (e: PointerEvent) => {
-      dragging = true;
-      horizLocked = e.pointerType !== "touch";
-      sx = e.clientX;
-      sy = e.clientY;
-      startYaw = targetYawRef.current;
-    };
-    const onMove = (e: PointerEvent) => {
-      if (!dragging) return;
-      const dx = e.clientX - sx;
-      const dy = e.clientY - sy;
-      if (!horizLocked) {
-        if (Math.hypot(dx, dy) < 6) return;
-        if (Math.abs(dy) >= Math.abs(dx)) {
-          dragging = false;
-          return;
-        }
-        horizLocked = true;
-      }
-      targetYawRef.current = startYaw + dx * 0.016;
-    };
-    const onUp = () => {
-      dragging = false;
-    };
-    dom.addEventListener("pointerdown", onDown);
-    dom.addEventListener("pointermove", onMove);
-    dom.addEventListener("pointerup", onUp);
-    dom.addEventListener("pointercancel", onUp);
-
-    let rafId = 0;
-    let lastT = performance.now();
-    const animateProd = (now: number) => {
-      if (disposed) return;
-      const dt = Math.min(0.05, (now - lastT) / 1000);
-      lastT = now;
-      if (autoSpinRef.current && !dragging) {
-        targetYawRef.current += dt * 0.85;
-      }
-      yawRef.current += (targetYawRef.current - yawRef.current) * (1 - Math.exp(-13 * dt));
-      productTurntable.rotation.y = yawRef.current;
-      camera.position.set(0, 0.42, 1.52 / zoomRef.current);
-      camera.lookAt(0, 0.42, 0);
-      renderer.render(scene, camera);
-      rafId = requestAnimationFrame(animateProd);
-    };
-    rafId = requestAnimationFrame(animateProd);
-
-    return () => {
-      disposed = true;
-      cancelAnimationFrame(rafId);
-      ro.disconnect();
-      dom.removeEventListener("pointerdown", onDown);
-      dom.removeEventListener("pointermove", onMove);
-      dom.removeEventListener("pointerup", onUp);
-      dom.removeEventListener("pointercancel", onUp);
-      renderer.dispose();
-    };
-  }, [mode, singleProduct, wornPieces]);
-
   const snapAngle = (deg: number) => {
     setAutoSpin(false);
     velYawRef.current = 0;
@@ -1283,40 +1380,33 @@ export function Interactive3DAvatarStage({
         seamlessStage ? "bg-transparent" : "gwo-couture-stage-bg"
       } ${className}`}
     >
-      {mode === "avatar" ? (
-        <div
-          ref={avatarStageRef}
-          style={{
-            touchAction: "pan-y",
-            filter: LIGHT_MOOD_FILTERS[lightingPresetId],
-          }}
-          className="relative w-full h-full cursor-grab active:cursor-grabbing"
-        >
-          {!seamlessStage && !framesReady && (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              ref={posterImgRef}
-              src={turntableSpec.posterUrl}
-              alt=""
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 w-full h-full object-contain mix-blend-multiply transition-opacity duration-150"
-            />
-          )}
-          <canvas
-            ref={glCanvasRef}
-            className="block w-full h-full"
+      <div
+        ref={avatarStageRef}
+        style={{
+          touchAction: "pan-y",
+          filter: LIGHT_MOOD_FILTERS[lightingPresetId],
+        }}
+        className="relative w-full h-full cursor-grab active:cursor-grabbing"
+      >
+        {mode === "avatar" && !seamlessStage && !framesReady && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            ref={posterImgRef}
+            src={turntableSpec.posterUrl}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 w-full h-full object-contain mix-blend-multiply transition-opacity duration-150"
           />
-          <canvas
-            ref={scrubCanvasRef}
-            className="pointer-events-none absolute inset-0 w-full h-full"
-          />
-        </div>
-      ) : (
-        <div
-          ref={prodWrapRef}
-          className="w-full h-full cursor-grab active:cursor-grabbing"
+        )}
+        <canvas
+          ref={glCanvasRef}
+          className="block w-full h-full"
         />
-      )}
+        <canvas
+          ref={scrubCanvasRef}
+          className="pointer-events-none absolute inset-0 w-full h-full"
+        />
+      </div>
 
       {showHud && isLoadingFrames && mode === "avatar" && (
         <div className="pointer-events-none absolute top-11 left-1/2 -translate-x-1/2 z-20 px-2.5 py-1 rounded-full bg-white/95 border border-black/[0.08] shadow-xs text-[10px] font-bold text-[#244B3B] inline-flex items-center gap-1">

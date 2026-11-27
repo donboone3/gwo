@@ -261,7 +261,7 @@ const SINGLE_SKU_TURNTABLE_MAP: Record<
 > = {
   "prod-ae-espresso-corset": { lookIdx: 0 },
   "prod-ae-champagne-trousers": { lookIdx: 0 },
-  "prod-ae-noir-slingbacks": { lookIdx: 0 },
+  "prod-ae-noir-slingbacks": { lookIdx: 5 },
   "prod-ae-burgundy-crescent-bag": { lookIdx: 0 },
   "prod-ae-ivory-tweed-blazer": { lookIdx: 1 },
   "prod-ae-noir-pleated-mini": { lookIdx: 1 },
@@ -292,7 +292,7 @@ const SINGLE_SKU_TURNTABLE_MAP: Record<
   "prod-ae-silver-crystal-heels": { lookIdx: 12 },
   "prod-ae-silver-metallic-shoulder-bag": { lookIdx: 12 },
   "prod-ae-burgundy-leather-trench": { lookIdx: 13 },
-  "prod-ae-burgundy-patent-heels": { lookIdx: 13 },
+  "prod-ae-burgundy-patent-heels": { lookIdx: 15 },
   "prod-ae-butter-lace-slip-midi": { lookIdx: 14 },
   "prod-ae-cream-cropped-fur-jacket": { lookIdx: 14 },
   "prod-ae-butter-silk-cami": { lookIdx: 15 },

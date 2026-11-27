@@ -180,7 +180,7 @@ export function Avatar360Modal() {
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Box className="w-3.5 h-3.5" /> 3D Item Mesh
+                <Box className="w-3.5 h-3.5" /> Item 360°
               </button>
               <button
                 type="button"
@@ -213,14 +213,15 @@ export function Avatar360Modal() {
             )}
 
             {viewMode === "product3d" && (
-              <div className="h-[360px] sm:h-[420px] rounded-2xl bg-white border border-black/[0.08] overflow-hidden">
+              <div className="h-[360px] sm:h-[420px] rounded-2xl gwo-couture-stage-bg border border-[#E5D7CA] overflow-hidden">
                 <Interactive3DAvatarStage
                   mode="product"
                   dimensions={bodyDims}
                   singleProduct={primaryProduct}
                   selectedSize={selectedSize}
-                  autoSpinDefault={true}
-                  initialYawDeg={24}
+                  autoSpinDefault={false}
+                  initialYawDeg={0}
+                  inertiaSpin={true}
                   showHud={false}
                 />
               </div>
