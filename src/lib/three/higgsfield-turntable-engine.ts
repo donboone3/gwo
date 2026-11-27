@@ -20,15 +20,16 @@ import {
 } from "./avatar-ready-pipeline";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const TURNTABLE_VER = "hf360v4";
-export const NUM_TURNTABLE_FRAMES = 96;
+export const TURNTABLE_VER = "hf360v5";
+export const NUM_TURNTABLE_FRAMES = 72;
 
-export const ATLAS_COLS = 12;
-export const ATLAS_ROWS = 8;
-export const ATLAS_CELL_W = 260;
-export const ATLAS_CELL_H = 512;
-export const ATLAS_ROI_X0 = 0.14;
-export const ATLAS_ROI_W = 0.72;
+export const ATLAS_COLS = 9;
+export const ATLAS_ROWS = 4;
+export const ATLAS_FRAMES_PER_SHEET = 36;
+export const ATLAS_CELL_W = 448;
+export const ATLAS_CELL_H = 1024;
+export const ATLAS_ROI_X0 = 0.17;
+export const ATLAS_ROI_W = 0.68;
 export const ATLAS_ROI_Y0 = 0.10;
 export const ATLAS_ROI_H = 0.82;
 
@@ -100,6 +101,7 @@ export interface ResolvedTurntableSpec {
   lookIdx: number | "base" | "custom";
   mp4Url: string;
   atlasUrl?: string;
+  atlasUrlB?: string;
   posterUrl: string;
   colorwayShift?: ColorwayShiftSpec;
   colorwayShifts?: ColorwayShiftSpec[];
@@ -598,12 +600,14 @@ const DONOR_ANATOMY_BY_LOOK: Record<number, DonorTurntableAnatomy> = {
 export function turntableUrlsForIndex(lookIdx: number | "base"): {
   mp4Url: string;
   atlasUrl: string;
+  atlasUrlB: string;
   posterUrl: string;
 } {
   const slug = lookIdx === "base" ? "ae_base" : `ae_outfit_${lookIdx}`;
   return {
     mp4Url: `${BASE}/models/turntables/${slug}_360.mp4?v=${TURNTABLE_VER}`,
-    atlasUrl: `${BASE}/models/turntables/${slug}_atlas.webp?v=${TURNTABLE_VER}`,
+    atlasUrl: `${BASE}/models/turntables/${slug}_hd_a.webp?v=${TURNTABLE_VER}`,
+    atlasUrlB: `${BASE}/models/turntables/${slug}_hd_b.webp?v=${TURNTABLE_VER}`,
     posterUrl: `${BASE}/models/turntables/${slug}_poster.webp?v=${TURNTABLE_VER}`,
   };
 }
@@ -1249,11 +1253,14 @@ async function resolveHydratedShiftsAsync(
 // ============================================================================
 
 export interface CachedFrameBundle {
-  /** Single pre-matted RGBA GPU texture containing all 96 frames (`12 x 8` grid) */
+  /** Dual-Sheet Ultra-HD (448x1024/cell) pre-matted RGBA GPU textures (`9 x 4` = 36 frames each -> 72 true-360° frames) */
   atlasBitmap?: ImageBitmap;
+  atlasBitmapB?: ImageBitmap;
   cellW?: number;
   cellH?: number;
   cols?: number;
+  rows?: number;
+  framesPerSheet?: number;
   /** Fallback frame list for custom `/api/higgsfield` `.mp4` videos */
   frames: ImageBitmap[];
   width: number;
@@ -1602,12 +1609,13 @@ export function prefetchTurntableBundle(
     ? spec.cacheKey
     : `${spec.cacheKey}|seamless=${seamlessKeying}`;
   if (BITMAP_LRU.has(fullKey) || INFLIGHT_EXTRACTIONS.has(fullKey)) return;
-  // On mobile viewports (iOS Safari / WKWebView), warm the compressed HTTP cache (~700 KB)
-  // instead of holding multiple 51 MB uncompressed RGBA ImageBitmaps in GPU RAM!
+  // On mobile viewports (iOS Safari / WKWebView), warm the compressed HTTP cache (~800 KB)
+  // instead of holding multiple uncompressed RGBA ImageBitmaps in GPU RAM!
   if (window.innerWidth < 860 && spec.atlasUrl) {
-    void fetch(spec.atlasUrl, { mode: "cors", credentials: "same-origin" }).catch(() => {
-      // ignore background cache warm error
-    });
+    void fetch(spec.atlasUrl, { mode: "cors", credentials: "same-origin" }).catch(() => {});
+    if (spec.atlasUrlB) {
+      void fetch(spec.atlasUrlB, { mode: "cors", credentials: "same-origin" }).catch(() => {});
+    }
     return;
   }
   void extractTurntableBitmapBundle(spec, seamlessKeying).catch(() => {
@@ -1811,21 +1819,26 @@ export function extractTurntableBitmapBundle(
   const evictIfNeeded = () => {
     const maxLru =
       typeof window !== "undefined" && window.innerWidth < 860
-        ? 3
-        : MAX_LRU_BUNDLES;
+        ? 2
+        : 4;
     while (BITMAP_LRU.size >= maxLru) {
       const oldestKey = BITMAP_LRU.keys().next().value;
       if (!oldestKey) break;
       const old = BITMAP_LRU.get(oldestKey);
       BITMAP_LRU.delete(oldestKey);
-      // Defer GPU `.close()` by 5s so any active canvas transitioning off `old`
-      // never hits `InvalidStateError: The image source is detached` mid-rAF!
       if (old) {
         setTimeout(() => {
           if (BITMAP_LRU.get(oldestKey) === old) return;
           if (old.atlasBitmap) {
             try {
               old.atlasBitmap.close();
+            } catch {
+              // ignore
+            }
+          }
+          if (old.atlasBitmapB) {
+            try {
+              old.atlasBitmapB.close();
             } catch {
               // ignore
             }
@@ -1842,72 +1855,86 @@ export function extractTurntableBitmapBundle(
     }
   };
 
+  const decodeSingleSheet = async (
+    url: string,
+    hydratedShifts: ColorwayShiftSpec[],
+    skinToneTargetHex?: string
+  ): Promise<{ bmp: ImageBitmap; cellW: number; cellH: number } | null> => {
+    const res = await fetch(url, { mode: "cors", credentials: "same-origin" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const rawAtlas = await createImageBitmap(blob);
+
+    if (hydratedShifts.length === 0 && !skinToneTargetHex) {
+      return { bmp: rawAtlas, cellW: ATLAS_CELL_W, cellH: ATLAS_CELL_H };
+    }
+
+    const cellW = 288;
+    const cellH = 656;
+    const aw = cellW * ATLAS_COLS;
+    const ah = cellH * ATLAS_ROWS;
+    const cv = document.createElement("canvas");
+    cv.width = aw;
+    cv.height = ah;
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    if (!ctx) {
+      cv.width = 0;
+      cv.height = 0;
+      return { bmp: rawAtlas, cellW: ATLAS_CELL_W, cellH: ATLAS_CELL_H };
+    }
+    ctx.drawImage(rawAtlas, 0, 0, aw, ah);
+    try {
+      rawAtlas.close();
+    } catch {
+      // ignore
+    }
+    postProcessPreMattedAtlasCanvas(
+      ctx,
+      aw,
+      ah,
+      cellW,
+      cellH,
+      hydratedShifts,
+      skinToneTargetHex
+    );
+    const tinted = await createImageBitmap(cv);
+    cv.width = 0;
+    cv.height = 0;
+    return { bmp: tinted, cellW, cellH };
+  };
+
   const p = (async (): Promise<CachedFrameBundle> => {
     if (typeof document === "undefined" || typeof createImageBitmap === "undefined") {
       return { frames: [], width: 540, height: 960 };
     }
 
     // ========================================================================
-    // ULTRA-FAST PATH: Pre-Matted 96-Frame RGBA WebP Atlas (`~40ms` off-thread C++ decode!)
-    // Zero `<video>` seeks, zero main-thread blocking on standard outfits!
+    // ULTRA-HD DUAL-SHEET PATH: 448x1024/cell True-360° RGBA WebP Atlases!
+    // Decodes both sheets in parallel off the main UI thread in C++!
     // ========================================================================
     if (spec.atlasUrl) {
       try {
-        const [res, hydratedShifts] = await Promise.all([
-          fetch(spec.atlasUrl, { mode: "cors", credentials: "same-origin" }),
-          resolveHydratedShiftsAsync(spec),
+        const hydratedShifts = await resolveHydratedShiftsAsync(spec);
+        const [sheetA, sheetB] = await Promise.all([
+          decodeSingleSheet(spec.atlasUrl, hydratedShifts, spec.skinToneTargetHex),
+          spec.atlasUrlB
+            ? decodeSingleSheet(spec.atlasUrlB, hydratedShifts, spec.skinToneTargetHex)
+            : Promise.resolve(null),
         ]);
-        if (res.ok) {
-          const blob = await res.blob();
-          const rawAtlas = await createImageBitmap(blob);
+        if (sheetA) {
           onProgress?.(NUM_TURNTABLE_FRAMES, NUM_TURNTABLE_FRAMES);
-
-          let finalAtlas = rawAtlas;
-          let cellW = ATLAS_CELL_W;
-          let cellH = ATLAS_CELL_H;
-
-          if (hydratedShifts.length > 0 || spec.skinToneTargetHex) {
-            // Single-pass recoloring at 0.75x (`195x384` per cell = `2340x3072`) skipping transparent pixels!
-            cellW = 195;
-            cellH = 384;
-            const aw = cellW * ATLAS_COLS;
-            const ah = cellH * ATLAS_ROWS;
-            const cv = document.createElement("canvas");
-            cv.width = aw;
-            cv.height = ah;
-            const ctx = cv.getContext("2d", { willReadFrequently: true });
-            if (ctx) {
-              ctx.drawImage(rawAtlas, 0, 0, aw, ah);
-              try {
-                rawAtlas.close();
-              } catch {
-                // ignore
-              }
-              postProcessPreMattedAtlasCanvas(
-                ctx,
-                aw,
-                ah,
-                cellW,
-                cellH,
-                hydratedShifts,
-                spec.skinToneTargetHex
-              );
-              finalAtlas = await createImageBitmap(cv);
-            } else {
-              cellW = ATLAS_CELL_W;
-              cellH = ATLAS_CELL_H;
-            }
-          }
-
           evictIfNeeded();
           const bundle: CachedFrameBundle = {
-            atlasBitmap: finalAtlas,
-            cellW,
-            cellH,
+            atlasBitmap: sheetA.bmp,
+            atlasBitmapB: sheetB?.bmp,
+            cellW: sheetA.cellW,
+            cellH: sheetA.cellH,
             cols: ATLAS_COLS,
+            rows: ATLAS_ROWS,
+            framesPerSheet: ATLAS_FRAMES_PER_SHEET,
             frames: [],
-            width: cellW,
-            height: cellH,
+            width: sheetA.cellW,
+            height: sheetA.cellH,
           };
           BITMAP_LRU.set(fullKey, bundle);
           notifyProgressive([], true);

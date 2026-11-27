@@ -33,9 +33,9 @@ function makeScrapedProduct(overrides: Partial<Product>): Product {
   };
 }
 
-describe("Universal 96-Frame Higgsfield 360° Turntable Engine (Store Pulls, URL Submits & Custom Avatars)", () => {
-  it("resolves customer-submitted external URL dresses, blazers, leggings, and bags to 96-frame Higgsfield MP4 turntables", () => {
-    expect(NUM_TURNTABLE_FRAMES).toBe(96);
+describe("Universal Dual-Sheet 1024p HD Higgsfield 360° Turntable Engine (Store Pulls, URL Submits & Custom Avatars)", () => {
+  it("resolves customer-submitted external URL dresses, blazers, leggings, and bags to true-360° HD turntables", () => {
+    expect(NUM_TURNTABLE_FRAMES).toBe(72);
 
     const blushSlip = makeScrapedProduct({
       title: "Juliette Bias Satin Midi Slip Dress",
@@ -47,7 +47,8 @@ describe("Universal 96-Frame Higgsfield 360° Turntable Engine (Store Pulls, URL
     const slipSpec = resolveTurntableSpecForOutfit([blushSlip], [blushSlip]);
     expect(slipSpec.kind).toBe("higgsfield_mp4");
     expect(slipSpec.lookIdx).toBe(2);
-    expect(slipSpec.mp4Url).toContain("ae_outfit_2_360.mp4");
+    expect(slipSpec.atlasUrl).toContain("ae_outfit_2_hd_a.webp");
+    expect(slipSpec.atlasUrlB).toContain("ae_outfit_2_hd_b.webp");
     expect(slipSpec.colorwayShifts?.length).toBeGreaterThan(0);
 
     const navyBlazer = makeScrapedProduct({
