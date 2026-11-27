@@ -257,7 +257,7 @@
   }
   .mv-stage {
     height: calc(100svh - 64px);
-    min-height: 560px;
+    min-height: 480px;
     width: 100%;
     flex-shrink: 0;
     cursor: auto;

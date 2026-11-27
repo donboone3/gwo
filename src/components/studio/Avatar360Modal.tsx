@@ -207,7 +207,7 @@ export function Avatar360Modal() {
                   customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
                   customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}
                   initialYawDeg={0}
-                  showHud={true}
+                  showHud={false}
                 />
               </div>
             )}
@@ -221,7 +221,7 @@ export function Avatar360Modal() {
                   selectedSize={selectedSize}
                   autoSpinDefault={true}
                   initialYawDeg={24}
-                  showHud={true}
+                  showHud={false}
                 />
               </div>
             )}

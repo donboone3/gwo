@@ -160,7 +160,7 @@ export function Interactive3DAvatarStage({
   seamlessStage = false,
   inertiaSpin = true,
   onYawChange,
-  showHud = true,
+  showHud = false,
   compactHud = false,
   focusProductId,
   selectedProductId,
@@ -745,7 +745,7 @@ export function Interactive3DAvatarStage({
         ctx.fillRect(0, 0, cw, ch);
       }
 
-      // Frame geometry inside stage (maximizes full-screen mobile height while preventing horizontal arm/bag clipping!)
+      // Frame geometry inside stage (maximizes clean full-screen avatar height with minimal studio margin!)
       const isNarrowMobile = cw < 460;
       const topPad = showHud
         ? compactHud
@@ -753,18 +753,14 @@ export function Interactive3DAvatarStage({
           : isNarrowMobile
           ? 38
           : 50
-        : isNarrowMobile
-        ? Math.max(40, Math.round(ch * 0.048))
-        : Math.round(ch * 0.035);
+        : Math.round(ch * 0.022);
       const botPad = showHud
         ? isNarrowMobile
           ? 44
           : compactHud
           ? 44
           : 50
-        : isNarrowMobile
-        ? Math.max(38, Math.round(ch * 0.045))
-        : Math.round(ch * 0.025);
+        : Math.round(ch * 0.022);
       const availH = Math.max(120, ch - topPad - botPad);
 
       const hScale = clamp(dims.heightInches / 64.0, 0.95, 1.04);
@@ -1067,7 +1063,7 @@ export function Interactive3DAvatarStage({
         />
       )}
 
-      {isLoadingFrames && mode === "avatar" && (
+      {showHud && isLoadingFrames && mode === "avatar" && (
         <div className="pointer-events-none absolute top-11 left-1/2 -translate-x-1/2 z-20 px-2.5 py-1 rounded-full bg-white/95 border border-black/[0.08] shadow-xs text-[10px] font-bold text-[#244B3B] inline-flex items-center gap-1">
           <Box className="w-3 h-3 animate-pulse" /> Loading 360° Studio Frames…
         </div>

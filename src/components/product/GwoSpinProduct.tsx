@@ -289,9 +289,9 @@ export function GwoSpinProduct() {
 
   return (
     <div className="sp-root">
-      <div className="max-w-[1540px] mx-auto min-h-[calc(100svh-64px)] lg:h-full px-3 sm:px-5 py-3 sm:py-4 grid grid-cols-1 lg:grid-cols-[364px_minmax(0,1fr)_364px] xl:grid-cols-[406px_minmax(0,1fr)_406px] gap-3.5 sm:gap-4 items-stretch">
+      <div className="max-w-[1540px] mx-auto min-h-[calc(100svh-64px)] lg:h-full px-0 lg:px-5 py-0 lg:py-4 grid grid-cols-1 lg:grid-cols-[364px_minmax(0,1fr)_364px] xl:grid-cols-[406px_minmax(0,1fr)_406px] gap-0 lg:gap-4 items-stretch">
         {/* ==================== LEFT CARD: OUTFIT PICKER, PRODUCT SPECS & 3D ANGLES ==================== */}
-        <section className="order-3 lg:order-1 lg:h-full lg:min-h-0 rounded-3xl bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 sm:p-5 flex flex-col justify-between gap-3 lg:overflow-hidden">
+        <section className="order-3 lg:order-1 mx-3 sm:mx-5 lg:mx-0 mt-3 lg:mt-0 mb-6 lg:mb-0 lg:h-full lg:min-h-0 rounded-3xl bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 sm:p-5 flex flex-col justify-between gap-3 lg:overflow-hidden">
           <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 space-y-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Link
@@ -555,71 +555,11 @@ export function GwoSpinProduct() {
           </div>
         </section>
 
-        {/* ==================== CENTER COLUMN: LIFELIKE 360° TURNTABLE STAGE ==================== */}
-        <div className="order-1 lg:order-2 min-w-0 h-[calc(100svh-76px)] min-h-[560px] lg:h-full lg:min-h-0 flex flex-col items-center justify-between gap-1.5 sm:gap-2">
-          {/* Top Mode Switcher: Lifelike 360° | Garment Spin | Front + Back | Garment Photo */}
-          <div className="shrink-0 max-w-full flex flex-nowrap sm:flex-wrap items-center justify-center gap-0.5 sm:gap-1 p-0.5 sm:p-1 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs z-20 overflow-x-auto">
-            <button
-              type="button"
-              id="gwo-stage-tab-avatar3d"
-              onClick={() => setStageDisplayMode("avatar3d")}
-              className={`whitespace-nowrap px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold inline-flex items-center gap-1 sm:gap-1.5 cursor-pointer transition ${
-                stageDisplayMode === "avatar3d"
-                  ? "bg-[#141518] text-white"
-                  : "text-[#686D76] hover:text-[#141518]"
-              }`}
-            >
-              <Rotate3d className="w-3.5 h-3.5 text-[#A7D7C5]" />
-              <span className="sm:hidden">3D Body</span>
-              <span className="hidden sm:inline">3D Character</span>
-            </button>
-            <button
-              type="button"
-              id="gwo-stage-tab-product3d"
-              onClick={() => setStageDisplayMode("product3d")}
-              className={`whitespace-nowrap px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold inline-flex items-center gap-1 sm:gap-1.5 cursor-pointer transition ${
-                stageDisplayMode === "product3d"
-                  ? "bg-[#141518] text-white"
-                  : "text-[#686D76] hover:text-[#141518]"
-              }`}
-            >
-              <Box className="w-3.5 h-3.5 text-[#A7D7C5]" />
-              <span className="sm:hidden">3D Item</span>
-              <span className="hidden sm:inline">3D Item Mesh</span>
-            </button>
-            <button
-              type="button"
-              id="gwo-stage-tab-split"
-              onClick={() => setStageDisplayMode("split")}
-              className={`whitespace-nowrap px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold inline-flex items-center gap-1 sm:gap-1.5 cursor-pointer transition ${
-                stageDisplayMode === "split"
-                  ? "bg-[#141518] text-white"
-                  : "text-[#686D76] hover:text-[#141518]"
-              }`}
-            >
-              <Columns2 className="w-3.5 h-3.5" />
-              <span className="sm:hidden">F+B</span>
-              <span className="hidden sm:inline">Front + Back</span>
-            </button>
-            <button
-              type="button"
-              id="gwo-stage-tab-photo"
-              onClick={() => setStageDisplayMode("photo")}
-              className={`whitespace-nowrap px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold inline-flex items-center gap-1 sm:gap-1.5 cursor-pointer transition ${
-                stageDisplayMode === "photo"
-                  ? "bg-[#141518] text-white"
-                  : "text-[#686D76] hover:text-[#141518]"
-              }`}
-            >
-              <Images className="w-3.5 h-3.5" />
-              <span className="sm:hidden">Photo</span>
-              <span className="hidden sm:inline">Garment Photo</span>
-            </button>
-          </div>
-
+        {/* ==================== CENTER COLUMN: PURE CLEAN LIFELIKE 360° TURNTABLE STAGE (ZERO HEADERS/FOOTERS) ==================== */}
+        <div className="order-1 lg:order-2 min-w-0 h-[calc(100svh-64px)] min-h-[480px] lg:h-full lg:min-h-0 flex flex-col items-center justify-center bg-white lg:bg-transparent">
           {/* MODE 1: LIFELIKE 360° INERTIA TURNTABLE ON SCANNED BODY */}
           {stageDisplayMode === "avatar3d" && (
-            <div className="w-full flex-1 min-h-0 rounded-3xl bg-white border border-black/[0.06] overflow-hidden">
+            <div className="w-full h-full flex-1 min-h-0 lg:rounded-3xl bg-white lg:border lg:border-black/[0.06] overflow-hidden">
               <Interactive3DAvatarStage
                 mode="avatar"
                 dimensions={bodyDims}
@@ -633,14 +573,14 @@ export function GwoSpinProduct() {
                 inertiaSpin={true}
                 onYawChange={setLiveSpinDeg}
                 onSelectProduct={(prod) => setSelectedQuickProduct(prod)}
-                showHud={true}
+                showHud={false}
               />
             </div>
           )}
 
           {/* MODE 2: STANDALONE GARMENT 360° SPIN */}
           {stageDisplayMode === "product3d" && (
-            <div className="w-full flex-1 min-h-0 rounded-3xl bg-gradient-to-b from-[#F4F6FA] to-[#E5EAF2] border border-black/[0.08] overflow-hidden">
+            <div className="w-full h-full flex-1 min-h-0 lg:rounded-3xl bg-gradient-to-b from-[#F4F6FA] to-[#E5EAF2] lg:border lg:border-black/[0.08] overflow-hidden">
               <Interactive3DAvatarStage
                 mode="product"
                 dimensions={bodyDims}
@@ -651,34 +591,28 @@ export function GwoSpinProduct() {
                 initialYawDeg={22}
                 inertiaSpin={true}
                 onYawChange={setLiveSpinDeg}
-                showHud={true}
+                showHud={false}
               />
             </div>
           )}
 
           {/* MODE 3: SIDE-BY-SIDE LOOKBOOK FRONT 0° + BACK 180° */}
           {stageDisplayMode === "split" && (
-            <div className="w-full flex-1 min-h-0 rounded-3xl bg-white/90 backdrop-blur-md border border-black/[0.08] p-3 flex flex-col justify-between overflow-hidden">
+            <div className="w-full h-full flex-1 min-h-0 lg:rounded-3xl bg-white lg:border lg:border-black/[0.08] p-3 flex flex-col justify-between overflow-hidden">
               <div className="flex-1 min-h-0 grid grid-cols-2 gap-2.5">
-                <div className="relative h-full rounded-2xl bg-gradient-to-b from-[#F5F6F9] to-[#E6E9EF] flex items-center justify-center overflow-hidden pt-6 pb-1 px-1">
+                <div className="relative h-full rounded-2xl bg-gradient-to-b from-[#F5F6F9] to-[#E6E9EF] flex items-center justify-center overflow-hidden pt-2 pb-1 px-1">
                   <img
                     src={lifelikePhotos.frontUrl}
                     alt="Front 0° Look"
                     className="h-full w-full object-contain object-bottom"
                   />
-                  <span className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-full bg-black/75 text-white text-[10.5px] font-bold">
-                    Front 0°
-                  </span>
                 </div>
-                <div className="relative h-full rounded-2xl bg-gradient-to-b from-[#F5F6F9] to-[#E6E9EF] flex items-center justify-center overflow-hidden pt-6 pb-1 px-1">
+                <div className="relative h-full rounded-2xl bg-gradient-to-b from-[#F5F6F9] to-[#E6E9EF] flex items-center justify-center overflow-hidden pt-2 pb-1 px-1">
                   <img
                     src={lifelikePhotos.backUrl}
                     alt="Back 180° Look"
                     className="h-full w-full object-contain object-bottom"
                   />
-                  <span className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-full bg-black/75 text-white text-[10.5px] font-bold">
-                    Back 180°
-                  </span>
                 </div>
               </div>
             </div>
@@ -686,60 +620,77 @@ export function GwoSpinProduct() {
 
           {/* MODE 4: ISOLATED GARMENT PRODUCT PHOTO */}
           {stageDisplayMode === "photo" && (
-            <div className="w-full flex-1 min-h-0 rounded-3xl bg-white border border-black/[0.08] overflow-hidden flex flex-col justify-between">
-              <div className="flex-1 min-h-0 bg-[#F6F7F9] flex items-center justify-center overflow-hidden p-4">
-                <GarmentArtwork
-                  product={activeProduct}
-                  className="w-full h-full"
-                />
-              </div>
-              <div className="shrink-0 px-4 py-2.5 bg-white border-t border-black/[0.06] flex items-center justify-between text-xs font-bold text-[#141518]">
-                <span>{activeProduct.title}</span>
-                <span className="text-[#244B3B]">
-                  Best Match: Size {liveFitReport.recommendedSize}
-                </span>
-              </div>
+            <div className="w-full h-full flex-1 min-h-0 lg:rounded-3xl bg-white lg:border lg:border-black/[0.08] overflow-hidden flex items-center justify-center p-4">
+              <GarmentArtwork
+                product={activeProduct}
+                className="w-full h-full"
+              />
             </div>
           )}
-
-          {/* Original Iconic 360° Turntable Degree Readout Bar (#sp-deg) + Mobile Scroll Cue */}
-          <div className="shrink-0 flex items-center justify-center gap-2">
-            {(stageDisplayMode === "avatar3d" ||
-              stageDisplayMode === "product3d") && (
-              <div id="sp-deg" className="shrink-0">
-                <span className="hidden sm:inline">DRAG MODEL TO SPIN 360°</span>
-                <span className="sm:hidden">SPIN 360°</span>
-                <span className="sp-deg-bar">
-                  <span
-                    className="sp-deg-dot"
-                    style={{ left: `${((liveSpinDeg % 360) / 360) * 100}%` }}
-                  />
-                </span>
-                <span className="sp-deg-num">
-                  {String(liveSpinDeg).padStart(3, "0")}°
-                </span>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() =>
-                document
-                  .getElementById("gwo-spin-fit-details")
-                  ?.scrollIntoView({ behavior: "smooth" })
-              }
-              className="lg:hidden px-3 py-1 rounded-full bg-[#141518]/90 text-white text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer"
-            >
-              Fit &amp; Buy ↓
-            </button>
-          </div>
         </div>
 
-        {/* ==================== RIGHT CARD: EXACT-FIT ZONE SIMULATOR & RETAIL CHECKOUT ==================== */}
+        {/* ==================== RIGHT CARD (SCROLL DOWN ON MOBILE): EXACT-FIT ZONE SIMULATOR & RETAIL CHECKOUT ==================== */}
         <section
           id="gwo-spin-fit-details"
-          className="scroll-mt-20 order-2 lg:order-3 lg:h-full lg:min-h-0 rounded-3xl bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 sm:p-5 flex flex-col justify-between gap-3 lg:overflow-hidden"
+          className="scroll-mt-16 order-2 lg:order-3 mx-3 sm:mx-5 lg:mx-0 mt-2 lg:mt-0 lg:h-full lg:min-h-0 rounded-3xl bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 sm:p-5 flex flex-col justify-between gap-3 lg:overflow-hidden"
         >
           <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 space-y-3">
+            {/* Relocated Stage View Switcher + Live 360° Degree Indicator (Cleanly Below Fold on Mobile!) */}
+            <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-black/[0.06]">
+              <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-[#F4F5F7] border border-black/[0.08] overflow-x-auto max-w-full">
+                <button
+                  type="button"
+                  id="gwo-stage-tab-avatar3d"
+                  onClick={() => setStageDisplayMode("avatar3d")}
+                  className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                    stageDisplayMode === "avatar3d"
+                      ? "bg-[#141518] text-white"
+                      : "text-[#686D76] hover:text-[#141518]"
+                  }`}
+                >
+                  <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> Body
+                </button>
+                <button
+                  type="button"
+                  id="gwo-stage-tab-product3d"
+                  onClick={() => setStageDisplayMode("product3d")}
+                  className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                    stageDisplayMode === "product3d"
+                      ? "bg-[#141518] text-white"
+                      : "text-[#686D76] hover:text-[#141518]"
+                  }`}
+                >
+                  <Box className="w-3 h-3 text-[#A7D7C5]" /> Item
+                </button>
+                <button
+                  type="button"
+                  id="gwo-stage-tab-split"
+                  onClick={() => setStageDisplayMode("split")}
+                  className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                    stageDisplayMode === "split"
+                      ? "bg-[#141518] text-white"
+                      : "text-[#686D76] hover:text-[#141518]"
+                  }`}
+                >
+                  <Columns2 className="w-3 h-3" /> F+B
+                </button>
+                <button
+                  type="button"
+                  id="gwo-stage-tab-photo"
+                  onClick={() => setStageDisplayMode("photo")}
+                  className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                    stageDisplayMode === "photo"
+                      ? "bg-[#141518] text-white"
+                      : "text-[#686D76] hover:text-[#141518]"
+                  }`}
+                >
+                  <Images className="w-3 h-3" /> Photo
+                </button>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-[#141518] text-white text-[10px] font-bold">
+                {String(liveSpinDeg).padStart(3, "0")}°
+              </span>
+            </div>
             {/* Scanned 3D Body Measurements Header */}
             <div className="p-3 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-2">
               <div className="flex items-center justify-between">

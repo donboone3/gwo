@@ -1602,6 +1602,14 @@ export function prefetchTurntableBundle(
     ? spec.cacheKey
     : `${spec.cacheKey}|seamless=${seamlessKeying}`;
   if (BITMAP_LRU.has(fullKey) || INFLIGHT_EXTRACTIONS.has(fullKey)) return;
+  // On mobile viewports (iOS Safari / WKWebView), warm the compressed HTTP cache (~700 KB)
+  // instead of holding multiple 51 MB uncompressed RGBA ImageBitmaps in GPU RAM!
+  if (window.innerWidth < 860 && spec.atlasUrl) {
+    void fetch(spec.atlasUrl, { mode: "cors", credentials: "same-origin" }).catch(() => {
+      // ignore background cache warm error
+    });
+    return;
+  }
   void extractTurntableBitmapBundle(spec, seamlessKeying).catch(() => {
     // ignore background prefetch error
   });
@@ -1801,26 +1809,29 @@ export function extractTurntableBitmapBundle(
   };
 
   const evictIfNeeded = () => {
-    if (BITMAP_LRU.size >= MAX_LRU_BUNDLES) {
+    const maxLru =
+      typeof window !== "undefined" && window.innerWidth < 860
+        ? 2
+        : MAX_LRU_BUNDLES;
+    while (BITMAP_LRU.size >= maxLru) {
       const oldestKey = BITMAP_LRU.keys().next().value;
-      if (oldestKey) {
-        const old = BITMAP_LRU.get(oldestKey);
-        if (old?.atlasBitmap) {
-          try {
-            old.atlasBitmap.close();
-          } catch {
-            // ignore
-          }
+      if (!oldestKey) break;
+      const old = BITMAP_LRU.get(oldestKey);
+      if (old?.atlasBitmap) {
+        try {
+          old.atlasBitmap.close();
+        } catch {
+          // ignore
         }
-        old?.frames.forEach((b) => {
-          try {
-            b.close();
-          } catch {
-            // ignore
-          }
-        });
-        BITMAP_LRU.delete(oldestKey);
       }
+      old?.frames.forEach((b) => {
+        try {
+          b.close();
+        } catch {
+          // ignore
+        }
+      });
+      BITMAP_LRU.delete(oldestKey);
     }
   };
 
@@ -1857,23 +1868,28 @@ export function extractTurntableBitmapBundle(
             const cv = document.createElement("canvas");
             cv.width = aw;
             cv.height = ah;
-            const ctx = cv.getContext("2d", { willReadFrequently: true })!;
-            ctx.drawImage(rawAtlas, 0, 0, aw, ah);
-            try {
-              rawAtlas.close();
-            } catch {
-              // ignore
+            const ctx = cv.getContext("2d", { willReadFrequently: true });
+            if (ctx) {
+              ctx.drawImage(rawAtlas, 0, 0, aw, ah);
+              try {
+                rawAtlas.close();
+              } catch {
+                // ignore
+              }
+              postProcessPreMattedAtlasCanvas(
+                ctx,
+                aw,
+                ah,
+                cellW,
+                cellH,
+                hydratedShifts,
+                spec.skinToneTargetHex
+              );
+              finalAtlas = await createImageBitmap(cv);
+            } else {
+              cellW = ATLAS_CELL_W;
+              cellH = ATLAS_CELL_H;
             }
-            postProcessPreMattedAtlasCanvas(
-              ctx,
-              aw,
-              ah,
-              cellW,
-              cellH,
-              hydratedShifts,
-              spec.skinToneTargetHex
-            );
-            finalAtlas = await createImageBitmap(cv);
           }
 
           evictIfNeeded();

@@ -12,9 +12,12 @@ import {
   Columns2,
   Copy,
   Dices,
+  Flame,
   ImagePlus,
   Instagram,
   Layers,
+  Pause,
+  Play,
   Rotate3d,
   Ruler,
   ScanLine,
@@ -259,6 +262,15 @@ export function VellGwoStudio() {
   }));
 
   const [stageMode, setStageMode] = useState<"3d" | "lookbook">("3d");
+  const [closetVisualMode, setClosetVisualMode] = useState<
+    "studio" | "heatmap"
+  >("studio");
+  const [closetShowRings, setClosetShowRings] = useState<boolean>(false);
+  const [closetAutoSpin, setClosetAutoSpin] = useState<boolean>(false);
+  const [closetYawDeg, setClosetYawDeg] = useState<number | undefined>(
+    undefined
+  );
+  const [closetYawSeq, setClosetYawSeq] = useState<number>(0);
   const [activeWardrobeTab, setActiveWardrobeTab] =
     useState<WardrobeTab>("mix");
   const [activeSlotFilter, setActiveSlotFilter] = useState<
@@ -875,7 +887,7 @@ export function VellGwoStudio() {
       />
 
       {/* 3-ZONE INTERACTIVE 3D DRESS-UP STUDIO */}
-      <div className="relative z-10 min-h-[calc(100svh-64px)] lg:h-full max-w-[1560px] mx-auto px-2.5 sm:px-5 py-1.5 sm:py-3.5 flex flex-col lg:flex-row items-stretch justify-between gap-3 sm:gap-3.5">
+      <div className="relative z-10 min-h-[calc(100svh-64px)] lg:h-full max-w-[1560px] mx-auto px-0 lg:px-5 py-0 lg:py-3.5 flex flex-col lg:flex-row items-stretch justify-between gap-0 lg:gap-3.5">
         {/* ==================== LEFT PANEL (DESKTOP): 3D BODY SCANNER & DAILY AI STYLING ==================== */}
         <aside className="hidden lg:flex lg:w-[300px] xl:w-[316px] lg:h-full shrink-0 flex-col justify-between rounded-3xl bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 overflow-y-auto">
           <div className="space-y-3">
@@ -1037,96 +1049,14 @@ export function VellGwoStudio() {
           </button>
         </aside>
 
-        {/* ==================== CENTER STAGE: SEAMLESS LOFT LIFELIKE AVATAR ==================== */}
+        {/* ==================== CENTER STAGE: PURE CLEAN FULL-SCREEN AVATAR (ZERO HEADERS/FOOTERS) ==================== */}
         <div
           ref={centerStageRef}
-          className="relative shrink-0 h-[calc(100svh-72px)] min-h-[560px] lg:shrink lg:flex-1 min-w-0 flex flex-col items-center justify-between lg:h-full lg:min-h-0"
+          className="relative shrink-0 h-[calc(100svh-64px)] min-h-[480px] w-full lg:shrink lg:flex-1 min-w-0 flex flex-col items-center justify-center lg:h-full lg:min-h-0 bg-white"
         >
-          {/* Top Stage Bar — Single Compact Row on Mobile so Full-Screen Avatar Gets Maximum Height */}
-          <div className="shrink-0 z-20 w-full flex flex-nowrap lg:flex-wrap items-center justify-center gap-1 sm:gap-1.5 overflow-x-auto">
-            <button
-              type="button"
-              onClick={() => setAvatarModalOpen(true)}
-              className="shrink-0 whitespace-nowrap px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs inline-flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-bold text-[#141518] hover:bg-[#F4F8F5] cursor-pointer"
-            >
-              <ScanLine className="w-3.5 h-3.5 text-[#244B3B] shrink-0" />
-              <span className="sm:hidden">
-                Scan ({formatHeightFeetInches(bodyDims.heightInches)}•{recSize})
-              </span>
-              <span className="hidden sm:inline">
-                Body Scan ({formatHeightFeetInches(bodyDims.heightInches)} • Size{" "}
-                {recSize})
-              </span>
-            </button>
-
-            <div className="shrink-0 inline-flex items-center gap-0.5 p-0.5 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs">
-              <button
-                type="button"
-                id="gwo-stage-mode-3d"
-                onClick={() => setStageMode("3d")}
-                className={`whitespace-nowrap px-2 sm:px-3 py-1 rounded-full text-[10.5px] sm:text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
-                  stageMode === "3d"
-                    ? "bg-[#141518] text-white"
-                    : "text-[#686D76] hover:text-[#141518]"
-                }`}
-              >
-                <Rotate3d className="w-3 h-3 text-[#A7D7C5]" />
-                <span className="sm:hidden">3D</span>
-                <span className="hidden sm:inline">3D Character</span>
-              </button>
-              <button
-                type="button"
-                id="gwo-stage-mode-lookbook"
-                onClick={() => setStageMode("lookbook")}
-                className={`whitespace-nowrap px-2 sm:px-3 py-1 rounded-full text-[10.5px] sm:text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
-                  stageMode === "lookbook"
-                    ? "bg-[#141518] text-white"
-                    : "text-[#686D76] hover:text-[#141518]"
-                }`}
-              >
-                <Columns2 className="w-3 h-3" />
-                <span className="sm:hidden">F+B</span>
-                <span className="hidden sm:inline">Front + Back</span>
-              </button>
-            </div>
-
-            <button
-              type="button"
-              id="gwo-undress-base-btn"
-              onClick={() => {
-                setDressedSlots({
-                  topId: null,
-                  bottomId: null,
-                  dressId: null,
-                  outerwearId: null,
-                  shoesId: null,
-                  bagId: null,
-                  beltId: null,
-                });
-                setStageMode("3d");
-                showToast("Showing Base 3D Character — tap any 3D item to dress her!");
-              }}
-              className="shrink-0 whitespace-nowrap px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/95 hover:bg-[#F1F2F5] border border-black/[0.08] text-[10.5px] sm:text-[11px] font-bold text-[#141518] inline-flex items-center gap-1 shadow-xs cursor-pointer"
-              title="Strip to base 3D Character to build an outfit from scratch"
-            >
-              <span className="sm:hidden">Base</span>
-              <span className="hidden sm:inline">Base Character</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSaveCustomOutfit}
-              className="shrink-0 whitespace-nowrap px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/95 hover:bg-[#F4F8F5] border border-black/[0.08] text-[10.5px] sm:text-[11px] font-bold text-[#244B3B] inline-flex items-center gap-1 shadow-xs cursor-pointer"
-            >
-              <BookmarkPlus className="w-3.5 h-3.5" />
-              <span className="sm:hidden">Save</span>
-              <span className="hidden sm:inline">Save Look</span>
-            </button>
-          </div>
-
           {/* Pure White 3D Character Dress-Up Stage */}
           <div
-            className={`relative flex-1 w-full min-h-0 my-1 overflow-hidden transition-all ${
+            className={`relative flex-1 w-full h-full min-h-0 overflow-hidden transition-all ${
               overAvatar
                 ? "rounded-3xl ring-2 ring-[#244B3B] bg-[#244B3B]/10"
                 : ""
@@ -1144,6 +1074,12 @@ export function VellGwoStudio() {
                 faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
                 customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
                 customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}
+                visualMode={closetVisualMode}
+                showMeasurementRings={closetShowRings}
+                externalSpinActive={closetAutoSpin}
+                onAutoSpinChange={setClosetAutoSpin}
+                externalYawDeg={closetYawDeg}
+                externalYawSeq={closetYawSeq}
                 initialYawDeg={0}
                 seamlessStage={false}
                 inertiaSpin={true}
@@ -1152,7 +1088,7 @@ export function VellGwoStudio() {
                   setSelectedPieceId(prod.id);
                   setActiveSlotFilter(classifyProductSlot(prod));
                 }}
-                showHud={true}
+                showHud={false}
               />
             ) : (
               <div className="h-full w-full grid grid-cols-2 gap-2 p-2">
@@ -1166,9 +1102,6 @@ export function VellGwoStudio() {
                     seamlessStage={true}
                     showHud={false}
                   />
-                  <span className="pointer-events-none absolute top-2 left-2 px-2.5 py-0.5 rounded-full bg-black/75 text-white text-[10px] font-bold">
-                    3D Front 0°
-                  </span>
                 </div>
                 <div className="relative rounded-2xl bg-white border border-black/[0.06] overflow-hidden">
                   <Interactive3DAvatarStage
@@ -1180,79 +1113,16 @@ export function VellGwoStudio() {
                     seamlessStage={true}
                     showHud={false}
                   />
-                  <span className="pointer-events-none absolute top-2 left-2 px-2.5 py-0.5 rounded-full bg-black/75 text-white text-[10px] font-bold">
-                    3D Back 180°
-                  </span>
                 </div>
               </div>
             )}
           </div>
-
-          {/* Game-Style Slot Cyclers Dock Below 3D Stage + Mobile Scroll-to-Closet Cue */}
-          <div className="shrink-0 z-20 w-full flex flex-col items-center gap-1">
-            <div className="w-full flex flex-nowrap lg:flex-wrap items-center justify-center gap-0.5 sm:gap-1.5">
-              {(
-                [
-                  ["top", "Top", "Top"],
-                  ["bottom", "Pants/Skirt", "Pants"],
-                  ["outerwear", "Jacket", "Jacket"],
-                  ["shoes", "Shoes", "Shoes"],
-                  ["bag", "Bag", "Bag"],
-                ] as const
-              ).map(([slotKey, label, mobileLabel]) => (
-                <div
-                  key={slotKey}
-                  className="shrink-0 inline-flex items-center rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs px-0.5 sm:px-1 py-0.5"
-                >
-                  <button
-                    type="button"
-                    onClick={() => cycleSlot(slotKey, -1)}
-                    aria-label={`Previous ${label}`}
-                    className="p-0.5 sm:p-1 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[17px] sm:min-w-[24px] min-h-[22px] sm:min-h-[24px] inline-flex items-center justify-center"
-                  >
-                    <ChevronLeft className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveWardrobeTab("mix");
-                      setActiveSlotFilter(slotKey);
-                    }}
-                    className="px-0.5 sm:px-1.5 text-[9.5px] sm:text-[11px] font-bold text-[#141518] cursor-pointer min-h-[22px] sm:min-h-[24px] whitespace-nowrap"
-                  >
-                    <span className="sm:hidden">{mobileLabel}</span>
-                    <span className="hidden sm:inline">{label}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => cycleSlot(slotKey, 1)}
-                    aria-label={`Next ${label}`}
-                    className="p-0.5 sm:p-1 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[17px] sm:min-w-[24px] min-h-[22px] sm:min-h-[24px] inline-flex items-center justify-center"
-                  >
-                    <ChevronRight className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                document
-                  .getElementById("gwo-closet-wardrobe-panel")
-                  ?.scrollIntoView({ behavior: "smooth" })
-              }
-              className="lg:hidden px-3 py-0.5 rounded-full bg-[#141518]/88 text-white text-[10.5px] font-bold inline-flex items-center gap-1 shadow-xs cursor-pointer"
-            >
-              Scroll for Closet &amp; Pieces ↓
-            </button>
-          </div>
         </div>
 
-        {/* ==================== RIGHT PANEL: 3D DRESS-UP WARDROBE, AI HYBRID & STORE RACK ==================== */}
+        {/* ==================== RIGHT PANEL (SCROLL DOWN ON MOBILE): 3D DRESS-UP WARDROBE, CONTROLS & STORE RACK ==================== */}
         <aside
           id="gwo-closet-wardrobe-panel"
-          className="scroll-mt-20 w-full lg:w-[390px] xl:w-[424px] lg:h-full shrink-0 rounded-3xl bg-white/96 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.08)] p-4 flex flex-col justify-between gap-2.5 lg:overflow-hidden"
+          className="scroll-mt-16 w-full lg:w-[390px] xl:w-[424px] lg:h-full shrink-0 rounded-t-3xl lg:rounded-3xl bg-white/98 backdrop-blur-md border-t lg:border border-black/[0.08] shadow-[0_-8px_28px_rgba(20,21,24,0.06)] lg:shadow-[0_14px_34px_rgba(20,21,24,0.08)] px-3.5 sm:px-4 pt-4 pb-8 lg:p-4 flex flex-col justify-between gap-2.5 lg:overflow-hidden"
         >
           <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 space-y-2.5">
             {/* Header + Quick Actions */}
@@ -1281,6 +1151,190 @@ export function VellGwoStudio() {
                 >
                   <Store className="w-3 h-3 text-[#244B3B]" /> + URL
                 </button>
+              </div>
+            </div>
+
+            {/* Relocated Avatar & Quick Slot Controls (Cleanly Below the Fold — Zero Clutter on Avatar!) */}
+            <div className="p-2.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-1.5">
+              <div className="flex flex-wrap items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setAvatarModalOpen(true)}
+                  className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full bg-white border border-black/[0.08] inline-flex items-center gap-1 text-[10.5px] font-bold text-[#141518] hover:bg-[#F4F8F5] cursor-pointer"
+                >
+                  <ScanLine className="w-3 h-3 text-[#244B3B]" />
+                  Scan ({formatHeightFeetInches(bodyDims.heightInches)}•{recSize})
+                </button>
+
+                <div className="shrink-0 inline-flex items-center gap-0.5 p-0.5 rounded-full bg-white border border-black/[0.08]">
+                  <button
+                    type="button"
+                    id="gwo-stage-mode-3d"
+                    onClick={() => setStageMode("3d")}
+                    className={`whitespace-nowrap px-2 py-0.5 rounded-full text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                      stageMode === "3d"
+                        ? "bg-[#141518] text-white"
+                        : "text-[#686D76] hover:text-[#141518]"
+                    }`}
+                  >
+                    <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> 3D
+                  </button>
+                  <button
+                    type="button"
+                    id="gwo-stage-mode-lookbook"
+                    onClick={() => setStageMode("lookbook")}
+                    className={`whitespace-nowrap px-2 py-0.5 rounded-full text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                      stageMode === "lookbook"
+                        ? "bg-[#141518] text-white"
+                        : "text-[#686D76] hover:text-[#141518]"
+                    }`}
+                  >
+                    <Columns2 className="w-3 h-3" /> F+B
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setClosetAutoSpin((s) => !s)}
+                  className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full border text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                    closetAutoSpin
+                      ? "bg-[#244B3B] text-white border-[#244B3B]"
+                      : "bg-white border-black/[0.08] text-[#141518] hover:bg-[#EAECEF]"
+                  }`}
+                >
+                  {closetAutoSpin ? (
+                    <Pause className="w-2.5 h-2.5" />
+                  ) : (
+                    <Play className="w-2.5 h-2.5" />
+                  )}
+                  Spin
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setClosetVisualMode((m) =>
+                      m === "heatmap" ? "studio" : "heatmap"
+                    )
+                  }
+                  className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full border text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                    closetVisualMode === "heatmap"
+                      ? "bg-[#141518] text-white border-[#141518]"
+                      : "bg-white border-black/[0.08] text-[#141518] hover:bg-[#EAECEF]"
+                  }`}
+                >
+                  <Flame className="w-2.5 h-2.5 text-[#F59E0B]" /> Fit Map
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setClosetShowRings((r) => !r)}
+                  className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full border text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                    closetShowRings
+                      ? "bg-[#E7F3EE] text-[#1D4232] border-[#C1DFD0]"
+                      : "bg-white border-black/[0.08] text-[#141518] hover:bg-[#EAECEF]"
+                  }`}
+                >
+                  <Ruler className="w-2.5 h-2.5" /> Rings
+                </button>
+
+                <button
+                  type="button"
+                  id="gwo-undress-base-btn"
+                  onClick={() => {
+                    setDressedSlots({
+                      topId: null,
+                      bottomId: null,
+                      dressId: null,
+                      outerwearId: null,
+                      shoesId: null,
+                      bagId: null,
+                      beltId: null,
+                    });
+                    setStageMode("3d");
+                    showToast(
+                      "Showing Base 3D Character — tap any 3D item to dress her!"
+                    );
+                  }}
+                  className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full bg-white hover:bg-[#F1F2F5] border border-black/[0.08] text-[10.5px] font-bold text-[#141518] cursor-pointer"
+                >
+                  Base
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveCustomOutfit}
+                  className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full bg-white hover:bg-[#F4F8F5] border border-black/[0.08] text-[10.5px] font-bold text-[#244B3B] inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <BookmarkPlus className="w-3 h-3" /> Save
+                </button>
+              </div>
+
+              {/* Quick Slot Cyclers + Angle Snaps */}
+              <div className="flex flex-wrap items-center gap-1">
+                {(
+                  [
+                    ["top", "Top"],
+                    ["bottom", "Pants"],
+                    ["outerwear", "Jacket"],
+                    ["shoes", "Shoes"],
+                    ["bag", "Bag"],
+                  ] as const
+                ).map(([slotKey, label]) => (
+                  <div
+                    key={slotKey}
+                    className="shrink-0 inline-flex items-center rounded-full bg-white border border-black/[0.08] px-0.5 py-0.5"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => cycleSlot(slotKey, -1)}
+                      aria-label={`Previous ${label}`}
+                      className="p-0.5 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[20px] min-h-[20px] inline-flex items-center justify-center"
+                    >
+                      <ChevronLeft className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveWardrobeTab("mix");
+                        setActiveSlotFilter(slotKey);
+                      }}
+                      className="px-1 text-[10px] font-bold text-[#141518] cursor-pointer whitespace-nowrap"
+                    >
+                      {label}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cycleSlot(slotKey, 1)}
+                      aria-label={`Next ${label}`}
+                      className="p-0.5 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[20px] min-h-[20px] inline-flex items-center justify-center"
+                    >
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+
+                {(
+                  [
+                    [0, "0°"],
+                    [90, "90°"],
+                    [180, "180°"],
+                  ] as const
+                ).map(([deg, lbl]) => (
+                  <button
+                    key={deg}
+                    type="button"
+                    onClick={() => {
+                      setStageMode("3d");
+                      setClosetAutoSpin(false);
+                      setClosetYawDeg(deg);
+                      setClosetYawSeq((s) => s + 1);
+                    }}
+                    className="shrink-0 px-2 py-0.5 rounded-full bg-white hover:bg-[#EAECEF] border border-black/[0.08] text-[10px] font-bold text-[#686D76] hover:text-[#141518] cursor-pointer"
+                  >
+                    {lbl}
+                  </button>
+                ))}
               </div>
             </div>
 

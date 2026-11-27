@@ -337,93 +337,13 @@ export function MotionSitesProductShowroom({
       </div>
 
       {/* ==================== SECTION 1: MOTIONSITES SPLIT LUXURY HERO ==================== */}
-      <main className="max-w-[1460px] mx-auto px-2.5 sm:px-6 pt-2 sm:pt-5 space-y-8 sm:space-y-12">
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-start">
-          {/* LEFT COLUMN (7 COLS): STICKY 360° INTERACTIVE 3D TURNTABLE STAGE — FULL SCREEN ON MOBILE */}
-          <div className="lg:col-span-7 lg:sticky lg:top-[116px] space-y-3">
-            <div className="relative h-[calc(100svh-122px)] min-h-[560px] lg:h-[650px] rounded-[24px] sm:rounded-[28px] bg-white border border-black/[0.08] shadow-[0_20px_50px_rgba(20,21,24,0.06)] overflow-hidden flex flex-col">
-              {/* Top Stage Mode Switcher */}
-              <div className="relative z-20 px-2 sm:px-3 py-1.5 sm:py-3 flex flex-nowrap sm:flex-wrap items-center justify-between gap-1 sm:gap-2 border-b border-black/[0.05] bg-white/92 backdrop-blur-md overflow-x-auto">
-                <div className="shrink-0 inline-flex items-center p-0.5 rounded-full bg-[#F3F4F6] border border-black/[0.06]">
-                  {(
-                    [
-                      ["avatar_3d", "On Your 3D Body 360°", "Body", User],
-                      ["garment_3d", "3D Item Spin 360°", "Item", Box],
-                      ["studio_cutout", "Isolated Cutout", "Photo", Sparkles],
-                    ] as const
-                  ).map(([id, label, mobileLbl, Icon]) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setStageView(id)}
-                      className={`whitespace-nowrap px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold inline-flex items-center gap-1 sm:gap-1.5 cursor-pointer transition ${
-                        stageView === id
-                          ? "bg-[#141518] text-white shadow-xs"
-                          : "text-[#5E636E] hover:text-[#141518]"
-                      }`}
-                    >
-                      <Icon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                      <span className="sm:hidden">{mobileLbl}</span>
-                      <span className="hidden sm:inline">{label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Lighting & Fit Diagnostic Toggles */}
-                {stageView !== "studio_cutout" && (
-                  <div className="shrink-0 flex flex-nowrap sm:flex-wrap items-center gap-1 sm:gap-1.5">
-                    {stageView === "avatar_3d" && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setShowHeatmap((v) => !v)}
-                          className={`whitespace-nowrap px-1.5 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[10.5px] font-bold inline-flex items-center gap-0.5 sm:gap-1 border cursor-pointer transition ${
-                            showHeatmap
-                              ? "bg-[#C80815] text-white border-[#C80815]"
-                              : "bg-white text-[#141518] border-black/10 hover:bg-[#F4F5F7]"
-                          }`}
-                        >
-                          <Flame className="w-3 h-3" />
-                          <span className="sm:hidden">Fit</span>
-                          <span className="hidden sm:inline">Fit Heatmap</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowRings((v) => !v)}
-                          className={`whitespace-nowrap px-1.5 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[10.5px] font-bold inline-flex items-center gap-0.5 sm:gap-1 border cursor-pointer transition ${
-                            showRings
-                              ? "bg-[#244B3B] text-white border-[#244B3B]"
-                              : "bg-white text-[#141518] border-black/10 hover:bg-[#F4F5F7]"
-                          }`}
-                        >
-                          <Ruler className="w-3 h-3" />
-                          <span className="sm:hidden">Rings</span>
-                          <span className="hidden sm:inline">Scan Rings</span>
-                        </button>
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const idx =
-                          MASTER_LIGHTING_PRESET_ORDER.indexOf(lightingId);
-                        setLightingId(
-                          MASTER_LIGHTING_PRESET_ORDER[
-                            (idx + 1) % MASTER_LIGHTING_PRESET_ORDER.length
-                          ]
-                        );
-                      }}
-                      className="whitespace-nowrap px-1.5 sm:px-2.5 py-1 rounded-full bg-white hover:bg-[#F4F5F7] border border-black/10 text-[10px] sm:text-[10.5px] font-bold text-[#141518] inline-flex items-center gap-0.5 sm:gap-1 cursor-pointer"
-                    >
-                      <SunMedium className="w-3 h-3 text-[#244B3B]" />
-                      {MASTER_IMMERSIVE_LIGHTING_PRESETS[lightingId].shortLabel}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Active 3D / Cutout Viewport */}
-              <div className="relative flex-1 min-h-0 w-full bg-white">
+      <main className="max-w-[1460px] mx-auto px-0 sm:px-6 pt-0 sm:pt-5 space-y-6 sm:space-y-12">
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
+          {/* LEFT COLUMN (7 COLS): PURE CLEAN STICKY 360° INTERACTIVE TURNTABLE STAGE (ZERO HEADERS/FOOTERS) */}
+          <div className="lg:col-span-7 lg:sticky lg:top-[116px]">
+            <div className="relative h-[calc(100svh-104px)] min-h-[460px] lg:h-[650px] sm:rounded-[28px] bg-white border-b sm:border border-black/[0.08] sm:shadow-[0_20px_50px_rgba(20,21,24,0.06)] overflow-hidden flex flex-col">
+              {/* Active Pure Clean 3D / Cutout Viewport */}
+              <div className="relative flex-1 min-h-0 w-full h-full bg-white">
                 {stageView === "avatar_3d" && (
                   <Interactive3DAvatarStage
                     mode="avatar"
@@ -461,114 +381,149 @@ export function MotionSitesProductShowroom({
                 )}
 
                 {stageView === "studio_cutout" && (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-white">
+                  <div className="w-full h-full flex items-center justify-center p-8 bg-white">
                     <div className="w-full max-w-[420px] h-[420px]">
                       <GarmentArtwork
                         product={product}
                         className="w-full h-full"
                       />
                     </div>
-                    <p className="text-xs font-semibold text-[#5E636E] mt-2">
-                      1024×1024 Isolated RGBA Cutout • Zero Background Clutter
-                    </p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
 
-                {activePreviewOutfit && stageView === "avatar_3d" && (
-                  <div className="absolute top-3 left-3 z-20 px-3 py-1.5 rounded-full bg-[#141518]/90 text-white text-[11px] font-bold flex items-center gap-2 shadow-md">
-                    <span>
-                      Previewing Outfit #
-                      {String(activePreviewOutfit.outfitNumber).padStart(
-                        3,
-                        "0"
-                      )}
-                      : {activePreviewOutfit.title}
-                    </span>
+          {/* RIGHT COLUMN (5 COLS — SCROLL DOWN ON MOBILE): CONTROLS, EDITORIAL DETAILS, BODY-SCAN FIT & CONVERSION */}
+          <div id="gwo-pdp-details-column" className="scroll-mt-24 px-3 sm:px-0 lg:col-span-5 space-y-5">
+            {/* Relocated 360° View, Angle & Fit Diagnostic Bar (Cleanly Outside Avatar Container!) */}
+            <div className="rounded-3xl bg-white border border-black/[0.08] p-3 space-y-2 shadow-[0_8px_24px_rgba(20,21,24,0.04)]">
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                <div className="inline-flex items-center p-0.5 rounded-full bg-[#F3F4F6] border border-black/[0.06]">
+                  {(
+                    [
+                      ["avatar_3d", "Body 360°", User],
+                      ["garment_3d", "Item 360°", Box],
+                      ["studio_cutout", "Photo", Sparkles],
+                    ] as const
+                  ).map(([id, label, Icon]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setStageView(id)}
+                      className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                        stageView === id
+                          ? "bg-[#141518] text-white shadow-xs"
+                          : "text-[#5E636E] hover:text-[#141518]"
+                      }`}
+                    >
+                      <Icon className="w-3 h-3" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {stageView !== "studio_cutout" && (
+                  <div className="flex items-center gap-1">
+                    {stageView === "avatar_3d" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setShowHeatmap((v) => !v)}
+                          className={`whitespace-nowrap px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 border cursor-pointer transition ${
+                            showHeatmap
+                              ? "bg-[#C80815] text-white border-[#C80815]"
+                              : "bg-white text-[#141518] border-black/10 hover:bg-[#F4F5F7]"
+                          }`}
+                        >
+                          <Flame className="w-3 h-3" /> Fit Map
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowRings((v) => !v)}
+                          className={`whitespace-nowrap px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 border cursor-pointer transition ${
+                            showRings
+                              ? "bg-[#244B3B] text-white border-[#244B3B]"
+                              : "bg-white text-[#141518] border-black/10 hover:bg-[#F4F5F7]"
+                          }`}
+                        >
+                          <Ruler className="w-3 h-3" /> Rings
+                        </button>
+                      </>
+                    )}
                     <button
                       type="button"
-                      onClick={() => setPreviewOutfitKey(null)}
-                      className="underline text-[#A7D7C5] cursor-pointer"
+                      onClick={() => {
+                        const idx =
+                          MASTER_LIGHTING_PRESET_ORDER.indexOf(lightingId);
+                        setLightingId(
+                          MASTER_LIGHTING_PRESET_ORDER[
+                            (idx + 1) % MASTER_LIGHTING_PRESET_ORDER.length
+                          ]
+                        );
+                      }}
+                      className="whitespace-nowrap px-2 py-1 rounded-full bg-white hover:bg-[#F4F5F7] border border-black/10 text-[10px] font-bold text-[#141518] inline-flex items-center gap-1 cursor-pointer"
                     >
-                      Solo Piece
+                      <SunMedium className="w-3 h-3 text-[#244B3B]" />
+                      {MASTER_IMMERSIVE_LIGHTING_PRESETS[lightingId].shortLabel}
                     </button>
                   </div>
                 )}
               </div>
 
-              {/* Bottom 360° Precision Angle Bar */}
               {stageView !== "studio_cutout" && (
-                <div className="relative z-20 px-2.5 sm:px-3 py-1.5 sm:py-2 border-t border-black/[0.05] bg-[#FAFBFD] flex flex-nowrap sm:flex-wrap items-center justify-between gap-1.5 sm:gap-2 overflow-x-auto">
-                  <span className="hidden sm:inline-flex text-[11px] font-semibold text-[#5E636E] items-center gap-1">
-                    <Rotate3d className="w-3.5 h-3.5 text-[#244B3B]" /> Drag
-                    horizontally for seamless 360° studio spin
-                  </span>
-                  <div className="shrink-0 flex items-center gap-1">
-                    {(
-                      [
-                        [0, "Front 0°", "0°"],
-                        [45, "3/4 45°", "45°"],
-                        [90, "Side 90°", "90°"],
-                        [180, "Back 180°", "180°"],
-                        [270, "Left 270°", "270°"],
-                      ] as const
-                    ).map(([deg, lbl, mobileLbl]) => (
-                      <button
-                        key={deg}
-                        type="button"
-                        onClick={() => {
-                          setAutoRotate(false);
-                          setYawOverride(deg);
-                          setYawSeq((s) => s + 1);
-                        }}
-                        className={`whitespace-nowrap px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[10.5px] font-bold cursor-pointer transition ${
-                          yawOverride === deg && !autoRotate
-                            ? "bg-[#141518] text-white"
-                            : "bg-white border border-black/10 text-[#5E636E] hover:text-[#141518]"
-                        }`}
-                      >
-                        <span className="sm:hidden">{mobileLbl}</span>
-                        <span className="hidden sm:inline">{lbl}</span>
-                      </button>
-                    ))}
+                <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+                  {(
+                    [
+                      [0, "Front 0°"],
+                      [45, "45°"],
+                      [90, "Side 90°"],
+                      [180, "Back 180°"],
+                    ] as const
+                  ).map(([deg, lbl]) => (
                     <button
+                      key={deg}
                       type="button"
                       onClick={() => {
-                        setYawOverride(undefined);
-                        setAutoRotate((v) => !v);
+                        setAutoRotate(false);
+                        setYawOverride(deg);
+                        setYawSeq((s) => s + 1);
                       }}
-                      className={`whitespace-nowrap px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[10.5px] font-bold cursor-pointer transition ${
-                        autoRotate
-                          ? "bg-[#244B3B] text-white"
-                          : "bg-white border border-black/10 text-[#244B3B]"
+                      className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition ${
+                        yawOverride === deg && !autoRotate
+                          ? "bg-[#141518] text-white"
+                          : "bg-[#F4F5F7] text-[#5E636E] hover:text-[#141518]"
                       }`}
                     >
-                      <span className="sm:hidden">
-                        {autoRotate ? "Spin ●" : "Spin"}
-                      </span>
-                      <span className="hidden sm:inline">
-                        {autoRotate ? "Orbiting ●" : "Auto-Orbit"}
-                      </span>
+                      {lbl}
                     </button>
-                  </div>
-
+                  ))}
                   <button
                     type="button"
-                    onClick={() =>
-                      document
-                        .getElementById("gwo-pdp-details-column")
-                        ?.scrollIntoView({ behavior: "smooth" })
-                    }
-                    className="lg:hidden shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full bg-[#141518] text-white text-[10px] font-bold cursor-pointer"
+                    onClick={() => {
+                      setYawOverride(undefined);
+                      setAutoRotate((v) => !v);
+                    }}
+                    className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition ${
+                      autoRotate
+                        ? "bg-[#244B3B] text-white"
+                        : "bg-[#F4F5F7] text-[#244B3B]"
+                    }`}
                   >
-                    Details ↓
+                    {autoRotate ? "Orbiting ●" : "360° Spin"}
                   </button>
+                  {activePreviewOutfit && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewOutfitKey(null)}
+                      className="whitespace-nowrap px-2.5 py-1 rounded-full bg-[#141518] text-[#A7D7C5] text-[10px] font-bold cursor-pointer"
+                    >
+                      Solo Piece ✕
+                    </button>
+                  )}
                 </div>
               )}
             </div>
-          </div>
-
-          {/* RIGHT COLUMN (5 COLS): EDITORIAL DETAILS, BODY-SCAN ACUTE FIT & CONVERSION */}
-          <div id="gwo-pdp-details-column" className="scroll-mt-28 lg:col-span-5 space-y-5">
             {/* Brand, Title, Price & PBR Material Spec */}
             <div className="rounded-[28px] bg-white border border-black/[0.08] p-5 sm:p-6 space-y-4 shadow-[0_12px_32px_rgba(20,21,24,0.04)]">
               <div className="space-y-1.5">
