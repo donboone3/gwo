@@ -27,18 +27,17 @@ import {
 import {
   analyzeExactAvatarFit,
   AvatarExactFitReport,
+  ZoneFeel,
 } from "@/lib/catalog/fit-intelligence";
 import { classifyWearableSlotAndAnchors } from "@/lib/three/avatar-ready-pipeline";
 import { buildTopLineAliExpressDropshipCatalog } from "@/lib/dropship/aliexpress-dropship";
+import { loadStandalone3DItemInstance } from "@/lib/three/glb-character-engine";
 import {
-  Character3DRig,
-  Wearable3DItemRig,
-  loadCharacter3DRig,
-  loadStandalone3DItemInstance,
-  loadWearable3DItemRig,
-  preloadCore3DGlbs,
-  syncBodyMorphUniforms,
-} from "@/lib/three/glb-character-engine";
+  extractProcessedPosterBitmap,
+  extractTurntableBitmapBundle,
+  getCachedTurntableBundleSync,
+  resolveTurntableSpecForOutfit,
+} from "@/lib/three/higgsfield-turntable-engine";
 import {
   ImmersiveLightingPresetId,
   MASTER_IMMERSIVE_LIGHTING_PRESETS,
@@ -81,68 +80,27 @@ function shortestAngleDeltaRad(fromRad: number, toRad: number): number {
   return Math.atan2(Math.sin(toRad - fromRad), Math.cos(toRad - fromRad));
 }
 
-function createFloorTurntableTexture(): THREE.CanvasTexture {
-  const S = 256;
-  const cv = document.createElement("canvas");
-  cv.width = S;
-  cv.height = S;
-  const ctx = cv.getContext("2d")!;
-  const grad = ctx.createRadialGradient(S / 2, S / 2, 10, S / 2, S / 2, S / 2);
-  grad.addColorStop(0.0, "rgba(20, 22, 28, 0.16)");
-  grad.addColorStop(0.56, "rgba(20, 22, 28, 0.048)");
-  grad.addColorStop(1.0, "rgba(20, 22, 28, 0.0)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, S, S);
-
-  ctx.save();
-  ctx.translate(S / 2, S / 2);
-  ctx.strokeStyle = "rgba(20, 22, 28, 0.11)";
-  ctx.lineWidth = 1.25;
-  ctx.beginPath();
-  ctx.arc(0, 0, S * 0.42, 0, Math.PI * 2);
-  ctx.stroke();
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2;
-    const r0 = i % 6 === 0 ? S * 0.37 : S * 0.398;
-    const r1 = S * 0.432;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
-    ctx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
-    ctx.stroke();
+function feelToRgba(feel: ZoneFeel | undefined, alpha: number): string {
+  switch (feel) {
+    case "too_tight":
+      return `rgba(239, 68, 68, ${alpha})`;
+    case "sculpted_snug":
+      return `rgba(245, 158, 11, ${alpha})`;
+    case "tailored_ideal":
+      return `rgba(16, 185, 129, ${alpha})`;
+    case "relaxed_skim":
+      return `rgba(6, 182, 212, ${alpha})`;
+    case "oversized_roomy":
+    default:
+      return `rgba(99, 102, 241, ${alpha})`;
   }
-  ctx.restore();
-
-  const tex = new THREE.CanvasTexture(cv);
-  tex.needsUpdate = true;
-  return tex;
 }
 
-function create3DTapeRing(
-  rx: number,
-  rz: number,
-  y: number,
-  hexColor: string
-): THREE.Line {
-  const segs = 72;
-  const pts: THREE.Vector3[] = [];
-  for (let i = 0; i <= segs; i++) {
-    const a = (i / segs) * Math.PI * 2;
-    pts.push(new THREE.Vector3(Math.cos(a) * rx, y, Math.sin(a) * rz));
-  }
-  const geom = new THREE.BufferGeometry().setFromPoints(pts);
-  const mat = new THREE.LineBasicMaterial({
-    color: new THREE.Color(hexColor),
-    transparent: true,
-    opacity: 0.88,
-  });
-  return new THREE.Line(geom, mat);
-}
-
-const LIGHT_MOOD_TINTS: Record<ImmersiveLightingPresetId, string> = {
-  editorial_daylight: "#FFFFFF",
-  golden_atelier: "#FFF1DF",
-  runway_spotlight: "#F8FAFF",
-  evening_soiree: "#FFE9CF",
+const LIGHT_MOOD_FILTERS: Record<ImmersiveLightingPresetId, string> = {
+  editorial_daylight: "none",
+  golden_atelier: "sepia(0.08) saturate(1.06) brightness(1.01)",
+  runway_spotlight: "contrast(1.04) brightness(1.02)",
+  evening_soiree: "sepia(0.12) saturate(1.08) contrast(1.03)",
 };
 
 let cachedCompanionDefaults: {
@@ -163,41 +121,13 @@ function getNeutralCompanionDefaults() {
   return cachedCompanionDefaults;
 }
 
-function applyCharacter3DOcclusion(
-  charRig: Character3DRig,
-  rigs: Wearable3DItemRig[]
-) {
-  const dressRig = rigs.find((r) => r.slot === "dress");
-  const bottomRig = rigs.find((r) => r.slot === "bottom");
-  const hasShinCoveringPants = Boolean(
-    bottomRig &&
-      bottomRig.minYn < 0.14 &&
-      !bottomRig.product.id.includes("midi") &&
-      !bottomRig.product.id.includes("mini") &&
-      !bottomRig.product.silhouette.includes("skirt")
-  );
-  const hasLongSleeves = rigs.some((r) => r.hasLongSleeves);
-  const hasShoes = rigs.some((r) => r.slot === "shoes");
-  const hasTallBoots = rigs.some((r) => r.isTallBoot);
-  charRig.applyOcclusionState({
-    hasClothes: rigs.some((r) => r.slot !== "bag"),
-    hasBottom: Boolean(bottomRig),
-    bottomMinYn: bottomRig ? bottomRig.minYn : 0.45,
-    hasDress: Boolean(dressRig),
-    dressMinYn: dressRig ? dressRig.minYn : 0.3,
-    hasShinCoveringPants,
-    hasLongSleeves,
-    hasShoes,
-    hasTallBoots,
-  });
-}
-
 /**
- * WATERTIGHT 360° VOLUMETRIC 3D CHARACTER & INDIVIDUAL 3D GARMENT STAGE (`THREE.WebGLRenderer`)
- * - Renders solid, closed 360° 3D body limbs (`HeadAndNeck3D`, `HairCanopy3D`, `TorsoPelvis3D`,
- *   `RightArm3D`, `LeftArm3D`, `RightLeg3D`, `LeftLeg3D`) + independent 3D garment/shoe/belt/bag meshes!
- * - Zero flat 2D planes, zero `cos(θ)` card-squashing, and zero cross-fades — every 3D mesh stays
- *   permanently visible across all `0°..360°` yaw + spherical 3D pitch (`-20°..+26°`) + zoom!
+ * HIGGSFIELD 360° ALL-INTRA MP4 -> IMAGEBITMAP[] 60FPS INERTIA TURNTABLE STAGE
+ * - Restores the Original-Prompt (`commit 5d13ab5`) `ImageBitmap[]` 60fps inertia turntable scrubber!
+ * - Scrubs 96 real studio frames (`0° -> 45° -> 90° -> 135° -> 180° -> 225° -> 270° -> 315° -> 360°`)
+ *   generated via Higgsfield Kling 3.0 Omni (`kling_o3_flf`) and All-Intra (`-g 1`) encoded.
+ * - Strictly locks camera level (`0°` pitch) with horizontal-only touch gesture detection so mobile
+ *   iPhone vertical scrolling is 100% smooth and NEVER tilts under her chin!
  */
 export function Interactive3DAvatarStage({
   mode = "avatar",
@@ -224,7 +154,11 @@ export function Interactive3DAvatarStage({
   onSelectProduct,
   className = "",
 }: Interactive3DAvatarStageProps) {
-  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const avatarStageRef = useRef<HTMLDivElement | null>(null);
+  const scrubCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const posterImgRef = useRef<HTMLImageElement | null>(null);
+  const prodWrapRef = useRef<HTMLDivElement | null>(null);
+
   const onYawChangeRef = useRef(onYawChange);
   onYawChangeRef.current = onYawChange;
   const onSelectProductRef = useRef(onSelectProduct);
@@ -235,14 +169,14 @@ export function Interactive3DAvatarStage({
   const yawRef = useRef<number>((initialYawDeg * Math.PI) / 180);
   const targetYawRef = useRef<number>((initialYawDeg * Math.PI) / 180);
   const velYawRef = useRef<number>(0);
-  const pitchRef = useRef<number>(0.025);
-  const targetPitchRef = useRef<number>(0.025);
   const zoomRef = useRef<number>(1.0);
   const targetZoomRef = useRef<number>(1.0);
 
   const [internalVisualMode, setInternalVisualMode] =
     useState<Render3DVisualMode>("studio");
   const activeVisualMode = controlledVisualMode ?? internalVisualMode;
+  const visualModeRef = useRef(activeVisualMode);
+  visualModeRef.current = activeVisualMode;
 
   const [autoSpin, setAutoSpinState] = useState<boolean>(autoSpinDefault);
   const setAutoSpin = useCallback(
@@ -268,6 +202,8 @@ export function Interactive3DAvatarStage({
 
   const [showRings, setShowRings] = useState<boolean>(Boolean(propShowRings));
   const effectiveShowRings = propShowRings ?? showRings;
+  const showRingsRef = useRef(effectiveShowRings);
+  showRingsRef.current = effectiveShowRings;
 
   const [lightingPresetId, setLightingPresetId] =
     useState<ImmersiveLightingPresetId>("editorial_daylight");
@@ -286,6 +222,8 @@ export function Interactive3DAvatarStage({
     () => enforceRealisticAvatarAnatomy(dimensions),
     [dimensions]
   );
+  const dimsRef = useRef(safeDimensions);
+  dimsRef.current = safeDimensions;
 
   const [liveDeg, setLiveDeg] = useState<number>(
     ((Math.round(initialYawDeg) % 360) + 360) % 360
@@ -294,25 +232,15 @@ export function Interactive3DAvatarStage({
     product: Product;
     fit?: AvatarExactFitReport;
   } | null>(null);
-  const [isLoading3D, setIsLoading3D] = useState<boolean>(false);
+  const [framesReady, setFramesReady] = useState<boolean>(false);
+  const [isLoadingFrames, setIsLoadingFrames] = useState<boolean>(false);
 
-  const threeCtxRef = useRef<{
-    renderer: THREE.WebGLRenderer;
-    scene: THREE.Scene;
-    camera: THREE.PerspectiveCamera;
-    stageRoot: THREE.Group;
-    avatarTurntable: THREE.Group;
-    charGroup: THREE.Group;
-    equippedGroup: THREE.Group;
-    productTurntable: THREE.Group;
-    ringsGroup: THREE.Group;
-    faceDecalGroup: THREE.Group;
-    shadowPlane: THREE.Mesh;
-    charRig: Character3DRig | null;
-    itemRigs: Wearable3DItemRig[];
-  } | null>(null);
-
-  const equipReqIdRef = useRef<number>(0);
+  const framesRef = useRef<ImageBitmap[]>([]);
+  const frameKindRef = useRef<"higgsfield_mp4" | "unwarped_modular_quad">(
+    "higgsfield_mp4"
+  );
+  const posterBitmapRef = useRef<ImageBitmap | null>(null);
+  const faceOvalImgRef = useRef<HTMLImageElement | null>(null);
 
   const setVisualMode = useCallback(
     (m: Render3DVisualMode) => {
@@ -323,10 +251,6 @@ export function Interactive3DAvatarStage({
   );
 
   useEffect(() => {
-    preloadCore3DGlbs();
-  }, []);
-
-  useEffect(() => {
     if (typeof externalYawDeg === "number") {
       setAutoSpin(false);
       velYawRef.current = 0;
@@ -335,6 +259,18 @@ export function Interactive3DAvatarStage({
         yawRef.current + shortestAngleDeltaRad(yawRef.current, desiredRad);
     }
   }, [externalYawDeg, externalYawSeq, setAutoSpin]);
+
+  useEffect(() => {
+    if (!faceOvalDataUrl) {
+      faceOvalImgRef.current = null;
+      return;
+    }
+    const im = new Image();
+    im.onload = () => {
+      faceOvalImgRef.current = im;
+    };
+    im.src = faceOvalDataUrl;
+  }, [faceOvalDataUrl]);
 
   const { userSelectedProducts, effectiveEquippedProducts } = useMemo(() => {
     const chosen = new Map<string, Product>();
@@ -359,7 +295,6 @@ export function Interactive3DAvatarStage({
       return { userSelectedProducts: [], effectiveEquippedProducts: [] };
     }
 
-    // Ensure complete, tasteful 3D boutique styling when inspecting a single separate/bag/blazer on PDP!
     const fullMap = new Map(chosen);
     const companions = getNeutralCompanionDefaults();
     if (!hasDress) {
@@ -378,6 +313,9 @@ export function Interactive3DAvatarStage({
       effectiveEquippedProducts: Array.from(fullMap.values()),
     };
   }, [wornPieces]);
+
+  const equippedRef = useRef(effectiveEquippedProducts);
+  equippedRef.current = effectiveEquippedProducts;
 
   const fitByProductId = useMemo(() => {
     const map = new Map<string, AvatarExactFitReport>();
@@ -435,21 +373,504 @@ export function Interactive3DAvatarStage({
     }
   }, [effectiveEquippedProducts, fitByProductId, selectedProductId, wornPieces]);
 
-  const equippedSignature = useMemo(
+  const turntableSpec = useMemo(
     () =>
-      mode === "product"
-        ? `product:${singleProduct?.id || wornPieces[0]?.product.id || "none"}:${
-            singleProduct?.imageUrl || ""
-          }`
-        : `avatar:${effectiveEquippedProducts
-            .map((p) => `${p.id}:${p.imageUrl || ""}`)
-            .join("|")}`,
-    [effectiveEquippedProducts, mode, singleProduct, wornPieces]
+      resolveTurntableSpecForOutfit(
+        userSelectedProducts,
+        effectiveEquippedProducts
+      ),
+    [effectiveEquippedProducts, userSelectedProducts]
   );
 
-  // 1. Mount WebGL Three.js Renderer & Watertight 360° Volumetric 3D Turntable!
+  // Load Poster + Decode 96 `ImageBitmap` Frames from Higgsfield All-Intra MP4!
   useEffect(() => {
-    const wrapEl = wrapRef.current;
+    if (mode !== "avatar") return;
+    let cancelled = false;
+    frameKindRef.current = turntableSpec.kind;
+
+    // 1. Instant 0ms synchronous LRU hit if already decoded in RAM!
+    const syncHit = getCachedTurntableBundleSync(turntableSpec, seamlessStage);
+    if (syncHit && syncHit.frames.length > 0) {
+      framesRef.current = syncHit.frames;
+      setFramesReady(true);
+      setIsLoadingFrames(false);
+      return;
+    }
+
+    // 2. Otherwise clear stale outfit frames immediately and paint the new outfit's processed poster (<25ms)!
+    framesRef.current = [];
+    posterBitmapRef.current = null;
+    setFramesReady(false);
+
+    void extractProcessedPosterBitmap(turntableSpec, seamlessStage).then(
+      (pBmp) => {
+        if (!cancelled && pBmp) {
+          posterBitmapRef.current = pBmp;
+        }
+      }
+    );
+
+    const spinnerTimer = setTimeout(() => {
+      if (!cancelled && framesRef.current.length === 0) {
+        setIsLoadingFrames(true);
+      }
+    }, 260);
+
+    void extractTurntableBitmapBundle(turntableSpec, seamlessStage)
+      .then((bundle) => {
+        clearTimeout(spinnerTimer);
+        if (cancelled) return;
+        framesRef.current = bundle.frames;
+        setFramesReady(bundle.frames.length > 0);
+        setIsLoadingFrames(false);
+      })
+      .catch(() => {
+        clearTimeout(spinnerTimer);
+        if (!cancelled) setIsLoadingFrames(false);
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(spinnerTimer);
+    };
+  }, [mode, seamlessStage, turntableSpec]);
+
+  // 60FPS `ImageBitmap[]` Scrubber + Inertia Physics + Horizontal-Only Touch Lock!
+  useEffect(() => {
+    if (mode !== "avatar") return;
+    const stageEl = avatarStageRef.current;
+    const canvas = scrubCanvasRef.current;
+    if (!stageEl || !canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let cw = 432;
+    let ch = 768;
+    let dpr = 1;
+
+    const updateCanvasSize = () => {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cw = Math.max(160, stageEl.clientWidth);
+      ch = Math.max(200, stageEl.clientHeight);
+      canvas.width = Math.round(cw * dpr);
+      canvas.height = Math.round(ch * dpr);
+    };
+    updateCanvasSize();
+    const ro = new ResizeObserver(updateCanvasSize);
+    ro.observe(stageEl);
+
+    let pointerDown = false;
+    let horizontalLocked = false;
+    let startX = 0;
+    let startY = 0;
+    let lastMoveX = 0;
+    let lastMoveTs = 0;
+    let startYaw = 0;
+    let movedDist = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      if ((e.target as HTMLElement)?.closest("button")) return;
+      pointerDown = true;
+      horizontalLocked = e.pointerType !== "touch";
+      movedDist = 0;
+      startX = e.clientX;
+      startY = e.clientY;
+      lastMoveX = e.clientX;
+      lastMoveTs = performance.now();
+      velYawRef.current = 0;
+      startYaw = targetYawRef.current;
+      if (e.pointerType !== "touch") {
+        try {
+          stageEl.setPointerCapture(e.pointerId);
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!pointerDown) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      movedDist = Math.hypot(dx, dy);
+
+      // On mobile touch: allow native vertical page scroll whenever vertical movement dominates!
+      if (!horizontalLocked) {
+        if (movedDist < 6) return;
+        if (Math.abs(dy) >= Math.abs(dx) * 0.95) {
+          pointerDown = false;
+          return;
+        }
+        horizontalLocked = true;
+        try {
+          stageEl.setPointerCapture(e.pointerId);
+        } catch {
+          // ignore
+        }
+      }
+
+      const nowTs = performance.now();
+      const dtMove = Math.max(8, nowTs - lastMoveTs) / 1000;
+      const stepDx = e.clientX - lastMoveX;
+      lastMoveX = e.clientX;
+      lastMoveTs = nowTs;
+
+      if (movedDist > 4 && autoSpinRef.current) {
+        setAutoSpin(false);
+      }
+
+      // Drag right (+dx) spins her clockwise through 0° -> 90° -> 180° -> 270° -> 360°!
+      const radPerPx = (Math.PI * 2) / Math.max(240, cw * 0.72);
+      if (inertiaSpin) {
+        const instV = (stepDx * radPerPx) / dtMove;
+        velYawRef.current =
+          velYawRef.current * 0.55 + clamp(instV, -11, 11) * 0.45;
+      }
+      targetYawRef.current = startYaw + dx * radPerPx;
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (!pointerDown) return;
+      pointerDown = false;
+      if (performance.now() - lastMoveTs > 90) {
+        velYawRef.current = 0;
+      }
+      try {
+        if (stageEl.hasPointerCapture(e.pointerId)) {
+          stageEl.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        // ignore
+      }
+
+      // Tap-to-inspect equipped garments/bags!
+      if (movedDist < 6 && equippedRef.current.length > 0) {
+        const rect = stageEl.getBoundingClientRect();
+        const rx = (e.clientX - rect.left) / Math.max(1, rect.width);
+        const ry = (e.clientY - rect.top) / Math.max(1, rect.height);
+        if (rx > 0.24 && rx < 0.76 && ry > 0.12 && ry < 0.92) {
+          const items = equippedRef.current;
+          let picked: Product | undefined;
+          const bagProd = items.find(
+            (p) => classifyWearableSlotAndAnchors(p).slot === "bag"
+          );
+          if (bagProd && (rx < 0.42 || rx > 0.58) && ry > 0.25 && ry < 0.62) {
+            picked = bagProd;
+          } else if (ry > 0.78) {
+            picked = items.find(
+              (p) => classifyWearableSlotAndAnchors(p).slot === "shoes"
+            );
+          } else if (ry > 0.46) {
+            picked = items.find((p) => {
+              const s = classifyWearableSlotAndAnchors(p).slot;
+              return s === "bottom" || s === "dress";
+            });
+          } else {
+            picked = items.find((p) => {
+              const s = classifyWearableSlotAndAnchors(p).slot;
+              return s === "outerwear" || s === "top" || s === "dress";
+            });
+          }
+          if (picked) {
+            const fit = fitByProductIdRef.current.get(picked.id);
+            setTappedInfo({ product: picked, fit });
+            onSelectProductRef.current?.(picked, fit);
+          }
+        }
+      }
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > 0 && (window.innerWidth > 820 || e.ctrlKey)) {
+        e.preventDefault();
+        targetZoomRef.current = clamp(
+          targetZoomRef.current - Math.sign(e.deltaY) * 0.08,
+          0.82,
+          1.52
+        );
+      }
+    };
+
+    stageEl.addEventListener("pointerdown", onPointerDown);
+    stageEl.addEventListener("pointermove", onPointerMove);
+    stageEl.addEventListener("pointerup", onPointerUp);
+    stageEl.addEventListener("pointercancel", onPointerUp);
+    stageEl.addEventListener("wheel", onWheel, { passive: false });
+
+    let rafId = 0;
+    let lastTime = performance.now();
+    let frameTick = 0;
+
+    const renderFrame = (now: number) => {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      if (autoSpinRef.current && !pointerDown) {
+        targetYawRef.current += dt * 0.92;
+      } else if (
+        inertiaSpin &&
+        !pointerDown &&
+        Math.abs(velYawRef.current) > 0.02
+      ) {
+        targetYawRef.current += velYawRef.current * dt;
+        velYawRef.current *= Math.exp(-3.4 * dt);
+        if (Math.abs(velYawRef.current) <= 0.02) velYawRef.current = 0;
+      }
+
+      const damp = 1 - Math.exp(-14 * dt);
+      yawRef.current += (targetYawRef.current - yawRef.current) * damp;
+      zoomRef.current += (targetZoomRef.current - zoomRef.current) * damp;
+
+      const normProgress =
+        (((yawRef.current / (Math.PI * 2)) % 1) + 1) % 1;
+
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, cw, ch);
+      if (!seamlessStage) {
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(0, 0, cw, ch);
+      }
+
+      const frames = framesRef.current;
+      const dims = dimsRef.current;
+      const zoom = zoomRef.current;
+
+      // Frame geometry inside stage (leaves clean headroom below top edge / HUD pills on mobile & desktop!)
+      const isNarrowMobile = cw < 430;
+      const topPad = showHud
+        ? compactHud
+          ? 40
+          : 50
+        : Math.round(ch * 0.045);
+      const botPad = showHud
+        ? isNarrowMobile
+          ? 70
+          : compactHud
+          ? 44
+          : 50
+        : Math.round(ch * 0.025);
+      const availH = Math.max(120, ch - topPad - botPad);
+
+      // Source keyframes have crown at y=250/1920 (0.130) and sole at y=1700/1920 (0.885 -> body span 0.755 of frame height)
+      const hScale = clamp(dims.heightInches / 64.0, 0.95, 1.04);
+      const drawH = (availH / 0.81) * zoom * hScale;
+      const drawW = drawH * (9 / 16);
+      const centerX = cw * 0.5;
+      // Anchor shoe soles cleanly above bottom HUD pill!
+      const soleScreenY = topPad + availH * 0.975;
+      const drawY = soleScreenY - drawH * 0.888;
+
+      const cosInterp = (a: number, b: number, t: number) => {
+        const u = clamp(t, 0, 1);
+        const w = (1 - Math.cos(u * Math.PI)) * 0.5;
+        return a + (b - a) * w;
+      };
+
+      const drawSlicedPortrait = (
+        source: CanvasImageSource,
+        srcW: number,
+        srcH: number,
+        alpha = 1.0
+      ) => {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        // Craniofacially-locked C1-continuous body-scan curve (0px step seams, head/face 100% locked 1:1!)
+        const shS = clamp(1 + (dims.shoulderInches / 15.2 - 1) * 0.22, 0.96, 1.05);
+        const buS = clamp(1 + (dims.bustInches / 36.0 - 1) * 0.22, 0.95, 1.06);
+        const waS = clamp(1 + (dims.waistInches / 27.5 - 1) * 0.24, 0.94, 1.06);
+        const hiS = clamp(1 + (dims.hipsInches / 38.5 - 1) * 0.25, 0.95, 1.07);
+
+        const isIdentityScale =
+          Math.abs(shS - 1) < 0.008 &&
+          Math.abs(buS - 1) < 0.008 &&
+          Math.abs(waS - 1) < 0.008 &&
+          Math.abs(hiS - 1) < 0.008;
+
+        if (isIdentityScale) {
+          ctx.drawImage(source, centerX - drawW * 0.5, drawY, drawW, drawH);
+        } else {
+          const BANDS = 48;
+          for (let b = 0; b < BANDS; b++) {
+            const f0 = b / BANDS;
+            const f1 = (b + 1) / BANDS;
+            const fm = (f0 + f1) * 0.5;
+            let sxBand = 1.0;
+            if (fm < 0.23) {
+              sxBand = 1.0; // Head & face strictly locked 1:1!
+            } else if (fm < 0.31) {
+              sxBand = cosInterp(1.0, shS, (fm - 0.23) / 0.08);
+            } else if (fm < 0.39) {
+              sxBand = cosInterp(shS, buS, (fm - 0.31) / 0.08);
+            } else if (fm < 0.47) {
+              sxBand = cosInterp(buS, waS, (fm - 0.39) / 0.08);
+            } else if (fm < 0.58) {
+              sxBand = cosInterp(waS, hiS, (fm - 0.47) / 0.11);
+            } else if (fm < 0.78) {
+              sxBand = cosInterp(hiS, 1.0, (fm - 0.58) / 0.20);
+            }
+
+            const sy = Math.floor(f0 * srcH);
+            const sh = Math.max(1, Math.ceil(f1 * srcH) - sy);
+            const dy = drawY + f0 * drawH;
+            const dh = (sh / srcH) * drawH + 0.45;
+            const bw = drawW * sxBand;
+            ctx.drawImage(
+              source,
+              0,
+              sy,
+              srcW,
+              sh,
+              centerX - bw * 0.5,
+              dy,
+              bw,
+              dh
+            );
+          }
+        }
+        ctx.restore();
+      };
+
+      if (frames.length > 0) {
+        if (posterImgRef.current) {
+          posterImgRef.current.style.opacity = "0";
+        }
+        if (frameKindRef.current === "unwarped_modular_quad" && frames.length === 4) {
+          const exactQ = normProgress * 4;
+          const idx0 = Math.floor(exactQ) % 4;
+          const idx1 = (idx0 + 1) % 4;
+          const frac = exactQ - Math.floor(exactQ);
+          // Hold crisp view across 76% of quadrant, smooth cross-dissolve across transition
+          const blend = clamp((frac - 0.78) / 0.22, 0, 1);
+          const fA = frames[idx0];
+          drawSlicedPortrait(fA, fA.width, fA.height, 1.0);
+          if (blend > 0.01) {
+            const fB = frames[idx1];
+            drawSlicedPortrait(fB, fB.width, fB.height, blend);
+          }
+        } else {
+          const idx = Math.floor(normProgress * frames.length) % frames.length;
+          const bmp = frames[idx];
+          drawSlicedPortrait(bmp, bmp.width, bmp.height, 1.0);
+        }
+      } else if (posterBitmapRef.current) {
+        const pBmp = posterBitmapRef.current;
+        drawSlicedPortrait(pBmp, pBmp.width, pBmp.height, 1.0);
+      }
+
+      // Optional Customer Scanned Face Oval Overlay near 0° Front
+      if (faceOvalImgRef.current && (normProgress < 0.09 || normProgress > 0.91)) {
+        const fade =
+          normProgress < 0.09
+            ? 1 - normProgress / 0.09
+            : (normProgress - 0.91) / 0.09;
+        const fw = drawW * 0.135;
+        const fh = fw * 1.24;
+        ctx.save();
+        ctx.globalAlpha = fade * 0.94;
+        ctx.drawImage(
+          faceOvalImgRef.current,
+          centerX - fw * 0.5,
+          drawY + drawH * 0.148,
+          fw,
+          fh
+        );
+        ctx.restore();
+      }
+
+      // Optional Fit Heatmap Zone Wash (`Fit Map` mode)
+      if (
+        visualModeRef.current === "heatmap" &&
+        equippedRef.current.length > 0
+      ) {
+        const primary = equippedRef.current.find(
+          (p) => classifyWearableSlotAndAnchors(p).slot !== "bag"
+        );
+        const fit = primary
+          ? fitByProductIdRef.current.get(primary.id)
+          : undefined;
+        const bFeel = fit?.zones.find((z) => z.zone === "Bust")?.feel;
+        const wFeel = fit?.zones.find((z) => z.zone === "Waist")?.feel;
+        const hFeel = fit?.zones.find((z) => z.zone === "Hips")?.feel;
+
+        const zones: Array<[number, number, ZoneFeel | undefined]> = [
+          [0.34, drawW * 0.16, bFeel],
+          [0.44, drawW * 0.135, wFeel],
+          [0.54, drawW * 0.175, hFeel],
+        ];
+        for (const [yFrac, rxZone, feel] of zones) {
+          const zy = drawY + drawH * yFrac;
+          const rg = ctx.createRadialGradient(
+            centerX,
+            zy,
+            4,
+            centerX,
+            zy,
+            rxZone * 1.25
+          );
+          rg.addColorStop(0, feelToRgba(feel, 0.34));
+          rg.addColorStop(1, feelToRgba(feel, 0.0));
+          ctx.fillStyle = rg;
+          ctx.beginPath();
+          ctx.ellipse(centerX, zy, rxZone * 1.25, drawH * 0.055, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Optional 3D Measurement Tape Rings (`3D Rings` / `Tape` mode)
+      if (showRingsRef.current || visualModeRef.current === "xray") {
+        const ringSpecs: Array<[number, number, string, string]> = [
+          [0.345, drawW * 0.155, "#10B981", `${dims.bustInches}" B`],
+          [0.442, drawW * 0.132, "#244B3B", `${dims.waistInches}" W`],
+          [0.542, drawW * 0.172, "#0EA5E9", `${dims.hipsInches}" H`],
+        ];
+        ctx.save();
+        for (const [yFrac, rxRing, hex, lbl] of ringSpecs) {
+          const ry = drawY + drawH * yFrac;
+          ctx.strokeStyle = hex;
+          ctx.lineWidth = 1.75;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.ellipse(centerX, ry, rxRing, rxRing * 0.22, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.font = "700 9.5px system-ui, -apple-system, sans-serif";
+          ctx.fillStyle = hex;
+          ctx.fillText(lbl, centerX + rxRing + 6, ry + 3);
+        }
+        ctx.restore();
+      }
+
+      ctx.restore();
+
+      frameTick++;
+      if (frameTick % 4 === 0) {
+        const deg = Math.round(normProgress * 360) % 360;
+        setLiveDeg(deg);
+        onYawChangeRef.current?.(deg);
+      }
+
+      rafId = requestAnimationFrame(renderFrame);
+    };
+
+    rafId = requestAnimationFrame(renderFrame);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
+      stageEl.removeEventListener("pointerdown", onPointerDown);
+      stageEl.removeEventListener("pointermove", onPointerMove);
+      stageEl.removeEventListener("pointerup", onPointerUp);
+      stageEl.removeEventListener("pointercancel", onPointerUp);
+      stageEl.removeEventListener("wheel", onWheel);
+    };
+  }, [compactHud, inertiaSpin, mode, seamlessStage, showHud]);
+
+  // Standalone 3D Product Turntable (`mode === "product"`)
+  useEffect(() => {
+    if (mode !== "product") return;
+    const wrapEl = prodWrapRef.current;
     if (!wrapEl) return;
 
     const renderer = new THREE.WebGLRenderer({
@@ -468,502 +889,97 @@ export function Interactive3DAvatarStage({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(27, 1, 0.08, 25);
-
-    const stageRoot = new THREE.Group();
-    scene.add(stageRoot);
-
-    const shadowTex = createFloorTurntableTexture();
-    const shadowPlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.76, 0.76),
-      new THREE.MeshBasicMaterial({
-        map: shadowTex,
-        transparent: true,
-        depthWrite: false,
-      })
-    );
-    shadowPlane.rotation.x = -Math.PI / 2;
-    shadowPlane.position.y = 0.002;
-    shadowPlane.renderOrder = 1;
-    stageRoot.add(shadowPlane);
-
-    const avatarTurntable = new THREE.Group();
-    const charGroup = new THREE.Group();
-    const equippedGroup = new THREE.Group();
     const productTurntable = new THREE.Group();
-    const ringsGroup = new THREE.Group();
-    const faceDecalGroup = new THREE.Group();
+    scene.add(productTurntable);
 
-    avatarTurntable.add(charGroup);
-    avatarTurntable.add(equippedGroup);
-    avatarTurntable.add(faceDecalGroup);
-    avatarTurntable.add(ringsGroup);
-
-    stageRoot.add(avatarTurntable);
-    stageRoot.add(productTurntable);
-
-    threeCtxRef.current = {
-      renderer,
-      scene,
-      camera,
-      stageRoot,
-      avatarTurntable,
-      charGroup,
-      equippedGroup,
-      productTurntable,
-      ringsGroup,
-      faceDecalGroup,
-      shadowPlane,
-      charRig: null,
-      itemRigs: [],
-    };
-
+    const prod = singleProduct || wornPieces[0]?.product;
     let disposed = false;
-    void loadCharacter3DRig().then((charRig) => {
-      if (disposed || !threeCtxRef.current) return;
-      const cRef = threeCtxRef.current;
-      cRef.charRig = charRig;
-      charGroup.add(charRig.rootGroup);
+    if (prod) {
+      void loadStandalone3DItemInstance(prod).then((itemSculpture) => {
+        if (disposed) return;
+        const holder = new THREE.Group();
+        holder.position.y = 0.42;
+        holder.add(itemSculpture);
+        productTurntable.add(holder);
+      });
+    }
 
-      const tintHex = LIGHT_MOOD_TINTS[lightingPresetId];
-      for (const u of charRig.uniformsList) {
-        u.uLightMoodTint.value.set(tintHex);
-        syncBodyMorphUniforms(u, safeDimensions, activeVisualMode, false, false);
-      }
-      applyCharacter3DOcclusion(charRig, cRef.itemRigs);
-    });
-
-    const updateLayout = () => {
+    const updateSize = () => {
       const w = Math.max(120, wrapEl.clientWidth);
       const h = Math.max(140, wrapEl.clientHeight);
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
     };
-    updateLayout();
-    const ro = new ResizeObserver(updateLayout);
+    updateSize();
+    const ro = new ResizeObserver(updateSize);
     ro.observe(wrapEl);
 
     const dom = renderer.domElement;
-    const raycaster = new THREE.Raycaster();
-    const ndc = new THREE.Vector2();
     let dragging = false;
-    let startX = 0;
-    let startY = 0;
-    let lastMoveX = 0;
-    let lastMoveTs = 0;
+    let horizLocked = false;
+    let sx = 0;
+    let sy = 0;
     let startYaw = 0;
-    let startPitch = 0;
-    let movedDist = 0;
 
-    const onPointerDown = (e: PointerEvent) => {
+    const onDown = (e: PointerEvent) => {
       dragging = true;
-      movedDist = 0;
-      startX = e.clientX;
-      startY = e.clientY;
-      lastMoveX = e.clientX;
-      lastMoveTs = performance.now();
-      velYawRef.current = 0;
+      horizLocked = e.pointerType !== "touch";
+      sx = e.clientX;
+      sy = e.clientY;
       startYaw = targetYawRef.current;
-      startPitch = targetPitchRef.current;
-      dom.setPointerCapture(e.pointerId);
     };
-
-    const onPointerMove = (e: PointerEvent) => {
+    const onMove = (e: PointerEvent) => {
       if (!dragging) return;
-      const nowTs = performance.now();
-      const dtMove = Math.max(8, nowTs - lastMoveTs) / 1000;
-      const stepDx = e.clientX - lastMoveX;
-      lastMoveX = e.clientX;
-      lastMoveTs = nowTs;
-
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      movedDist = Math.hypot(dx, dy);
-      if (movedDist > 4 && autoSpinRef.current) {
-        setAutoSpin(false);
-      }
-      if (inertiaSpin) {
-        const instV = (stepDx * 0.016) / dtMove;
-        velYawRef.current =
-          velYawRef.current * 0.55 + clamp(instV, -10, 10) * 0.45;
+      const dx = e.clientX - sx;
+      const dy = e.clientY - sy;
+      if (!horizLocked) {
+        if (Math.hypot(dx, dy) < 6) return;
+        if (Math.abs(dy) >= Math.abs(dx)) {
+          dragging = false;
+          return;
+        }
+        horizLocked = true;
       }
       targetYawRef.current = startYaw + dx * 0.016;
-      targetPitchRef.current = clamp(startPitch + dy * 0.0052, -0.35, 0.46);
     };
-
-    const onPointerUp = (e: PointerEvent) => {
-      if (!dragging) return;
+    const onUp = () => {
       dragging = false;
-      if (performance.now() - lastMoveTs > 90) {
-        velYawRef.current = 0;
-      }
-      try {
-        dom.releasePointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
-
-      const cRef = threeCtxRef.current;
-      if (movedDist < 6 && cRef && !productTurntable.visible) {
-        const rect = dom.getBoundingClientRect();
-        ndc.x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
-        ndc.y = -((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
-        raycaster.setFromCamera(ndc, camera);
-
-        const hits = raycaster.intersectObjects(equippedGroup.children, true);
-        const hitProd = hits.find((h) => h.object.userData?.product)?.object
-          .userData?.product as Product | undefined;
-        if (hitProd) {
-          const fit = fitByProductIdRef.current.get(hitProd.id);
-          setTappedInfo({ product: hitProd, fit });
-          onSelectProductRef.current?.(hitProd, fit);
-        }
-      }
     };
-
-    const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) > 0 && (window.innerWidth > 820 || e.ctrlKey)) {
-        e.preventDefault();
-        targetZoomRef.current = clamp(
-          targetZoomRef.current - Math.sign(e.deltaY) * 0.08,
-          0.76,
-          1.62
-        );
-      }
-    };
-
-    dom.addEventListener("pointerdown", onPointerDown);
-    dom.addEventListener("pointermove", onPointerMove);
-    dom.addEventListener("pointerup", onPointerUp);
-    dom.addEventListener("pointercancel", onPointerUp);
-    dom.addEventListener("wheel", onWheel, { passive: false });
+    dom.addEventListener("pointerdown", onDown);
+    dom.addEventListener("pointermove", onMove);
+    dom.addEventListener("pointerup", onUp);
+    dom.addEventListener("pointercancel", onUp);
 
     let rafId = 0;
-    let lastTime = performance.now();
-    let frameTick = 0;
-
-    const animate = (now: number) => {
+    let lastT = performance.now();
+    const animateProd = (now: number) => {
       if (disposed) return;
-      const dt = Math.min(0.05, (now - lastTime) / 1000);
-      lastTime = now;
-
+      const dt = Math.min(0.05, (now - lastT) / 1000);
+      lastT = now;
       if (autoSpinRef.current && !dragging) {
         targetYawRef.current += dt * 0.85;
-      } else if (
-        inertiaSpin &&
-        !dragging &&
-        Math.abs(velYawRef.current) > 0.02
-      ) {
-        targetYawRef.current += velYawRef.current * dt;
-        velYawRef.current *= Math.exp(-3.4 * dt);
-        if (Math.abs(velYawRef.current) <= 0.02) velYawRef.current = 0;
       }
-
-      const damp = 1 - Math.exp(-13 * dt);
-      yawRef.current += (targetYawRef.current - yawRef.current) * damp;
-      pitchRef.current += (targetPitchRef.current - pitchRef.current) * damp;
-      zoomRef.current += (targetZoomRef.current - zoomRef.current) * damp;
-
-      const breath = 1.0 + Math.sin(now * 0.0021) * 0.002;
-      const pitch = pitchRef.current;
-
-      const isProdMode = productTurntable.visible;
-      if (isProdMode) {
-        productTurntable.rotation.y = yawRef.current;
-        shadowPlane.rotation.z = -yawRef.current;
-        const dist = 1.52 / zoomRef.current;
-        const lookY = 0.42;
-        camera.position.set(
-          0,
-          lookY + Math.sin(pitch) * dist,
-          Math.cos(pitch) * dist
-        );
-        camera.lookAt(0, lookY, 0);
-        shadowPlane.position.y = 0.04;
-        shadowPlane.scale.setScalar(0.68);
-      } else {
-        // SOLID 360° 3D TURNTABLE ROTATION + SPHERICAL 3D CAMERA PITCH ORBIT!
-        avatarTurntable.rotation.y = yawRef.current;
-        avatarTurntable.scale.y = breath;
-        shadowPlane.rotation.z = -yawRef.current;
-        shadowPlane.position.y = 0.002;
-        shadowPlane.scale.setScalar(0.96);
-
-        const cRef = threeCtxRef.current;
-        if (cRef) {
-          const cosFront = Math.cos(yawRef.current);
-          cRef.faceDecalGroup.visible =
-            Boolean(faceOvalDataUrl) && cosFront > 0.45;
-
-          const hScale =
-            cRef.charRig?.uniformsList[0]?.uHeightScale.value ?? 1.0;
-          const charTop = 1.58 * hScale;
-          const isNarrowMobile = dom.clientWidth < 460;
-          const hudPadFactor = showHud
-            ? isNarrowMobile
-              ? 1.48
-              : dom.clientHeight < 440 || camera.aspect < 0.85
-              ? 1.28
-              : compactHud
-              ? 1.12
-              : 1.14
-            : 1.015;
-          const halfFovRad = (camera.fov * Math.PI) / 360;
-          const reqDistH =
-            (charTop * hudPadFactor * 0.5) / Math.tan(halfFovRad);
-          const reqDistW =
-            (0.285 / Math.max(0.32, camera.aspect)) / Math.tan(halfFovRad);
-          const dist = Math.max(reqDistH, reqDistW) / zoomRef.current;
-          const lookY = charTop * (showHud ? (isNarrowMobile ? 0.435 : 0.488) : 0.5);
-          camera.position.set(
-            0,
-            lookY + Math.sin(pitch) * dist,
-            Math.cos(pitch) * dist
-          );
-          camera.lookAt(0, lookY, 0);
-        }
-      }
-
-      frameTick++;
-      if (frameTick % 4 === 0) {
-        const deg =
-          ((Math.round((yawRef.current * 180) / Math.PI) % 360) + 360) % 360;
-        setLiveDeg(deg);
-        onYawChangeRef.current?.(deg);
-      }
-
+      yawRef.current += (targetYawRef.current - yawRef.current) * (1 - Math.exp(-13 * dt));
+      productTurntable.rotation.y = yawRef.current;
+      camera.position.set(0, 0.42, 1.52 / zoomRef.current);
+      camera.lookAt(0, 0.42, 0);
       renderer.render(scene, camera);
-      rafId = requestAnimationFrame(animate);
+      rafId = requestAnimationFrame(animateProd);
     };
-    rafId = requestAnimationFrame(animate);
+    rafId = requestAnimationFrame(animateProd);
 
     return () => {
       disposed = true;
       cancelAnimationFrame(rafId);
       ro.disconnect();
-      dom.removeEventListener("pointerdown", onPointerDown);
-      dom.removeEventListener("pointermove", onPointerMove);
-      dom.removeEventListener("pointerup", onPointerUp);
-      dom.removeEventListener("pointercancel", onPointerUp);
-      dom.removeEventListener("wheel", onWheel);
-      threeCtxRef.current?.itemRigs.forEach((r) => r.dispose());
-      shadowTex.dispose();
+      dom.removeEventListener("pointerdown", onDown);
+      dom.removeEventListener("pointermove", onMove);
+      dom.removeEventListener("pointerup", onUp);
+      dom.removeEventListener("pointercancel", onUp);
       renderer.dispose();
-      threeCtxRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compactHud, inertiaSpin, seamlessStage, showHud]);
-
-  // 2. Equip / Swap Individual Watertight 3D Garment & 3D Purse Meshes Atomically!
-  useEffect(() => {
-    const ctx = threeCtxRef.current;
-    if (!ctx) return;
-
-    const reqId = ++equipReqIdRef.current;
-
-    if (mode === "product") {
-      ctx.avatarTurntable.visible = false;
-      ctx.productTurntable.visible = true;
-
-      const prod = singleProduct || wornPieces[0]?.product;
-      if (!prod) {
-        ctx.productTurntable.clear();
-        return;
-      }
-
-      setIsLoading3D(true);
-      void loadStandalone3DItemInstance(prod)
-        .then((itemSculpture) => {
-          if (equipReqIdRef.current !== reqId) return;
-          const holder = new THREE.Group();
-          holder.position.y = 0.42;
-          holder.add(itemSculpture);
-          ctx.productTurntable.clear();
-          ctx.productTurntable.add(holder);
-          setIsLoading3D(false);
-        })
-        .catch(() => {
-          if (equipReqIdRef.current === reqId) setIsLoading3D(false);
-        });
-      return;
-    }
-
-    ctx.productTurntable.visible = false;
-    ctx.avatarTurntable.visible = true;
-
-    const tintHex = LIGHT_MOOD_TINTS[lightingPresetId];
-
-    if (effectiveEquippedProducts.length === 0) {
-      ctx.equippedGroup.clear();
-      ctx.itemRigs.forEach((r) => r.dispose());
-      ctx.itemRigs = [];
-      if (ctx.charRig) {
-        applyCharacter3DOcclusion(ctx.charRig, []);
-      }
-      setIsLoading3D(false);
-      return;
-    }
-
-    const loadTimer = setTimeout(() => {
-      if (equipReqIdRef.current === reqId) setIsLoading3D(true);
-    }, 140);
-
-    // Pre-detect full-length pants so boots/shoes pick their under-trouser vs full-shaft 3D variant!
-    const bottomCandidate = effectiveEquippedProducts.find(
-      (p) => classifyWearableSlotAndAnchors(p).slot === "bottom"
-    );
-    const preHasLongPants = Boolean(
-      bottomCandidate &&
-        !bottomCandidate.id.includes("mini") &&
-        !bottomCandidate.id.includes("midi") &&
-        !bottomCandidate.id.includes("shorts") &&
-        !bottomCandidate.silhouette.includes("skirt")
-    );
-
-    void Promise.all(
-      effectiveEquippedProducts.map((p) =>
-        loadWearable3DItemRig(p, preHasLongPants)
-      )
-    )
-      .then((newRigs) => {
-        clearTimeout(loadTimer);
-        if (equipReqIdRef.current !== reqId) {
-          newRigs.forEach((r) => r.dispose());
-          return;
-        }
-
-        const prevRigs = ctx.itemRigs;
-        ctx.equippedGroup.clear();
-        ctx.itemRigs = newRigs;
-
-        for (const rig of newRigs) {
-          const fit = fitByProductIdRef.current.get(rig.product.id);
-          for (const u of rig.uniformsList) {
-            u.uLightMoodTint.value.set(tintHex);
-            syncBodyMorphUniforms(
-              u,
-              safeDimensions,
-              activeVisualMode,
-              true,
-              rig.isRigidBag,
-              fit,
-              rig.fabric
-            );
-          }
-          ctx.equippedGroup.add(rig.group);
-        }
-
-        if (ctx.charRig) {
-          applyCharacter3DOcclusion(ctx.charRig, newRigs);
-        }
-        prevRigs.forEach((r) => r.dispose());
-        setIsLoading3D(false);
-      })
-      .catch(() => {
-        clearTimeout(loadTimer);
-        if (equipReqIdRef.current === reqId) setIsLoading3D(false);
-      });
-
-    return () => {
-      clearTimeout(loadTimer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [equippedSignature, mode]);
-
-  // 2b. Live Boutique Lighting Mood Tint
-  useEffect(() => {
-    const ctx = threeCtxRef.current;
-    if (!ctx) return;
-    const tintHex = LIGHT_MOOD_TINTS[lightingPresetId];
-    if (ctx.charRig) {
-      for (const u of ctx.charRig.uniformsList) {
-        u.uLightMoodTint.value.set(tintHex);
-      }
-    }
-    for (const rig of ctx.itemRigs) {
-      for (const u of rig.uniformsList) {
-        u.uLightMoodTint.value.set(tintHex);
-      }
-    }
-  }, [lightingPresetId]);
-
-  // 3. Sync Real-Time GPU Body-Scan Inch Morphing, Physical Fabric Ease, Fit Heatmap & 3D Tape Rings!
-  useEffect(() => {
-    const ctx = threeCtxRef.current;
-    if (!ctx) return;
-
-    if (ctx.charRig) {
-      for (const u of ctx.charRig.uniformsList) {
-        syncBodyMorphUniforms(u, safeDimensions, activeVisualMode, false, false);
-      }
-    }
-
-    for (const rig of ctx.itemRigs) {
-      const fit = fitByProductId.get(rig.product.id);
-      for (const u of rig.uniformsList) {
-        syncBodyMorphUniforms(
-          u,
-          safeDimensions,
-          activeVisualMode,
-          true,
-          rig.isRigidBag,
-          fit,
-          rig.fabric
-        );
-      }
-    }
-
-    ctx.ringsGroup.clear();
-    const show3DRings =
-      mode === "avatar" && (effectiveShowRings || activeVisualMode === "xray");
-    ctx.ringsGroup.visible = show3DRings;
-    if (show3DRings) {
-      const hs = clamp(safeDimensions.heightInches / 62.0, 0.92, 1.15);
-      const by = clamp(safeDimensions.bustInches / 32.25, 0.88, 1.28);
-      const bz = clamp(safeDimensions.waistInches / 27.0, 0.82, 1.28);
-      const bw = clamp(safeDimensions.hipsInches / 34.0, 0.88, 1.3);
-      ctx.ringsGroup.add(
-        create3DTapeRing(0.126 * by, 0.098 * by, 1.14 * hs, "#10B981")
-      );
-      ctx.ringsGroup.add(
-        create3DTapeRing(0.116 * bz, 0.088 * bz, 0.98 * hs, "#244B3B")
-      );
-      ctx.ringsGroup.add(
-        create3DTapeRing(0.146 * bw, 0.104 * bw, 0.81 * hs, "#0EA5E9")
-      );
-    }
-  }, [
-    activeVisualMode,
-    effectiveShowRings,
-    fitByProductId,
-    mode,
-    safeDimensions,
-  ]);
-
-  // 4. Optional Scanned Customer Face 3D Decal Projection
-  useEffect(() => {
-    const ctx = threeCtxRef.current;
-    if (!ctx) return;
-    ctx.faceDecalGroup.clear();
-    if (!faceOvalDataUrl || mode !== "avatar") return;
-
-    const tex = new THREE.TextureLoader().load(faceOvalDataUrl);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.105, 0.125, 12, 12),
-      new THREE.MeshBasicMaterial({
-        map: tex,
-        transparent: true,
-        depthWrite: false,
-        toneMapped: false,
-      })
-    );
-    plane.renderOrder = 80;
-    const hs = clamp(safeDimensions.heightInches / 62.0, 0.92, 1.15);
-    const chinM = 1.58 * 0.848;
-    plane.position.set(0, chinM * hs + (1.43 - chinM), 0.116);
-    ctx.faceDecalGroup.add(plane);
-  }, [faceOvalDataUrl, mode, safeDimensions.heightInches]);
+  }, [mode, singleProduct, wornPieces]);
 
   const snapAngle = (deg: number) => {
     setAutoSpin(false);
@@ -971,26 +987,54 @@ export function Interactive3DAvatarStage({
     const desiredRad = (deg * Math.PI) / 180;
     targetYawRef.current =
       yawRef.current + shortestAngleDeltaRad(yawRef.current, desiredRad);
-    targetPitchRef.current = 0.025;
   };
 
   return (
     <div
-      data-3d-engine="webgl-glb-character"
-      data-3d-topology="watertight-volumetric-3d"
+      data-3d-engine="higgsfield-imagebitmap-turntable"
+      data-3d-topology="higgsfield-360-turntable"
+      data-frames-ready={framesReady ? "true" : "false"}
       data-realism-spec={MASTER_REALISM_SPEC_VERSION}
       data-3d-mode={mode}
       data-worn-count={mode === "product" ? 1 : userSelectedProducts.length}
-      className={`relative w-full h-full select-none overflow-hidden ${className}`}
+      className={`relative w-full h-full select-none overflow-hidden ${
+        seamlessStage ? "bg-transparent" : "bg-white"
+      } ${className}`}
     >
-      <div
-        ref={wrapRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-      />
+      {mode === "avatar" ? (
+        <div
+          ref={avatarStageRef}
+          style={{
+            touchAction: "pan-y",
+            filter: LIGHT_MOOD_FILTERS[lightingPresetId],
+          }}
+          className="relative w-full h-full cursor-grab active:cursor-grabbing"
+        >
+          {!seamlessStage && !framesReady && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              ref={posterImgRef}
+              src={turntableSpec.posterUrl}
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 w-full h-full object-contain transition-opacity duration-150"
+            />
+          )}
+          <canvas
+            ref={scrubCanvasRef}
+            className="block w-full h-full"
+          />
+        </div>
+      ) : (
+        <div
+          ref={prodWrapRef}
+          className="w-full h-full cursor-grab active:cursor-grabbing"
+        />
+      )}
 
-      {isLoading3D && (
+      {isLoadingFrames && mode === "avatar" && (
         <div className="pointer-events-none absolute top-11 left-1/2 -translate-x-1/2 z-20 px-2.5 py-1 rounded-full bg-white/95 border border-black/[0.08] shadow-xs text-[10px] font-bold text-[#244B3B] inline-flex items-center gap-1">
-          <Box className="w-3 h-3 animate-pulse" /> Equipping 3D Item…
+          <Box className="w-3 h-3 animate-pulse" /> Loading 360° Studio Frames…
         </div>
       )}
 
@@ -998,12 +1042,12 @@ export function Interactive3DAvatarStage({
         <div className="pointer-events-none hidden sm:flex absolute top-2.5 left-2.5 z-10 flex-wrap items-center gap-1.5">
           <span className="px-2.5 py-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-xs text-[10.5px] font-bold text-[#141518] inline-flex items-center gap-1">
             <Ruler className="w-3 h-3 text-[#244B3B]" />
-            360° 3D Twin • {formatHeightFeetInches(safeDimensions.heightInches)} •{" "}
+            360° Studio Twin • {formatHeightFeetInches(safeDimensions.heightInches)} •{" "}
             {safeDimensions.bustInches}&quot; B • {safeDimensions.waistInches}&quot; W •{" "}
             {safeDimensions.hipsInches}&quot; H
           </span>
           <span className="px-2 py-1 rounded-full bg-[#141518]/85 text-white text-[10px] font-bold">
-            {liveDeg}° 3D
+            {liveDeg}° 360°
           </span>
         </div>
       )}
@@ -1023,7 +1067,7 @@ export function Interactive3DAvatarStage({
                 : "text-[#686D76] hover:text-[#141518]"
             }`}
           >
-            <Sparkles className="w-2.5 h-2.5" /> 3D Studio
+            <Sparkles className="w-2.5 h-2.5" /> 360° Studio
           </button>
           {mode === "avatar" && (
             <>
@@ -1035,7 +1079,7 @@ export function Interactive3DAvatarStage({
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
-                title="Highlight exact garment fit zones across 3D meshes"
+                title="Highlight exact garment fit zones"
               >
                 <Flame className="w-2.5 h-2.5 text-[#F59E0B]" /> Fit Map
               </button>
@@ -1047,9 +1091,9 @@ export function Interactive3DAvatarStage({
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
-                title="Show 3D Bust / Waist / Hip measurement rings"
+                title="Show Bust / Waist / Hip measurement rings"
               >
-                <Eye className="w-2.5 h-2.5 text-[#0EA5E9]" /> 3D Rings
+                <Eye className="w-2.5 h-2.5 text-[#0EA5E9]" /> Rings
               </button>
             </>
           )}
@@ -1073,8 +1117,8 @@ export function Interactive3DAvatarStage({
             </p>
             {tappedInfo.fit && (
               <p className="text-[10px] font-semibold text-[#244B3B] truncate">
-                3D Item • Size {tappedInfo.fit.recommendedSize} •{" "}
-                {tappedInfo.fit.confidencePct}% Fit
+                Size {tappedInfo.fit.recommendedSize} •{" "}
+                {tappedInfo.fit.confidencePct}% Fit Match
               </p>
             )}
           </div>
@@ -1111,7 +1155,7 @@ export function Interactive3DAvatarStage({
             {(
               [
                 [0, "Front 0°"],
-                [35, "3/4 35°"],
+                [45, "3/4 45°"],
                 [90, "Side 90°"],
                 [180, "Back 180°"],
               ] as const
@@ -1155,7 +1199,7 @@ export function Interactive3DAvatarStage({
                     ? "bg-[#E7F3EE] text-[#1D4232]"
                     : "text-[#686D76] hover:bg-[#EAECEF]"
                 }`}
-                title="Show 3D Bust / Waist / Hip body-scan rings"
+                title="Show Bust / Waist / Hip body-scan rings"
               >
                 <Ruler className="w-2.5 h-2.5" /> Tape
               </button>
@@ -1167,8 +1211,8 @@ export function Interactive3DAvatarStage({
                   type="button"
                   onClick={() => {
                     targetZoomRef.current = Math.min(
-                      1.62,
-                      targetZoomRef.current + 0.14
+                      1.52,
+                      targetZoomRef.current + 0.12
                     );
                   }}
                   aria-label="Zoom in"
@@ -1180,8 +1224,8 @@ export function Interactive3DAvatarStage({
                   type="button"
                   onClick={() => {
                     targetZoomRef.current = Math.max(
-                      0.76,
-                      targetZoomRef.current - 0.14
+                      0.82,
+                      targetZoomRef.current - 0.12
                     );
                   }}
                   aria-label="Zoom out"
@@ -1193,7 +1237,6 @@ export function Interactive3DAvatarStage({
                   type="button"
                   onClick={() => {
                     targetYawRef.current = 0;
-                    targetPitchRef.current = 0.025;
                     targetZoomRef.current = 1.0;
                   }}
                   aria-label="Reset view"

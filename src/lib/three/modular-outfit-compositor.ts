@@ -652,7 +652,7 @@ const DATA_URL_MEMO = new Map<string, string>();
  */
 export function renderModularOutfitDataUrlAsync(
   products: Product[],
-  angle: "front" | "back"
+  angle: AvatarViewAngle
 ): Promise<string | null> {
   if (typeof document === "undefined") return Promise.resolve(null);
   const key = `${angle}:${products.map((p) => `${p.id}:${p.imageUrl || ""}`).join("|")}`;

@@ -430,7 +430,7 @@ export function MotionSitesProductShowroom({
                     externalSpinActive={autoRotate}
                     externalYawDeg={yawOverride}
                     externalYawSeq={yawSeq}
-                    seamlessStage={true}
+                    seamlessStage={false}
                     inertiaSpin={true}
                     showHud={false}
                   />
@@ -445,7 +445,7 @@ export function MotionSitesProductShowroom({
                     externalSpinActive={autoRotate}
                     externalYawDeg={yawOverride}
                     externalYawSeq={yawSeq}
-                    seamlessStage={true}
+                    seamlessStage={false}
                     inertiaSpin={true}
                     showHud={false}
                   />
@@ -491,8 +491,7 @@ export function MotionSitesProductShowroom({
                 <div className="relative z-20 px-3 py-2 border-t border-black/[0.05] bg-[#FAFBFD] flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[11px] font-semibold text-[#5E636E] inline-flex items-center gap-1">
                     <Rotate3d className="w-3.5 h-3.5 text-[#244B3B]" /> Drag
-                    horizontally for full 360° 3D spin • Drag vertically for 3D
-                    pitch
+                    horizontally for seamless 360° studio spin
                   </span>
                   <div className="flex items-center gap-1">
                     {(

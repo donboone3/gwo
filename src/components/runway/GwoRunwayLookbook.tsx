@@ -34,6 +34,7 @@ import {
   preloadCoreModularLayers,
   renderModularOutfitDataUrlAsync,
 } from "@/lib/three/modular-outfit-compositor";
+import { prefetchTurntableBundle } from "@/lib/three/higgsfield-turntable-engine";
 import { Product } from "@/lib/types";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -273,6 +274,20 @@ export function GwoRunwayLookbook() {
         runwayOutfits.length
       : 0;
   const rawActiveOutfit = runwayOutfits[safeActiveIdx] || runwayOutfits[0];
+
+  // Background pre-warm the next Runway outfit's Higgsfield 360° turntable in RAM!
+  useEffect(() => {
+    if (runwayOutfits.length < 2) return;
+    const nextOutfit = runwayOutfits[(safeActiveIdx + 1) % runwayOutfits.length];
+    if (!nextOutfit) return;
+    const timer = setTimeout(() => {
+      prefetchTurntableBundle(
+        nextOutfit.pieces.map((p) => p.product),
+        true
+      );
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [runwayOutfits, safeActiveIdx]);
 
   const activeOutfit = useMemo(() => {
     if (!rawActiveOutfit) return rawActiveOutfit;
