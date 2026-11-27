@@ -272,108 +272,116 @@ export function UnifiedGwoNav() {
 
   return (
     <>
-      {/* ==================== UNIFIED PERSISTENT GWO HEADER ==================== */}
-      <header className="fixed top-0 inset-x-0 z-50 h-16 px-2 sm:px-6 bg-white/95 backdrop-blur-md border-b border-black/[0.07] flex items-center justify-between gap-1 sm:gap-3">
-        {/* Left: Pure 4-Stroke Cursive GWO Brand Mark */}
-        <div className="flex items-center shrink-0">
-          <Link href="/" className="inline-flex items-center py-1">
-            <GwoLogo height={28} replayOnClick={false} className="text-[#141518] sm:scale-115 origin-left" />
-          </Link>
-        </div>
+      {/* ==================== UNIFIED PERSISTENT GWO HEADER (DEAD-CENTER MENU + COUTURE COLOR PALETTE) ==================== */}
+      <header className="fixed top-0 inset-x-0 z-50 h-16 bg-gradient-to-r from-[#FDF7F2]/96 via-[#FFFDFB]/96 to-[#F2F9F5]/96 backdrop-blur-md border-b border-[#E5D7CA] shadow-[0_2px_16px_rgba(27,77,59,0.05)]">
+        {/* Top 2px Couture Color Ribbon */}
+        <div className="absolute top-0 inset-x-0 h-[2.5px] bg-gradient-to-r from-[#1B4D3B] via-[#C43D2B] to-[#D8B474]" />
 
-        {/* Center: Clean 4-Step Customer Flow (Zero Horizontal Overflow at 360px+) */}
-        <nav
-          aria-label="GWO Steps"
-          className="flex items-center p-0.5 sm:p-1 rounded-full bg-[#F1F2F5] border border-black/[0.05]"
-        >
-          {STEPS.map((step) => {
-            const active =
-              step.href === "/"
-                ? cleanPath === "/" || cleanPath === "/closet"
-                : step.match.some((m) => cleanPath.startsWith(m));
-            return (
-              <Link
-                key={step.href}
-                href={step.href}
-                className={`px-1.5 sm:px-3.5 md:px-4 py-1.5 rounded-full text-[10px] sm:text-xs md:text-[13px] font-semibold transition-all whitespace-nowrap ${
-                  active
-                    ? "bg-white text-[#141518] shadow-[0_2px_8px_rgba(20,21,24,0.08)]"
-                    : "text-[#686D76] hover:text-[#141518]"
-                }`}
-              >
-                <span className="lg:hidden">{step.shortLabel}</span>
-                <span className="hidden lg:inline">{step.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="h-full max-w-[1560px] mx-auto px-2.5 sm:px-6 grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:gap-3">
+          {/* Left: Professional Architectural GWO Crest + Wordmark */}
+          <div className="flex items-center justify-self-start min-w-0">
+            <Link href="/" className="inline-flex items-center py-1 group">
+              <GwoLogo
+                height={25}
+                className="sm:scale-110 origin-left transition-transform group-hover:scale-[1.03]"
+              />
+            </Link>
+          </div>
 
-        {/* Right: My Photo Avatar, + Add Store Link, Share Closet, Unified Bag */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          <button
-            type="button"
-            id="gwo-my-avatar-btn"
-            onClick={() => setAvatarModalOpen(true)}
-            aria-label="My Avatar"
-            className="inline-flex items-center justify-center gap-2 p-1 md:px-3 md:py-1.5 rounded-full text-xs font-semibold transition cursor-pointer border bg-[#EBF3EE] border-[#C5DFD0] text-[#1D4232]"
+          {/* Dead-Center: 3-Stage Couture Menu Pill (Mathematically Centered at 50% Viewport Width!) */}
+          <nav
+            aria-label="GWO Steps"
+            className="justify-self-center flex items-center p-0.5 sm:p-1 rounded-full bg-[#F3EAE2] border border-[#E3D4C6] shadow-inner"
           >
-            <img
-              src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
-              alt="My Avatar"
-              className="w-6 h-6 md:w-5 md:h-5 rounded-full object-cover border border-[#244B3B]/30"
-            />
-            <span className="hidden md:inline">My Avatar ✓</span>
-          </button>
+            {STEPS.map((step) => {
+              const active =
+                step.href === "/"
+                  ? cleanPath === "/" || cleanPath === "/closet"
+                  : step.match.some((m) => cleanPath.startsWith(m));
+              return (
+                <Link
+                  key={step.href}
+                  href={step.href}
+                  className={`px-2 sm:px-4 md:px-4.5 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs md:text-[13px] font-bold transition-all whitespace-nowrap ${
+                    active
+                      ? "bg-gradient-to-r from-[#1B4D3B] to-[#296B53] text-white shadow-[0_3px_10px_rgba(27,77,59,0.28)]"
+                      : "text-[#5E554E] hover:text-[#184535]"
+                  }`}
+                >
+                  <span className="lg:hidden">{step.shortLabel}</span>
+                  <span className="hidden lg:inline">{step.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
 
-          <button
-            type="button"
-            id="gwo-add-url-btn"
-            onClick={() => {
-              setPreviewProduct(null);
-              setAddUrlModalOpen(true);
-            }}
-            aria-label="Add Outfit or Store Link"
-            className="inline-flex items-center justify-center gap-1 p-2 sm:px-3.5 sm:py-2 rounded-full text-xs font-semibold bg-[#F1F2F5] hover:bg-[#E6E8ED] text-[#141518] transition cursor-pointer"
-          >
-            <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
-            <span className="hidden lg:inline">Add Outfit</span>
-            <span className="hidden sm:inline lg:hidden">Add</span>
-          </button>
+          {/* Right: My Photo Avatar, + Add Store Link, Share Closet, Unified Bag */}
+          <div className="flex items-center justify-self-end gap-1 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              id="gwo-my-avatar-btn"
+              onClick={() => setAvatarModalOpen(true)}
+              aria-label="My Avatar"
+              className="inline-flex items-center justify-center gap-2 p-0.5 md:px-3 md:py-1.5 rounded-full text-xs font-bold transition cursor-pointer border bg-[#E4F2EC] hover:bg-[#D6ECE2] border-[#B4D8C7] text-[#184535]"
+            >
+              <img
+                src={customAvatar ? customAvatar.badgeDataUrl : SIGNATURE_BADGE_URL}
+                alt="My Avatar"
+                className="w-6 h-6 md:w-5 md:h-5 rounded-full object-cover border border-[#1B4D3B]/35"
+              />
+              <span className="hidden md:inline">My Avatar ✓</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={async () => {
-              await shareMyClosetAndClaimBonus();
-              setCopiedLink(true);
-              setTimeout(() => setCopiedLink(false), 2200);
-            }}
-            title="Share your closet link with friends"
-            className="hidden xl:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold border border-black/[0.1] bg-white hover:bg-[#F7F8FA] text-[#141518] transition cursor-pointer"
-          >
-            {copiedLink ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-[#244B3B]" /> Copied!
-              </>
-            ) : (
-              <>
-                <Share2 className="w-3.5 h-3.5" /> Share Closet
-              </>
-            )}
-          </button>
+            <button
+              type="button"
+              id="gwo-add-url-btn"
+              onClick={() => {
+                setPreviewProduct(null);
+                setAddUrlModalOpen(true);
+              }}
+              aria-label="Add Outfit or Store Link"
+              className="inline-flex items-center justify-center gap-1 p-1.5 sm:px-3.5 sm:py-2 rounded-full text-xs font-bold bg-[#FCEBE6] hover:bg-[#F8DDD5] border border-[#F0C9BD] text-[#A33022] transition cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden lg:inline">Add Outfit</span>
+              <span className="hidden sm:inline lg:hidden">Add</span>
+            </button>
 
-          <button
-            type="button"
-            id="gwo-unified-bag-btn"
-            onClick={() => setBagOpen(true)}
-            aria-label={`Shopping Bag (${bagItems.length})`}
-            className={`inline-flex items-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold bg-[#141518] text-white hover:bg-[#27292E] transition cursor-pointer ${
-              bagBump ? "scale-110" : "scale-100"
-            }`}
-          >
-            <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden sm:inline">Bag ({bagItems.length})</span>
-            <span className="sm:hidden">{bagItems.length}</span>
-          </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await shareMyClosetAndClaimBonus();
+                setCopiedLink(true);
+                setTimeout(() => setCopiedLink(false), 2200);
+              }}
+              title="Share your closet link with friends"
+              className="hidden xl:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border border-[#E3D4C6] bg-white/90 hover:bg-[#FAF2EB] text-[#184535] transition cursor-pointer"
+            >
+              {copiedLink ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[#1B4D3B]" /> Copied!
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5 text-[#C43D2B]" /> Share Closet
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              id="gwo-unified-bag-btn"
+              onClick={() => setBagOpen(true)}
+              aria-label={`Shopping Bag (${bagItems.length})`}
+              className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-xs font-bold bg-gradient-to-r from-[#C0352B] to-[#982335] text-white hover:brightness-105 shadow-[0_4px_12px_rgba(192,53,43,0.24)] transition cursor-pointer ${
+                bagBump ? "scale-110" : "scale-100"
+              }`}
+            >
+              <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Bag ({bagItems.length})</span>
+              <span className="sm:hidden">{bagItems.length}</span>
+            </button>
+          </div>
         </div>
       </header>
 

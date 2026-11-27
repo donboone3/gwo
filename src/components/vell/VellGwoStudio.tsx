@@ -880,16 +880,16 @@ export function VellGwoStudio() {
         </div>
       )}
 
-      {/* Pure Clean White Studio Background Behind Closet Avatar */}
+      {/* Luminous Couture Studio Background Behind Closet Avatar */}
       <div
         ref={backdropRef}
-        className="absolute inset-0 bg-white pointer-events-none"
+        className="absolute inset-0 gwo-couture-stage-bg pointer-events-none"
       />
 
       {/* 3-ZONE INTERACTIVE 3D DRESS-UP STUDIO */}
       <div className="relative z-10 min-h-[calc(100svh-64px)] lg:h-full max-w-[1560px] mx-auto px-0 lg:px-5 py-0 lg:py-3.5 flex flex-col lg:flex-row items-stretch justify-between gap-0 lg:gap-3.5">
         {/* ==================== LEFT PANEL (DESKTOP): 3D BODY SCANNER & DAILY AI STYLING ==================== */}
-        <aside className="hidden lg:flex lg:w-[300px] xl:w-[316px] lg:h-full shrink-0 flex-col justify-between rounded-3xl bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 overflow-y-auto">
+        <aside className="hidden lg:flex lg:w-[300px] xl:w-[316px] lg:h-full shrink-0 flex-col justify-between rounded-3xl bg-gradient-to-b from-[#FFFDFB]/96 to-[#FAF2EB]/96 backdrop-blur-md border border-[#E5D7CA] shadow-[0_14px_34px_rgba(27,77,59,0.08)] p-4 overflow-y-auto">
           <div className="space-y-3">
             {/* 3D Scanned Body Twin Card */}
             <div className="p-3.5 rounded-2xl bg-[#F4F8F5] border border-[#C6E0D0] space-y-2.5">
@@ -1052,7 +1052,7 @@ export function VellGwoStudio() {
         {/* ==================== CENTER STAGE: PURE CLEAN FULL-SCREEN AVATAR (ZERO HEADERS/FOOTERS) ==================== */}
         <div
           ref={centerStageRef}
-          className="relative shrink-0 h-[calc(100svh-64px)] min-h-[480px] w-full lg:shrink lg:flex-1 min-w-0 flex flex-col items-center justify-center lg:h-full lg:min-h-0 bg-white"
+          className="relative shrink-0 h-[calc(100svh-64px)] min-h-[480px] w-full lg:shrink lg:flex-1 min-w-0 flex flex-col items-center justify-center lg:h-full lg:min-h-0 gwo-couture-stage-bg lg:bg-transparent"
         >
           {/* Pure White 3D Character Dress-Up Stage */}
           <div
@@ -1122,16 +1122,16 @@ export function VellGwoStudio() {
         {/* ==================== RIGHT PANEL (SCROLL DOWN ON MOBILE): 3D DRESS-UP WARDROBE, CONTROLS & STORE RACK ==================== */}
         <aside
           id="gwo-closet-wardrobe-panel"
-          className="scroll-mt-16 w-full lg:w-[390px] xl:w-[424px] lg:h-full shrink-0 rounded-t-3xl lg:rounded-3xl bg-white/98 backdrop-blur-md border-t lg:border border-black/[0.08] shadow-[0_-8px_28px_rgba(20,21,24,0.06)] lg:shadow-[0_14px_34px_rgba(20,21,24,0.08)] px-3.5 sm:px-4 pt-4 pb-8 lg:p-4 flex flex-col justify-between gap-2.5 lg:overflow-hidden"
+          className="scroll-mt-16 w-full lg:w-[390px] xl:w-[424px] lg:h-full shrink-0 rounded-t-3xl lg:rounded-3xl bg-gradient-to-b from-[#FFFDFB] via-[#FCF7F2] to-[#F4F9F6] backdrop-blur-md border-t lg:border border-[#E5D7CA] shadow-[0_-8px_28px_rgba(27,77,59,0.07)] lg:shadow-[0_14px_34px_rgba(27,77,59,0.08)] px-3.5 sm:px-4 pt-4 pb-8 lg:p-4 flex flex-col justify-between gap-2.5 lg:overflow-hidden"
         >
           <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 space-y-2.5">
             {/* Header + Two Top-Corner Actions: One Piece Add & Full Store Pull */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <h1 className="text-sm sm:text-base font-bold text-[#141518] leading-tight">
+                <h1 className="text-sm sm:text-base font-bold text-[#181615] leading-tight">
                   Closet &amp; Dress-Up Studio
                 </h1>
-                <p className="text-[10.5px] sm:text-[11px] text-[#686D76] leading-snug mt-0.5">
+                <p className="text-[10.5px] sm:text-[11px] text-[#665D56] leading-snug mt-0.5">
                   Tap or drag any piece onto your lifelike avatar
                 </p>
               </div>
@@ -1140,17 +1140,17 @@ export function VellGwoStudio() {
                   type="button"
                   id="gwo-one-piece-add-btn"
                   onClick={() => openAddUrlModal("url")}
-                  className="px-2 sm:px-2.5 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-[#141518] hover:bg-[#27292E] text-white inline-flex items-center gap-1 whitespace-nowrap cursor-pointer"
+                  className="px-2 sm:px-2.5 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-gradient-to-r from-[#1B4D3B] to-[#296B53] hover:brightness-105 text-white inline-flex items-center gap-1 whitespace-nowrap cursor-pointer shadow-xs"
                 >
-                  <Plus className="w-3 h-3 text-[#A7D7C5]" /> One Piece Add
+                  <Plus className="w-3 h-3 text-[#F9E7BE]" /> One Piece Add
                 </button>
                 <button
                   type="button"
                   id="gwo-full-store-pull-btn"
                   onClick={() => openAddUrlModal("rack")}
-                  className="px-2 sm:px-2.5 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-[#F1F2F5] hover:bg-[#E4E7EC] text-[#141518] inline-flex items-center gap-1 whitespace-nowrap cursor-pointer"
+                  className="px-2 sm:px-2.5 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-[#FCEBE6] hover:bg-[#F8DDD5] border border-[#F0C9BD] text-[#A33022] inline-flex items-center gap-1 whitespace-nowrap cursor-pointer"
                 >
-                  <Store className="w-3 h-3 text-[#244B3B]" /> Full Store Pull
+                  <Store className="w-3 h-3 text-[#C0352B]" /> Full Store Pull
                 </button>
               </div>
             </div>
@@ -1190,8 +1190,8 @@ export function VellGwoStudio() {
                   onClick={() => setActiveWardrobeTab(tabId)}
                   className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
                     activeWardrobeTab === tabId
-                      ? "bg-[#141518] text-white"
-                      : "bg-[#F4F5F7] text-[#686D76] hover:text-[#141518]"
+                      ? "bg-[#1B4D3B] text-white shadow-xs"
+                      : "bg-[#F3EAE2] text-[#5E554E] hover:text-[#184535]"
                   }`}
                 >
                   {label}
@@ -1222,8 +1222,8 @@ export function VellGwoStudio() {
                     onClick={() => setActiveSlotFilter(slotId)}
                     className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold whitespace-nowrap border transition cursor-pointer ${
                       activeSlotFilter === slotId
-                        ? "bg-[#244B3B] text-white border-[#244B3B]"
-                        : "bg-white text-[#686D76] border-black/[0.08] hover:text-[#141518]"
+                        ? "bg-[#C0352B] text-white border-[#C0352B]"
+                        : "bg-white text-[#5E554E] border-[#E5D7CA] hover:text-[#184535]"
                     }`}
                   >
                     {label}
@@ -1478,8 +1478,8 @@ export function VellGwoStudio() {
                       onClick={() => equipProductPiece(prod)}
                       className={`group relative rounded-2xl p-2 border transition cursor-pointer flex flex-col justify-between ${
                         isWorn
-                          ? "border-[#141518] ring-2 ring-[#141518]/15 bg-[#F4F8F5]"
-                          : "border-black/[0.08] bg-white hover:bg-[#FAFBFD]"
+                          ? "border-[#1B4D3B] ring-2 ring-[#1B4D3B]/18 bg-[#EEF7F2]"
+                          : "border-[#E6D8CB] bg-white hover:bg-[#FFFDFB]"
                       }`}
                     >
                       <div>
@@ -1555,7 +1555,7 @@ export function VellGwoStudio() {
                                 imageUrl: prod.imageUrl,
                               });
                             }}
-                            className="py-1 px-2.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-[10px] font-bold text-white cursor-pointer min-h-[24px]"
+                            className="py-1 px-2.5 rounded-full bg-[#1B4D3B] hover:bg-[#143B2D] text-[10px] font-bold text-white cursor-pointer min-h-[24px]"
                           >
                             + Bag
                           </button>
@@ -1739,15 +1739,18 @@ export function VellGwoStudio() {
           <button
             type="button"
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="pointer-events-auto px-4 py-2.5 rounded-full bg-[#141518]/95 text-white text-xs font-bold shadow-[0_10px_28px_rgba(20,21,24,0.32)] border border-white/15 inline-flex items-center gap-2 cursor-pointer"
+            className="pointer-events-auto px-4 py-2.5 rounded-full bg-gradient-to-r from-[#184535]/96 to-[#25634D]/96 text-white text-xs font-bold shadow-[0_10px_28px_rgba(24,69,53,0.34)] border border-[#D8B474]/35 inline-flex items-center gap-2 cursor-pointer"
           >
-            <Rotate3d className="w-3.5 h-3.5 text-[#A7D7C5]" />
+            <Rotate3d className="w-3.5 h-3.5 text-[#F9E7BE]" />
             <span className="truncate max-w-[215px]">
               {selectedPieceId && allWearableById.get(selectedPieceId)
-                ? `Wearing: ${allWearableById.get(selectedPieceId)!.title}`
+                ? `Wearing: ${formatCompactProductTitle(
+                    allWearableById.get(selectedPieceId)!,
+                    20
+                  )}`
                 : "View Equipped Outfit"}
             </span>
-            <span className="px-2 py-0.5 rounded-full bg-[#244B3B] text-[#C8F0DF] text-[10.5px] font-extrabold shrink-0">
+            <span className="px-2 py-0.5 rounded-full bg-[#F9E7BE] text-[#184535] text-[10.5px] font-extrabold shrink-0">
               Avatar ↑
             </span>
           </button>

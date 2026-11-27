@@ -561,10 +561,10 @@ export function GwoSpinProduct() {
         </section>
 
         {/* ==================== CENTER COLUMN: PURE CLEAN LIFELIKE 360° TURNTABLE STAGE (ZERO HEADERS/FOOTERS) ==================== */}
-        <div className="order-1 lg:order-2 min-w-0 h-[calc(100svh-64px)] min-h-[480px] lg:h-full lg:min-h-0 flex flex-col items-center justify-center bg-white lg:bg-transparent">
+        <div className="order-1 lg:order-2 min-w-0 h-[calc(100svh-64px)] min-h-[480px] lg:h-full lg:min-h-0 flex flex-col items-center justify-center gwo-couture-stage-bg lg:bg-transparent">
           {/* MODE 1: LIFELIKE 360° INERTIA TURNTABLE ON SCANNED BODY */}
           {stageDisplayMode === "avatar3d" && (
-            <div className="w-full h-full flex-1 min-h-0 lg:rounded-3xl bg-white lg:border lg:border-black/[0.06] overflow-hidden">
+            <div className="w-full h-full flex-1 min-h-0 lg:rounded-3xl gwo-couture-stage-bg lg:border lg:border-[#E5D7CA] overflow-hidden">
               <Interactive3DAvatarStage
                 mode="avatar"
                 dimensions={bodyDims}

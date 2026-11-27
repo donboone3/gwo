@@ -1052,7 +1052,7 @@ export function GwoRunwayLookbook() {
                     // ignore
                   }
                 }}
-                className="pointer-events-auto h-9 max-w-[94%] sm:max-w-[420px] inline-flex items-center justify-between gap-1.5 px-1.5 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.09] shadow-[0_8px_24px_rgba(20,21,24,0.09)] select-none"
+                className="pointer-events-auto h-9 max-w-[94%] sm:max-w-[420px] inline-flex items-center justify-between gap-1.5 px-1.5 rounded-full bg-white/94 backdrop-blur-md border border-[#E3D4C6] shadow-[0_10px_26px_rgba(27,77,59,0.12)] select-none"
               >
                 <button
                   type="button"
@@ -1067,7 +1067,7 @@ export function GwoRunwayLookbook() {
                     jumpLookRef.current?.((safeActiveIdx - 1 + N) % N);
                   }}
                   aria-label="Previous outfit"
-                  className="w-7 h-7 rounded-full bg-[#F1F2F5] hover:bg-[#E2E5EC] text-[#141518] inline-flex items-center justify-center shrink-0 cursor-pointer"
+                  className="w-7 h-7 rounded-full bg-[#F5E9DF] hover:bg-[#ECDAD0] text-[#184535] inline-flex items-center justify-center shrink-0 cursor-pointer transition"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -1087,10 +1087,10 @@ export function GwoRunwayLookbook() {
                   title="Tap or swipe to step through outfits"
                   className="px-2 min-w-0 flex items-center gap-1.5 cursor-pointer text-center"
                 >
-                  <span className="px-1.5 py-0.5 rounded-full bg-[#141518] text-white text-[10px] font-extrabold shrink-0">
+                  <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-[#1B4D3B] to-[#296B53] text-[#F9E7BE] text-[10px] font-extrabold shrink-0">
                     {String(activeOutfit.outfitNumber).padStart(2, "0")}
                   </span>
-                  <span className="text-xs font-extrabold text-[#141518] truncate">
+                  <span className="text-xs font-extrabold text-[#181615] truncate">
                     {browseMode === "pieces"
                       ? formatCompactProductTitle(
                           activeOutfit.pieces[0]?.product || activeOutfit.title,
@@ -1113,7 +1113,7 @@ export function GwoRunwayLookbook() {
                     jumpLookRef.current?.((safeActiveIdx + 1) % N);
                   }}
                   aria-label="Next outfit"
-                  className="w-7 h-7 rounded-full bg-[#F1F2F5] hover:bg-[#E2E5EC] text-[#141518] inline-flex items-center justify-center shrink-0 cursor-pointer"
+                  className="w-7 h-7 rounded-full bg-[#F5E9DF] hover:bg-[#ECDAD0] text-[#184535] inline-flex items-center justify-center shrink-0 cursor-pointer transition"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -1131,13 +1131,13 @@ export function GwoRunwayLookbook() {
           {activeOutfit && (
             <>
               {/* Single Streamlined Action & Filter Row (Zero Redundant Title/Button Clutter!) */}
-              <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-black/[0.08] shrink-0">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-[#E5D7CA] shrink-0">
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     id="gwo-runway-buy-full-outfit-btn"
                     onClick={() => handleAddOrBuyCurrentEntry(true)}
-                    className="px-3 py-1.5 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-xs cursor-pointer min-h-[28px] whitespace-nowrap"
+                    className="px-3 py-1.5 rounded-full bg-gradient-to-r from-[#C0352B] to-[#982335] hover:brightness-105 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-[0_3px_10px_rgba(192,53,43,0.22)] cursor-pointer min-h-[28px] whitespace-nowrap"
                   >
                     {browseMode === "pieces"
                       ? `Buy ($${activeOutfit.totalPriceUsd})`
@@ -1147,9 +1147,9 @@ export function GwoRunwayLookbook() {
                     type="button"
                     id="gwo-runway-bag-full-outfit-btn"
                     onClick={() => handleAddOrBuyCurrentEntry(false)}
-                    className="px-2.5 py-1.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer min-h-[28px] whitespace-nowrap"
+                    className="px-2.5 py-1.5 rounded-full bg-[#1B4D3B] hover:bg-[#143B2D] text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer min-h-[28px] whitespace-nowrap"
                   >
-                    <ShoppingBag className="w-3 h-3" />{" "}
+                    <ShoppingBag className="w-3 h-3 text-[#F9E7BE]" />{" "}
                     {browseMode === "pieces" ? "+ Bag" : "+ Set"}
                   </button>
                 </div>
@@ -1165,7 +1165,7 @@ export function GwoRunwayLookbook() {
                         setActiveLookIdx(0);
                         setTimeout(() => jumpLookRef.current?.(0), 30);
                       }}
-                      className="px-2.5 py-1 rounded-full bg-white border border-black/[0.08] text-[10.5px] font-bold text-[#141518] min-h-[28px] cursor-pointer"
+                      className="px-2.5 py-1 rounded-full bg-white border border-[#E3D4C6] text-[10.5px] font-bold text-[#184535] min-h-[28px] cursor-pointer"
                     >
                       <option value="all">All 100 Outfits</option>
                       <option value="Date Night">Date Night</option>
@@ -1178,7 +1178,7 @@ export function GwoRunwayLookbook() {
                     </select>
                   )}
 
-                  <div className="inline-flex items-center p-0.5 rounded-full bg-white border border-black/[0.08]">
+                  <div className="inline-flex items-center p-0.5 rounded-full bg-white/90 border border-[#E3D4C6]">
                     {(
                       [
                         [
@@ -1201,8 +1201,8 @@ export function GwoRunwayLookbook() {
                         }}
                         className={`px-2 py-1 rounded-full text-[10px] font-bold cursor-pointer transition min-h-[24px] whitespace-nowrap ${
                           browseMode === modeKey
-                            ? "bg-[#141518] text-white"
-                            : "text-[#686D76] hover:text-[#141518]"
+                            ? "bg-[#1B4D3B] text-white"
+                            : "text-[#665D56] hover:text-[#184535]"
                         }`}
                       >
                         {lbl}
@@ -1214,7 +1214,7 @@ export function GwoRunwayLookbook() {
                     type="button"
                     id="gwo-runway-build-outfit-btn"
                     onClick={() => setBuildModalOpen(true)}
-                    className="p-1.5 rounded-full bg-white hover:bg-[#EAECEF] border border-black/10 text-[#141518] cursor-pointer min-w-[28px] min-h-[28px] inline-flex items-center justify-center"
+                    className="p-1.5 rounded-full bg-[#FCEBE6] hover:bg-[#F8DDD5] border border-[#F0C9BD] text-[#A33022] cursor-pointer min-w-[28px] min-h-[28px] inline-flex items-center justify-center"
                     title="Build custom outfit"
                     aria-label="Build custom outfit"
                   >
@@ -1238,7 +1238,7 @@ export function GwoRunwayLookbook() {
                     <article
                       key={`${prod.id}-${slotIdx}`}
                       data-outfit-piece-card="true"
-                      className="rounded-2xl bg-white border border-black/[0.07] p-2.5 flex flex-col justify-between gap-1.5 shadow-[0_2px_10px_rgba(20,21,24,0.04)]"
+                      className="rounded-2xl bg-white border border-[#E6D8CB] p-2.5 flex flex-col justify-between gap-1.5 shadow-[0_4px_14px_rgba(27,77,59,0.05)]"
                     >
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-1">
@@ -1348,14 +1348,14 @@ export function GwoRunwayLookbook() {
                               storeUrl: prod.canonicalUrl,
                             })
                           }
-                          className="py-1.5 px-2.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[10.5px] font-bold cursor-pointer min-h-[26px]"
+                          className="py-1.5 px-2.5 rounded-full bg-[#1B4D3B] hover:bg-[#143B2D] text-white text-[10.5px] font-bold cursor-pointer min-h-[26px]"
                         >
                           + Bag
                         </button>
                         <button
                           type="button"
                           onClick={() => handleSwapPieceInOutfit(slotIdx, prod)}
-                          className="p-1.5 rounded-full bg-[#F1F2F5] hover:bg-[#E4E7EE] text-[#141518] cursor-pointer min-w-[26px] min-h-[26px] inline-flex items-center justify-center"
+                          className="p-1.5 rounded-full bg-[#F5E9DF] hover:bg-[#ECDAD0] text-[#184535] cursor-pointer min-w-[26px] min-h-[26px] inline-flex items-center justify-center"
                           title="Swap piece"
                           aria-label={`Swap ${prod.title}`}
                         >

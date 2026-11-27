@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 
 interface GwoLogoProps {
   className?: string;
@@ -9,84 +9,111 @@ interface GwoLogoProps {
 }
 
 /**
- * Pure cursive GWO monogram traced from the original sketch.
- * Animates in exact 4-stroke pen sequence (no border box or text clutter):
- *   1. Cursive W (sharing left stem with G)
- *   2. Horizontal crossbar on the top-left of W
- *   3. Sweeping C arc connecting down into W's lower stem to complete G
- *   4. Elevated cursive o loop off W's right arm
+ * Architectural Maison GWO brand lockup:
+ * Faceted Botanical Emerald & Champagne Gold crest paired with crisp,
+ * geometric-couture GWO letterforms and a terracotta-rose atelier point.
  */
 export function GwoLogo({
   className = "",
-  height = 54,
-  replayOnClick = true,
+  height = 28,
 }: GwoLogoProps) {
-  const [animCycle, setAnimCycle] = useState(0);
-  const width = Math.round((height * 165) / 108);
+  const width = Math.round((height * 124) / 36);
 
   return (
-    <button
-      type="button"
-      onClick={replayOnClick ? () => setAnimCycle((c) => c + 1) : undefined}
-      title="GWO — Click to replay cursive stroke animation"
+    <span
       aria-label="GWO"
-      className={`inline-flex items-center justify-center bg-transparent border-0 p-0 focus:outline-none ${
-        replayOnClick ? "cursor-pointer" : "cursor-default"
-      } ${className}`}
+      className={`inline-flex items-center justify-center select-none ${className}`}
     >
       <svg
-        key={animCycle}
         width={width}
         height={height}
-        viewBox="34 14 140 104"
+        viewBox="0 0 124 36"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className="overflow-visible select-none"
+        className="block overflow-visible"
       >
-        {/* Stroke 1: The cursive W */}
+        <defs>
+          <linearGradient id="gwoCrestBg" x1="2" y1="2" x2="32" y2="34" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#174434" />
+            <stop offset="55%" stopColor="#215B46" />
+            <stop offset="100%" stopColor="#13382A" />
+          </linearGradient>
+          <linearGradient id="gwoGoldFoil" x1="6" y1="6" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#F4DFB4" />
+            <stop offset="50%" stopColor="#D8B474" />
+            <stop offset="100%" stopColor="#ECCF96" />
+          </linearGradient>
+        </defs>
+
+        {/* Luxury Botanical Emerald & Champagne Gold Atelier Seal */}
+        <rect
+          x="1"
+          y="2"
+          width="32"
+          height="32"
+          rx="9"
+          fill="url(#gwoCrestBg)"
+        />
+        <rect
+          x="3.2"
+          y="4.2"
+          width="27.6"
+          height="27.6"
+          rx="7"
+          stroke="url(#gwoGoldFoil)"
+          strokeWidth="0.9"
+          strokeOpacity="0.65"
+        />
+        {/* Faceted Couture Diamond Frame + Precision Monogram G inside Crest */}
         <path
-          d="M 88 56 C 85 74, 83 97, 87 99 C 93 101, 103 78, 108 72 C 109 84, 109 98, 114 98 C 121 98, 130 76, 137 57"
-          pathLength={1}
-          stroke="currentColor"
-          strokeWidth="4.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="gwo-stroke-1"
+          d="M17 7.2 L26.8 18 L17 28.8 L7.2 18 Z"
+          stroke="url(#gwoGoldFoil)"
+          strokeWidth="1.05"
+          strokeOpacity="0.45"
+        />
+        <path
+          d="M21.2 13.6 A 5.6 5.6 0 1 0 22.4 18.4 H 17.2"
+          stroke="url(#gwoGoldFoil)"
+          strokeWidth="2.1"
+          strokeLinecap="butt"
+          strokeLinejoin="miter"
         />
 
-        {/* Stroke 2: The line on the top-left of W */}
+        {/* Crisp Geometric-Couture Wordmark: G W O */}
+        {/* Letter G */}
         <path
-          d="M 71 60 Q 84 57, 96 53"
-          pathLength={1}
-          stroke="currentColor"
-          strokeWidth="4.3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="gwo-stroke-2"
+          d="M 57.8 12.2 A 8.8 8.8 0 1 0 59.6 18.3 H 51.8 M 59.6 18.3 V 26.4"
+          stroke="#18191C"
+          strokeWidth="2.75"
+          strokeLinecap="butt"
+          strokeLinejoin="miter"
         />
 
-        {/* Stroke 3: The C arc sweeping around to complete the G */}
+        {/* Letter W */}
         <path
-          d="M 99 24 C 71 42, 43 76, 48 96 C 52 109, 72 106, 85 93"
-          pathLength={1}
-          stroke="currentColor"
-          strokeWidth="4.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="gwo-stroke-3"
+          d="M 65.2 9.4 L 71.0 26.4 L 77.6 13.2 L 84.2 26.4 L 90.0 9.4"
+          stroke="#18191C"
+          strokeWidth="2.7"
+          strokeLinecap="butt"
+          strokeLinejoin="miter"
+          strokeMiterlimit="6"
         />
 
-        {/* Stroke 4: Lastly, the cursive o */}
+        {/* Letter O */}
+        <circle
+          cx="104.2"
+          cy="18"
+          r="8.6"
+          stroke="#18191C"
+          strokeWidth="2.75"
+        />
+
+        {/* Signature Terracotta-Rose Couture Accent Diamond */}
         <path
-          d="M 146 33 C 134 39, 131 61, 141 72 C 151 76, 161 60, 155 41 C 151 31, 141 35, 138 46"
-          pathLength={1}
-          stroke="currentColor"
-          strokeWidth="4.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="gwo-stroke-4"
+          d="M 119.2 22.4 L 122.2 25.4 L 119.2 28.4 L 116.2 25.4 Z"
+          fill="#C43D2B"
         />
       </svg>
-    </button>
+    </span>
   );
 }

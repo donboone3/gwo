@@ -345,9 +345,9 @@ export function MotionSitesProductShowroom({
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
           {/* LEFT COLUMN (7 COLS): PURE CLEAN STICKY 360° INTERACTIVE TURNTABLE STAGE (ZERO HEADERS/FOOTERS) */}
           <div className="lg:col-span-7 lg:sticky lg:top-[116px]">
-            <div className="relative h-[calc(100svh-104px)] min-h-[460px] lg:h-[650px] sm:rounded-[28px] bg-white border-b sm:border border-black/[0.08] sm:shadow-[0_20px_50px_rgba(20,21,24,0.06)] overflow-hidden flex flex-col">
+            <div className="relative h-[calc(100svh-104px)] min-h-[460px] lg:h-[650px] sm:rounded-[28px] gwo-couture-stage-bg border-b sm:border border-[#E5D7CA] sm:shadow-[0_20px_50px_rgba(27,77,59,0.08)] overflow-hidden flex flex-col">
               {/* Active Pure Clean 3D / Cutout Viewport */}
-              <div className="relative flex-1 min-h-0 w-full h-full bg-white">
+              <div className="relative flex-1 min-h-0 w-full h-full gwo-couture-stage-bg">
                 {stageView === "avatar_3d" && (
                   <Interactive3DAvatarStage
                     mode="avatar"

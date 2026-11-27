@@ -971,11 +971,7 @@ export function Interactive3DAvatarStage({
         const padV = 0.5 / sheetH;
 
         gl.viewport(0, 0, glCanvas.width, glCanvas.height);
-        if (seamlessStage) {
-          gl.clearColor(0, 0, 0, 0);
-        } else {
-          gl.clearColor(1, 1, 1, 1);
-        }
+        gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(glProg);
         gl.bindTexture(gl.TEXTURE_2D, useB ? glTexB : glTexA);
@@ -987,7 +983,7 @@ export function Interactive3DAvatarStage({
           1 / cols - 2 * padU,
           1 / rows - 2 * padV
         );
-        gl.uniform1f(uWhiteBgLoc, seamlessStage ? 0.0 : 1.0);
+        gl.uniform1f(uWhiteBgLoc, 0.0);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         renderedViaWebGL = true;
       } else if (gl && seamlessStage && !hasAtlas) {
@@ -1008,10 +1004,6 @@ export function Interactive3DAvatarStage({
         ctx2d.clearRect(0, 0, cw, ch);
 
         if (!renderedViaWebGL) {
-          if (!seamlessStage) {
-            ctx2d.fillStyle = "#FFFFFF";
-            ctx2d.fillRect(0, 0, cw, ch);
-          }
           try {
             if (hasAtlas && activeBundle?.atlasBitmap && frameIdx >= 0) {
               if (posterImgRef.current) {
@@ -1288,7 +1280,7 @@ export function Interactive3DAvatarStage({
       data-3d-mode={mode}
       data-worn-count={mode === "product" ? 1 : userSelectedProducts.length}
       className={`relative w-full h-full select-none overflow-hidden ${
-        seamlessStage ? "bg-transparent" : "bg-white"
+        seamlessStage ? "bg-transparent" : "gwo-couture-stage-bg"
       } ${className}`}
     >
       {mode === "avatar" ? (
@@ -1307,7 +1299,7 @@ export function Interactive3DAvatarStage({
               src={turntableSpec.posterUrl}
               alt=""
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 w-full h-full object-contain transition-opacity duration-150"
+              className="pointer-events-none absolute inset-0 w-full h-full object-contain mix-blend-multiply transition-opacity duration-150"
             />
           )}
           <canvas

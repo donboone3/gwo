@@ -1,15 +1,18 @@
 .sp-root {
-  --bg: #e4e7ec;
-  --ink: #141518;
-  --mute: #686d76;
-  --line: #b9bcc2;
+  --bg: #faf2ea;
+  --ink: #181615;
+  --mute: #665d56;
+  --line: #e5d7ca;
 
   position: relative;
   isolation: isolate;
   z-index: 1;
   min-height: calc(100svh - 64px);
   width: 100%;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 14% 20%, rgba(244, 198, 178, 0.45) 0%, transparent 48%),
+    radial-gradient(circle at 86% 78%, rgba(176, 222, 203, 0.44) 0%, transparent 50%),
+    linear-gradient(135deg, #fbf3ec 0%, #f6ece2 50%, #edf6f1 100%);
   color: var(--ink);
   font-family: var(--font-sans), "Plus Jakarta Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;

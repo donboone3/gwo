@@ -1,13 +1,13 @@
 .mv-page {
-  --ink: #141518;
-  --mid: #686d76;
-  --dim: #9aa0aa;
-  --line: #e5e8ee;
+  --ink: #181615;
+  --mid: #665d56;
+  --dim: #988d84;
+  --line: #e5d7ca;
 
   height: calc(100svh - 64px);
   display: flex;
   flex-direction: column;
-  background: #f4f5f7;
+  background: #faf3ec;
   color: var(--ink);
   font-family: var(--font-sans), "Plus Jakarta Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -37,12 +37,11 @@
   -webkit-user-select: none;
   cursor: none;
   outline: none;
-  background: linear-gradient(
-      180deg,
-      #ffffff 0%,
-      #f8f9fc 68%,
-      #ffffff 100%
-    );
+  background:
+    radial-gradient(circle at 18% 26%, rgba(244, 198, 178, 0.58) 0%, transparent 52%),
+    radial-gradient(circle at 84% 76%, rgba(176, 222, 203, 0.52) 0%, transparent 54%),
+    radial-gradient(circle at 62% 46%, rgba(255, 253, 250, 0.94) 0%, transparent 58%),
+    linear-gradient(180deg, #fdf6f0 0%, #f7ece3 56%, #eef6f2 100%);
 }
 
 .mv-line {
@@ -218,8 +217,8 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  background: #f6f7fa;
-  border-left: 1px solid rgba(20, 21, 24, 0.08);
+  background: linear-gradient(180deg, #faf1ea 0%, #f6efe8 52%, #eff6f2 100%);
+  border-left: 1px solid #e5d7ca;
   padding: 12px 14px 16px;
   display: flex;
   flex-direction: column;

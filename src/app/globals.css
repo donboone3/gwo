@@ -1,15 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --gwo-canvas: #faf8f5;
-  --gwo-surface: #f3efea;
+  --gwo-canvas: #faf3ec;
+  --gwo-surface: #f4eae0;
   --gwo-card: #ffffff;
   --gwo-ink: #181615;
-  --gwo-muted: #6e6762;
-  --gwo-border: #e6dfd7;
-  --gwo-blush: #e5cec4;
-  --gwo-sage: #2b5942;
-  --gwo-sage-bg: #e7f1ec;
+  --gwo-muted: #665d56;
+  --gwo-border: #e5d7ca;
+  --gwo-blush: #f4d2c4;
+  --gwo-terracotta: #c0352b;
+  --gwo-sage: #1b4d3b;
+  --gwo-sage-bg: #e3f2eb;
+  --gwo-gold: #d8b474;
+}
+
+/* Signature Luminous Maison Stage Backdrop (Warm Sunset-Blush, Champagne & Botanical Sage) */
+.gwo-couture-stage-bg {
+  background:
+    radial-gradient(circle at 18% 24%, rgba(244, 198, 178, 0.56) 0%, transparent 52%),
+    radial-gradient(circle at 84% 76%, rgba(176, 222, 203, 0.52) 0%, transparent 54%),
+    radial-gradient(circle at 52% 46%, rgba(255, 253, 250, 0.94) 0%, transparent 60%),
+    linear-gradient(180deg, #fdf6f0 0%, #f7ece3 54%, #eef6f2 100%);
 }
 
 body {
