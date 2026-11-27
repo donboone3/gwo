@@ -648,29 +648,41 @@ export function Interactive3DAvatarStage({
       const dims = dimsRef.current;
       const zoom = zoomRef.current;
 
-      // Frame geometry inside stage (leaves clean headroom below top edge / HUD pills on mobile & desktop!)
-      const isNarrowMobile = cw < 430;
+      // Frame geometry inside stage (maximizes full-screen mobile height while preventing horizontal arm/bag clipping!)
+      const isNarrowMobile = cw < 460;
       const topPad = showHud
         ? compactHud
-          ? 40
+          ? 36
+          : isNarrowMobile
+          ? 38
           : 50
-        : Math.round(ch * 0.045);
+        : isNarrowMobile
+        ? Math.max(40, Math.round(ch * 0.048))
+        : Math.round(ch * 0.035);
       const botPad = showHud
         ? isNarrowMobile
-          ? 70
+          ? 44
           : compactHud
           ? 44
           : 50
+        : isNarrowMobile
+        ? Math.max(38, Math.round(ch * 0.045))
         : Math.round(ch * 0.025);
       const availH = Math.max(120, ch - topPad - botPad);
 
       // Source keyframes have crown at y=250/1920 (0.130) and sole at y=1700/1920 (0.885 -> body span 0.755 of frame height)
       const hScale = clamp(dims.heightInches / 64.0, 0.95, 1.04);
-      const drawH = (availH / 0.81) * zoom * hScale;
+      const maxDrawHByWidth = (cw / 0.58) * (16 / 9);
+      const baseDrawH = Math.min(availH / 0.79, maxDrawHByWidth);
+      const drawH = baseDrawH * zoom * hScale;
       const drawW = drawH * (9 / 16);
       const centerX = cw * 0.5;
-      // Anchor shoe soles cleanly above bottom HUD pill!
-      const soleScreenY = topPad + availH * 0.975;
+      // Center vertically if width-clamped on ultra-tall narrow screens; otherwise anchor soles cleanly above bottom bar!
+      const figSpanH = drawH * 0.758;
+      const soleScreenY =
+        figSpanH < availH * 0.90
+          ? topPad + (availH + figSpanH) * 0.5
+          : topPad + availH * 0.978;
       const drawY = soleScreenY - drawH * 0.888;
 
       const cosInterp = (a: number, b: number, t: number) => {
@@ -1128,30 +1140,31 @@ export function Interactive3DAvatarStage({
       )}
 
       {showHud && (
-        <div className="absolute inset-x-2 bottom-2 z-10 flex items-center justify-center">
-          <div className="inline-flex flex-wrap items-center justify-center gap-1 px-2 py-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm">
+        <div className="absolute inset-x-1.5 bottom-1.5 z-10 flex items-center justify-center">
+          <div className="inline-flex flex-nowrap items-center justify-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-1 rounded-full bg-white/92 backdrop-blur-md border border-black/[0.08] shadow-sm max-w-full overflow-x-auto">
             {(
               [
-                [0, "Front 0°"],
-                [45, "3/4 45°"],
-                [90, "Side 90°"],
-                [180, "Back 180°"],
+                [0, "Front 0°", "0°"],
+                [45, "3/4 45°", "45°"],
+                [90, "Side 90°", "90°"],
+                [180, "Back 180°", "180°"],
               ] as const
-            ).map(([deg, label]) => (
+            ).map(([deg, fullLabel, shortLabel]) => (
               <button
                 key={deg}
                 type="button"
                 onClick={() => snapAngle(deg)}
-                className="px-2 py-1 rounded-full text-[10px] font-bold text-[#141518] hover:bg-[#EAECEF] cursor-pointer transition min-h-[24px]"
+                className="px-2 py-1 rounded-full text-[10px] font-bold text-[#141518] hover:bg-[#EAECEF] cursor-pointer transition min-h-[24px] whitespace-nowrap shrink-0"
               >
-                {label}
+                <span className="sm:hidden">{shortLabel}</span>
+                <span className="hidden sm:inline">{fullLabel}</span>
               </button>
             ))}
 
             <button
               type="button"
               onClick={() => setAutoSpin((s) => !s)}
-              className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition min-h-[24px] ${
+              className={`px-2 sm:px-2.5 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition min-h-[24px] whitespace-nowrap shrink-0 ${
                 autoSpin
                   ? "bg-[#244B3B] text-white"
                   : "bg-[#F1F3F6] text-[#141518] hover:bg-[#E2E6EC]"
@@ -1159,7 +1172,7 @@ export function Interactive3DAvatarStage({
             >
               {autoSpin ? (
                 <>
-                  <Pause className="w-2.5 h-2.5" /> Spinning
+                  <Pause className="w-2.5 h-2.5" /> Spin
                 </>
               ) : (
                 <>
@@ -1172,7 +1185,7 @@ export function Interactive3DAvatarStage({
               <button
                 type="button"
                 onClick={() => setShowRings((r) => !r)}
-                className={`px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition min-h-[24px] ${
+                className={`px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition min-h-[24px] whitespace-nowrap shrink-0 ${
                   effectiveShowRings
                     ? "bg-[#E7F3EE] text-[#1D4232]"
                     : "text-[#686D76] hover:bg-[#EAECEF]"

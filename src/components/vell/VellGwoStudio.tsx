@@ -836,7 +836,7 @@ export function VellGwoStudio() {
       />
 
       {/* 3-ZONE INTERACTIVE 3D DRESS-UP STUDIO */}
-      <div className="relative z-10 min-h-[calc(100svh-64px)] lg:h-full max-w-[1560px] mx-auto px-3 sm:px-5 py-3 sm:py-3.5 flex flex-col lg:flex-row items-stretch justify-between gap-3.5">
+      <div className="relative z-10 min-h-[calc(100svh-64px)] lg:h-full max-w-[1560px] mx-auto px-2.5 sm:px-5 py-1.5 sm:py-3.5 flex flex-col lg:flex-row items-stretch justify-between gap-3 sm:gap-3.5">
         {/* ==================== LEFT PANEL (DESKTOP): 3D BODY SCANNER & DAILY AI STYLING ==================== */}
         <aside className="hidden lg:flex lg:w-[300px] xl:w-[316px] lg:h-full shrink-0 flex-col justify-between rounded-3xl bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.07)] p-4 overflow-y-auto">
           <div className="space-y-3">
@@ -1001,46 +1001,53 @@ export function VellGwoStudio() {
         {/* ==================== CENTER STAGE: SEAMLESS LOFT LIFELIKE AVATAR ==================== */}
         <div
           ref={centerStageRef}
-          className="relative shrink-0 h-[500px] lg:shrink lg:flex-1 min-w-0 flex flex-col items-center justify-between lg:h-full lg:min-h-0"
+          className="relative shrink-0 h-[calc(100svh-72px)] min-h-[560px] lg:shrink lg:flex-1 min-w-0 flex flex-col items-center justify-between lg:h-full lg:min-h-0"
         >
-          {/* Top Stage Bar */}
-          <div className="shrink-0 z-20 flex flex-wrap items-center justify-center gap-1.5">
+          {/* Top Stage Bar — Single Compact Row on Mobile so Full-Screen Avatar Gets Maximum Height */}
+          <div className="shrink-0 z-20 w-full flex flex-nowrap lg:flex-wrap items-center justify-center gap-1 sm:gap-1.5 overflow-x-auto">
             <button
               type="button"
               onClick={() => setAvatarModalOpen(true)}
-              className="px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs inline-flex items-center gap-1.5 text-xs font-bold text-[#141518] hover:bg-[#F4F8F5] cursor-pointer"
+              className="shrink-0 whitespace-nowrap px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs inline-flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-bold text-[#141518] hover:bg-[#F4F8F5] cursor-pointer"
             >
-              <ScanLine className="w-3.5 h-3.5 text-[#244B3B]" />
-              <span>
+              <ScanLine className="w-3.5 h-3.5 text-[#244B3B] shrink-0" />
+              <span className="sm:hidden">
+                Scan ({formatHeightFeetInches(bodyDims.heightInches)}•{recSize})
+              </span>
+              <span className="hidden sm:inline">
                 Body Scan ({formatHeightFeetInches(bodyDims.heightInches)} • Size{" "}
                 {recSize})
               </span>
             </button>
 
-            <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs">
+            <div className="shrink-0 inline-flex items-center gap-0.5 p-0.5 rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs">
               <button
                 type="button"
                 id="gwo-stage-mode-3d"
                 onClick={() => setStageMode("3d")}
-                className={`px-3 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                className={`whitespace-nowrap px-2 sm:px-3 py-1 rounded-full text-[10.5px] sm:text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
                   stageMode === "3d"
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> 3D Character
+                <Rotate3d className="w-3 h-3 text-[#A7D7C5]" />
+                <span className="sm:hidden">3D</span>
+                <span className="hidden sm:inline">3D Character</span>
               </button>
               <button
                 type="button"
                 id="gwo-stage-mode-lookbook"
                 onClick={() => setStageMode("lookbook")}
-                className={`px-3 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                className={`whitespace-nowrap px-2 sm:px-3 py-1 rounded-full text-[10.5px] sm:text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
                   stageMode === "lookbook"
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Columns2 className="w-3 h-3" /> Front + Back
+                <Columns2 className="w-3 h-3" />
+                <span className="sm:hidden">F+B</span>
+                <span className="hidden sm:inline">Front + Back</span>
               </button>
             </div>
 
@@ -1060,18 +1067,21 @@ export function VellGwoStudio() {
                 setStageMode("3d");
                 showToast("Showing Base 3D Character — tap any 3D item to dress her!");
               }}
-              className="px-3 py-1.5 rounded-full bg-white/95 hover:bg-[#F1F2F5] border border-black/[0.08] text-[11px] font-bold text-[#141518] inline-flex items-center gap-1 shadow-xs cursor-pointer"
+              className="shrink-0 whitespace-nowrap px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/95 hover:bg-[#F1F2F5] border border-black/[0.08] text-[10.5px] sm:text-[11px] font-bold text-[#141518] inline-flex items-center gap-1 shadow-xs cursor-pointer"
               title="Strip to base 3D Character to build an outfit from scratch"
             >
-              Base Character
+              <span className="sm:hidden">Base</span>
+              <span className="hidden sm:inline">Base Character</span>
             </button>
 
             <button
               type="button"
               onClick={handleSaveCustomOutfit}
-              className="px-3 py-1.5 rounded-full bg-white/95 hover:bg-[#F4F8F5] border border-black/[0.08] text-[11px] font-bold text-[#244B3B] inline-flex items-center gap-1 shadow-xs cursor-pointer"
+              className="shrink-0 whitespace-nowrap px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/95 hover:bg-[#F4F8F5] border border-black/[0.08] text-[10.5px] sm:text-[11px] font-bold text-[#244B3B] inline-flex items-center gap-1 shadow-xs cursor-pointer"
             >
-              <BookmarkPlus className="w-3.5 h-3.5" /> Save Look
+              <BookmarkPlus className="w-3.5 h-3.5" />
+              <span className="sm:hidden">Save</span>
+              <span className="hidden sm:inline">Save Look</span>
             </button>
           </div>
 
@@ -1096,9 +1106,8 @@ export function VellGwoStudio() {
                 customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
                 customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}
                 initialYawDeg={0}
-                seamlessStage={true}
+                seamlessStage={false}
                 inertiaSpin={true}
-                selectedProductId={selectedPieceId}
                 onSelectProduct={(prod) => {
                   setSelectedPieceId(prod.id);
                   setActiveSlotFilter(classifyProductSlot(prod));
@@ -1139,54 +1148,72 @@ export function VellGwoStudio() {
             )}
           </div>
 
-          {/* Game-Style Slot Cyclers Dock Below 3D Stage */}
-          <div className="shrink-0 z-20 flex flex-wrap items-center justify-center gap-1.5">
-            {(
-              [
-                ["top", "Top"],
-                ["bottom", "Pants/Skirt"],
-                ["outerwear", "Jacket"],
-                ["shoes", "Shoes"],
-                ["bag", "Bag"],
-              ] as const
-            ).map(([slotKey, label]) => (
-              <div
-                key={slotKey}
-                className="inline-flex items-center rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs px-1 py-0.5"
-              >
-                <button
-                  type="button"
-                  onClick={() => cycleSlot(slotKey, -1)}
-                  aria-label={`Previous ${label}`}
-                  className="p-1 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[24px] min-h-[24px] inline-flex items-center justify-center"
+          {/* Game-Style Slot Cyclers Dock Below 3D Stage + Mobile Scroll-to-Closet Cue */}
+          <div className="shrink-0 z-20 w-full flex flex-col items-center gap-1">
+            <div className="w-full flex flex-nowrap lg:flex-wrap items-center justify-center gap-0.5 sm:gap-1.5">
+              {(
+                [
+                  ["top", "Top", "Top"],
+                  ["bottom", "Pants/Skirt", "Pants"],
+                  ["outerwear", "Jacket", "Jacket"],
+                  ["shoes", "Shoes", "Shoes"],
+                  ["bag", "Bag", "Bag"],
+                ] as const
+              ).map(([slotKey, label, mobileLabel]) => (
+                <div
+                  key={slotKey}
+                  className="shrink-0 inline-flex items-center rounded-full bg-white/95 backdrop-blur-md border border-black/[0.08] shadow-xs px-0.5 sm:px-1 py-0.5"
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveWardrobeTab("mix");
-                    setActiveSlotFilter(slotKey);
-                  }}
-                  className="px-1.5 text-[11px] font-bold text-[#141518] cursor-pointer min-h-[24px]"
-                >
-                  {label}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => cycleSlot(slotKey, 1)}
-                  aria-label={`Next ${label}`}
-                  className="p-1 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[24px] min-h-[24px] inline-flex items-center justify-center"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
+                  <button
+                    type="button"
+                    onClick={() => cycleSlot(slotKey, -1)}
+                    aria-label={`Previous ${label}`}
+                    className="p-0.5 sm:p-1 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[17px] sm:min-w-[24px] min-h-[22px] sm:min-h-[24px] inline-flex items-center justify-center"
+                  >
+                    <ChevronLeft className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveWardrobeTab("mix");
+                      setActiveSlotFilter(slotKey);
+                    }}
+                    className="px-0.5 sm:px-1.5 text-[9.5px] sm:text-[11px] font-bold text-[#141518] cursor-pointer min-h-[22px] sm:min-h-[24px] whitespace-nowrap"
+                  >
+                    <span className="sm:hidden">{mobileLabel}</span>
+                    <span className="hidden sm:inline">{label}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cycleSlot(slotKey, 1)}
+                    aria-label={`Next ${label}`}
+                    className="p-0.5 sm:p-1 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[17px] sm:min-w-[24px] min-h-[22px] sm:min-h-[24px] inline-flex items-center justify-center"
+                  >
+                    <ChevronRight className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                document
+                  .getElementById("gwo-closet-wardrobe-panel")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+              className="lg:hidden px-3 py-0.5 rounded-full bg-[#141518]/88 text-white text-[10.5px] font-bold inline-flex items-center gap-1 shadow-xs cursor-pointer"
+            >
+              Scroll for Closet &amp; Pieces ↓
+            </button>
           </div>
         </div>
 
         {/* ==================== RIGHT PANEL: 3D DRESS-UP WARDROBE, AI HYBRID & STORE RACK ==================== */}
-        <aside className="w-full lg:w-[390px] xl:w-[424px] lg:h-full shrink-0 rounded-3xl bg-white/96 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.08)] p-4 flex flex-col justify-between gap-2.5 lg:overflow-hidden">
+        <aside
+          id="gwo-closet-wardrobe-panel"
+          className="scroll-mt-20 w-full lg:w-[390px] xl:w-[424px] lg:h-full shrink-0 rounded-3xl bg-white/96 backdrop-blur-md border border-black/[0.08] shadow-[0_14px_34px_rgba(20,21,24,0.08)] p-4 flex flex-col justify-between gap-2.5 lg:overflow-hidden"
+        >
           <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 space-y-2.5">
             {/* Header + Quick Actions */}
             <div className="flex items-center justify-between gap-2">

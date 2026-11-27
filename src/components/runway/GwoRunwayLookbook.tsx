@@ -50,8 +50,10 @@ interface CustomRunwayOutfitSaved {
 
 // Original Diagonal Depth-of-Field Runway Curves with Commanding Foreground Avatar (`KH[1] = 0.99`)
 const KX = [1.22, 0.7, 0.45, 0.3, 0.19, 0.12, 0.06];
+const KX_MOBILE = [1.22, 0.69, 0.3, 0.18, 0.11, 0.05, 0.01];
 const KF = [1.06, 0.99, 0.87, 0.78, 0.72, 0.67, 0.62];
 const KH = [1.14, 0.99, 0.72, 0.54, 0.41, 0.31, 0.23];
+const KH_MOBILE = [1.14, 0.99, 0.63, 0.47, 0.35, 0.26, 0.19];
 const KB = [0, 0, 1.5, 4, 8, 12, 17];
 const KO = [1, 1, 1, 1, 0.86, 0.5, 0];
 
@@ -512,8 +514,8 @@ export function GwoRunwayLookbook() {
     const size = () => {
       W = stage.clientWidth;
       H = stage.clientHeight;
-      base = H * 0.97;
       mobile = window.innerWidth <= 820;
+      base = mobile ? Math.min(H * 0.94, W * 1.62) : H * 0.97;
       people.forEach((m) => {
         m.e.style.width = `${base * m.r}px`;
         m.e.style.height = `${base}px`;
@@ -549,8 +551,8 @@ export function GwoRunwayLookbook() {
         const t = k - a;
         const L = (v: number[]) => v[a] + (v[Math.min(a + 1, 6)] - v[a]) * t;
 
-        const sc = L(KH);
-        const centerX = W * L(KX);
+        const sc = L(mobile ? KH_MOBILE : KH);
+        const centerX = W * L(mobile ? KX_MOBILE : KX);
         const x = centerX - base * m.r * sc * 0.5;
         const y = H * L(KF) - base * sc;
         const bl = L(KB);
@@ -608,6 +610,8 @@ export function GwoRunwayLookbook() {
 
     const onLeave = () => ring.classList.remove("show", "drag");
 
+    let horizLocked = false;
+
     const onMove = (e: PointerEvent) => {
       const r = stage.getBoundingClientRect();
       mx = e.clientX - r.left;
@@ -615,7 +619,22 @@ export function GwoRunwayLookbook() {
       if (!drag) return;
       const dx = e.clientX - sx;
       const dy = e.clientY - sy;
-      if (Math.hypot(dx, dy) > 6) moved = true;
+      const dist = Math.hypot(dx, dy);
+      if (!horizLocked) {
+        if (dist < 6) return;
+        if (Math.abs(dy) >= Math.abs(dx) * 0.95) {
+          drag = false;
+          ring.classList.remove("drag");
+          return;
+        }
+        horizLocked = true;
+        try {
+          stage.setPointerCapture(e.pointerId);
+        } catch {
+          // ignore
+        }
+      }
+      if (dist > 6) moved = true;
       target = s0 + dx / Math.max(200, W * 0.34);
     };
 
@@ -629,17 +648,31 @@ export function GwoRunwayLookbook() {
       }
       drag = true;
       moved = false;
+      horizLocked = e.pointerType === "mouse";
       sx = e.clientX;
       sy = e.clientY;
       s0 = target;
       ring.classList.add("drag");
-      stage.setPointerCapture(e.pointerId);
+      if (e.pointerType === "mouse") {
+        try {
+          stage.setPointerCapture(e.pointerId);
+        } catch {
+          // ignore
+        }
+      }
     };
 
     const onRelease = (e: PointerEvent) => {
       if (!drag) return;
       drag = false;
       ring.classList.remove("drag");
+      try {
+        if (stage.hasPointerCapture(e.pointerId)) {
+          stage.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        // ignore
+      }
       if (!moved) {
         const rect = stage.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
@@ -664,6 +697,9 @@ export function GwoRunwayLookbook() {
     let wheelAcc = 0;
     let wheelT: ReturnType<typeof setTimeout> | null = null;
     const onWheel = (e: WheelEvent) => {
+      if (window.innerWidth <= 820 && Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+        return;
+      }
       e.preventDefault();
       const d =
         Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
@@ -841,7 +877,7 @@ export function GwoRunwayLookbook() {
           {activeOutfit && (
             <div
               data-runway-3d-hero="true"
-              className="absolute inset-y-0 right-0 w-[62%] sm:w-[58%] z-[25]"
+              className="absolute inset-y-0 right-0 w-[68%] sm:w-[58%] z-[25]"
               title="Drag to spin your 3D Character 360°"
             >
               <Interactive3DAvatarStage
@@ -915,11 +951,25 @@ export function GwoRunwayLookbook() {
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* Mobile Scroll-to-Products Cue in Bottom-Right of Full-Screen Runway Stage */}
+          <button
+            type="button"
+            onClick={() =>
+              document
+                .getElementById("gwo-runway-products-rail")
+                ?.scrollIntoView({ behavior: "smooth" })
+            }
+            className="md:hidden absolute right-2.5 bottom-2.5 z-[32] px-3 py-1.5 rounded-full bg-[#141518]/90 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-sm cursor-pointer"
+          >
+            Pieces &amp; Buy ↓
+          </button>
         </section>
 
-        {/* ==================== HALF 2 (50% SCREEN): ALL CLOTHES IN THIS OUTFIT ==================== */}
+        {/* ==================== HALF 2 (50% DESKTOP / BELOW FOLD ON MOBILE): ALL CLOTHES IN THIS OUTFIT ==================== */}
         <aside
-          className="mv-rail"
+          id="gwo-runway-products-rail"
+          className="mv-rail scroll-mt-16"
           aria-label="Clothes in this Runway outfit"
         >
           {activeOutfit && (
@@ -942,7 +992,7 @@ export function GwoRunwayLookbook() {
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                <div className="w-full sm:w-auto max-w-full flex flex-wrap items-center justify-between sm:justify-end gap-1.5">
                   {browseMode === "outfits" && (
                     <select
                       aria-label="Filter 100 outfits by occasion"
