@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -85,6 +85,7 @@ export function UnifiedGwoNav() {
     removeFromBag,
     addUrlModalOpen,
     setAddUrlModalOpen,
+    addUrlModalTab,
     setActiveImportedProduct,
     updateImportedProductImage,
     customAvatar,
@@ -175,6 +176,19 @@ export function UnifiedGwoNav() {
       setPullingRack(false);
     }
   };
+
+  useEffect(() => {
+    if (!addUrlModalOpen) return;
+    setModalTab(addUrlModalTab);
+    if (
+      addUrlModalTab === "rack" &&
+      pulledRackItems.length === 0 &&
+      !pullingRack
+    ) {
+      void handlePullStoreRack("aliexpress:satin");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addUrlModalOpen, addUrlModalTab]);
 
   const handleImportSubmit = async (sample?: string) => {
     const target = (sample ?? urlInput).trim();
@@ -520,7 +534,7 @@ export function UnifiedGwoNav() {
           onPaste={handlePasteClipboardImage}
         >
           <div
-            className="w-full max-w-2xl rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-black/[0.08] space-y-4"
+            className="w-full max-w-2xl max-h-[88svh] overflow-y-auto rounded-3xl bg-white p-5 sm:p-7 shadow-2xl border border-black/[0.08] space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -549,19 +563,19 @@ export function UnifiedGwoNav() {
               </button>
             </div>
 
-            {/* 2-Tab Mode Switcher: Single Product URL vs Live Multi-Item Store Rack */}
-            <div className="inline-flex items-center p-1 rounded-full bg-[#F1F2F5] border border-black/[0.06]">
+            {/* 2-Tab Mode Switcher: One Piece Add vs Full Store Pull */}
+            <div className="flex flex-wrap items-center gap-1 p-1 rounded-2xl sm:rounded-full bg-[#F1F2F5] border border-black/[0.06]">
               <button
                 type="button"
                 id="gwo-modal-tab-url"
                 onClick={() => setModalTab("url")}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
                   modalTab === "url"
                     ? "bg-white text-[#141518] shadow-xs"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Link2 className="w-3.5 h-3.5" /> Paste Product URL
+                <Link2 className="w-3.5 h-3.5" /> One Piece Add
               </button>
               <button
                 type="button"
@@ -572,13 +586,13 @@ export function UnifiedGwoNav() {
                     void handlePullStoreRack("aliexpress:satin");
                   }
                 }}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition ${
                   modalTab === "rack"
                     ? "bg-white text-[#141518] shadow-xs"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Store className="w-3.5 h-3.5 text-[#244B3B]" /> Pull Live Store Rack
+                <Store className="w-3.5 h-3.5 text-[#244B3B]" /> Full Store Pull
               </button>
               <button
                 type="button"
@@ -587,7 +601,7 @@ export function UnifiedGwoNav() {
                   setAddUrlModalOpen(false);
                   router.push("/admin");
                 }}
-                className="px-4 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 text-[#1D4232] hover:bg-white cursor-pointer transition"
+                className="px-3.5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 text-[#1D4232] hover:bg-white cursor-pointer transition"
               >
                 <Sparkles className="w-3.5 h-3.5 text-[#244B3B]" /> Back-Office AliExpress →
               </button>

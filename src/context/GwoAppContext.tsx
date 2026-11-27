@@ -143,6 +143,8 @@ interface GwoContextValue {
   removeUploadedClosetPiece: (id: string) => void;
   addUrlModalOpen: boolean;
   setAddUrlModalOpen: (open: boolean) => void;
+  addUrlModalTab: "url" | "rack";
+  openAddUrlModal: (tab?: "url" | "rack") => void;
   activeImportedProduct: Product | null;
   setActiveImportedProduct: (prod: Product | null) => void;
   updateImportedProductImage: (productId: string, imageUrl: string) => void;
@@ -340,6 +342,11 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
   const [bagOpen, setBagOpen] = useState(false);
   const [bagBump, setBagBump] = useState(false);
   const [addUrlModalOpen, setAddUrlModalOpen] = useState(false);
+  const [addUrlModalTab, setAddUrlModalTab] = useState<"url" | "rack">("url");
+  const openAddUrlModal = useCallback((tab: "url" | "rack" = "url") => {
+    setAddUrlModalTab(tab);
+    setAddUrlModalOpen(true);
+  }, []);
   const [activeImportedProduct, setActiveImportedProduct] =
     useState<Product | null>(null);
   const [customAvatar, setCustomAvatar] = useState<CustomerAvatarData | null>(null);
@@ -1207,6 +1214,8 @@ export function GwoProvider({ children }: { children: React.ReactNode }) {
         removeUploadedClosetPiece,
         addUrlModalOpen,
         setAddUrlModalOpen,
+        addUrlModalTab,
+        openAddUrlModal,
         activeImportedProduct,
         setActiveImportedProduct,
         updateImportedProductImage,

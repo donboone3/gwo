@@ -9,17 +9,13 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Columns2,
   Copy,
   Dices,
-  Flame,
   ImagePlus,
   Instagram,
   Layers,
-  Pause,
-  Play,
+  Plus,
   Rotate3d,
-  Ruler,
   ScanLine,
   Shirt,
   ShoppingBag,
@@ -133,7 +129,7 @@ export function VellGwoStudio() {
     addUploadedClosetPiece,
     removeUploadedClosetPiece,
     shareMyClosetAndClaimBonus,
-    setAddUrlModalOpen,
+    openAddUrlModal,
     activeImportedProduct,
     setActiveImportedProduct,
     customAvatar,
@@ -1125,216 +1121,33 @@ export function VellGwoStudio() {
           className="scroll-mt-16 w-full lg:w-[390px] xl:w-[424px] lg:h-full shrink-0 rounded-t-3xl lg:rounded-3xl bg-white/98 backdrop-blur-md border-t lg:border border-black/[0.08] shadow-[0_-8px_28px_rgba(20,21,24,0.06)] lg:shadow-[0_14px_34px_rgba(20,21,24,0.08)] px-3.5 sm:px-4 pt-4 pb-8 lg:p-4 flex flex-col justify-between gap-2.5 lg:overflow-hidden"
         >
           <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 space-y-2.5">
-            {/* Header + Quick Actions */}
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h1 className="text-base font-bold text-[#141518]">
+            {/* Header + Two Top-Corner Actions: One Piece Add & Full Store Pull */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-sm sm:text-base font-bold text-[#141518] leading-tight">
                   Closet &amp; Dress-Up Studio
                 </h1>
-                <p className="text-[11px] text-[#686D76]">
+                <p className="text-[10.5px] sm:text-[11px] text-[#686D76] leading-snug mt-0.5">
                   Tap or drag any piece onto your lifelike avatar
                 </p>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 pt-0.5">
                 <button
                   type="button"
-                  onClick={handleAiClosetPlusOneStorePiece}
-                  className="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-[#141518] hover:bg-[#27292E] text-white inline-flex items-center gap-1 cursor-pointer"
-                  title="Have AI build an outfit from your Closet + 1 new Store piece"
+                  id="gwo-one-piece-add-btn"
+                  onClick={() => openAddUrlModal("url")}
+                  className="px-2 sm:px-2.5 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-[#141518] hover:bg-[#27292E] text-white inline-flex items-center gap-1 whitespace-nowrap cursor-pointer"
                 >
-                  <Wand2 className="w-3 h-3 text-[#A7D7C5]" /> AI +1 Piece
+                  <Plus className="w-3 h-3 text-[#A7D7C5]" /> One Piece Add
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAddUrlModalOpen(true)}
-                  className="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-[#F1F2F5] hover:bg-[#E4E7EC] text-[#141518] inline-flex items-center gap-1 cursor-pointer"
+                  id="gwo-full-store-pull-btn"
+                  onClick={() => openAddUrlModal("rack")}
+                  className="px-2 sm:px-2.5 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-[#F1F2F5] hover:bg-[#E4E7EC] text-[#141518] inline-flex items-center gap-1 whitespace-nowrap cursor-pointer"
                 >
-                  <Store className="w-3 h-3 text-[#244B3B]" /> + URL
+                  <Store className="w-3 h-3 text-[#244B3B]" /> Full Store Pull
                 </button>
-              </div>
-            </div>
-
-            {/* Relocated Avatar & Quick Slot Controls (Cleanly Below the Fold — Zero Clutter on Avatar!) */}
-            <div className="p-2.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.06] space-y-1.5">
-              <div className="flex flex-wrap items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setAvatarModalOpen(true)}
-                  className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full bg-white border border-black/[0.08] inline-flex items-center gap-1 text-[10.5px] font-bold text-[#141518] hover:bg-[#F4F8F5] cursor-pointer"
-                >
-                  <ScanLine className="w-3 h-3 text-[#244B3B]" />
-                  Scan ({formatHeightFeetInches(bodyDims.heightInches)}•{recSize})
-                </button>
-
-                <div className="shrink-0 inline-flex items-center gap-0.5 p-0.5 rounded-full bg-white border border-black/[0.08]">
-                  <button
-                    type="button"
-                    id="gwo-stage-mode-3d"
-                    onClick={() => setStageMode("3d")}
-                    className={`whitespace-nowrap px-2 py-0.5 rounded-full text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
-                      stageMode === "3d"
-                        ? "bg-[#141518] text-white"
-                        : "text-[#686D76] hover:text-[#141518]"
-                    }`}
-                  >
-                    <Rotate3d className="w-3 h-3 text-[#A7D7C5]" /> 3D
-                  </button>
-                  <button
-                    type="button"
-                    id="gwo-stage-mode-lookbook"
-                    onClick={() => setStageMode("lookbook")}
-                    className={`whitespace-nowrap px-2 py-0.5 rounded-full text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
-                      stageMode === "lookbook"
-                        ? "bg-[#141518] text-white"
-                        : "text-[#686D76] hover:text-[#141518]"
-                    }`}
-                  >
-                    <Columns2 className="w-3 h-3" /> F+B
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setClosetAutoSpin((s) => !s)}
-                  className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full border text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
-                    closetAutoSpin
-                      ? "bg-[#244B3B] text-white border-[#244B3B]"
-                      : "bg-white border-black/[0.08] text-[#141518] hover:bg-[#EAECEF]"
-                  }`}
-                >
-                  {closetAutoSpin ? (
-                    <Pause className="w-2.5 h-2.5" />
-                  ) : (
-                    <Play className="w-2.5 h-2.5" />
-                  )}
-                  Spin
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setClosetVisualMode((m) =>
-                      m === "heatmap" ? "studio" : "heatmap"
-                    )
-                  }
-                  className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full border text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
-                    closetVisualMode === "heatmap"
-                      ? "bg-[#141518] text-white border-[#141518]"
-                      : "bg-white border-black/[0.08] text-[#141518] hover:bg-[#EAECEF]"
-                  }`}
-                >
-                  <Flame className="w-2.5 h-2.5 text-[#F59E0B]" /> Fit Map
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setClosetShowRings((r) => !r)}
-                  className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full border text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer transition ${
-                    closetShowRings
-                      ? "bg-[#E7F3EE] text-[#1D4232] border-[#C1DFD0]"
-                      : "bg-white border-black/[0.08] text-[#141518] hover:bg-[#EAECEF]"
-                  }`}
-                >
-                  <Ruler className="w-2.5 h-2.5" /> Rings
-                </button>
-
-                <button
-                  type="button"
-                  id="gwo-undress-base-btn"
-                  onClick={() => {
-                    setDressedSlots({
-                      topId: null,
-                      bottomId: null,
-                      dressId: null,
-                      outerwearId: null,
-                      shoesId: null,
-                      bagId: null,
-                      beltId: null,
-                    });
-                    setStageMode("3d");
-                    showToast(
-                      "Showing Base 3D Character — tap any 3D item to dress her!"
-                    );
-                  }}
-                  className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full bg-white hover:bg-[#F1F2F5] border border-black/[0.08] text-[10.5px] font-bold text-[#141518] cursor-pointer"
-                >
-                  Base
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveCustomOutfit}
-                  className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full bg-white hover:bg-[#F4F8F5] border border-black/[0.08] text-[10.5px] font-bold text-[#244B3B] inline-flex items-center gap-1 cursor-pointer"
-                >
-                  <BookmarkPlus className="w-3 h-3" /> Save
-                </button>
-              </div>
-
-              {/* Quick Slot Cyclers + Angle Snaps */}
-              <div className="flex flex-wrap items-center gap-1">
-                {(
-                  [
-                    ["top", "Top"],
-                    ["bottom", "Pants"],
-                    ["outerwear", "Jacket"],
-                    ["shoes", "Shoes"],
-                    ["bag", "Bag"],
-                  ] as const
-                ).map(([slotKey, label]) => (
-                  <div
-                    key={slotKey}
-                    className="shrink-0 inline-flex items-center rounded-full bg-white border border-black/[0.08] px-0.5 py-0.5"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => cycleSlot(slotKey, -1)}
-                      aria-label={`Previous ${label}`}
-                      className="p-0.5 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[20px] min-h-[20px] inline-flex items-center justify-center"
-                    >
-                      <ChevronLeft className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveWardrobeTab("mix");
-                        setActiveSlotFilter(slotKey);
-                      }}
-                      className="px-1 text-[10px] font-bold text-[#141518] cursor-pointer whitespace-nowrap"
-                    >
-                      {label}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => cycleSlot(slotKey, 1)}
-                      aria-label={`Next ${label}`}
-                      className="p-0.5 rounded-full hover:bg-[#EAECEF] text-[#141518] cursor-pointer min-w-[20px] min-h-[20px] inline-flex items-center justify-center"
-                    >
-                      <ChevronRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-
-                {(
-                  [
-                    [0, "0°"],
-                    [90, "90°"],
-                    [180, "180°"],
-                  ] as const
-                ).map(([deg, lbl]) => (
-                  <button
-                    key={deg}
-                    type="button"
-                    onClick={() => {
-                      setStageMode("3d");
-                      setClosetAutoSpin(false);
-                      setClosetYawDeg(deg);
-                      setClosetYawSeq((s) => s + 1);
-                    }}
-                    className="shrink-0 px-2 py-0.5 rounded-full bg-white hover:bg-[#EAECEF] border border-black/[0.08] text-[10px] font-bold text-[#686D76] hover:text-[#141518] cursor-pointer"
-                  >
-                    {lbl}
-                  </button>
-                ))}
               </div>
             </div>
 
