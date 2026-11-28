@@ -887,6 +887,9 @@ export function Interactive3DAvatarStage({
 
     if (effectiveEquippedProducts.length > 0 || turntableSpec.lookIdx === "base") {
       paintModularAngle("front");
+      if (studioFrontVerRef.current === 0 && turntableSpec.isCustomMix) {
+        setFramesReady(false);
+      }
       const sideTimer = setTimeout(() => {
         if (!cancelled) {
           paintModularAngle("sideR");

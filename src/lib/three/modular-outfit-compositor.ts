@@ -5,7 +5,7 @@ import {
 } from "./avatar-ready-pipeline";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const LAYER_VER = "mod29";
+export const LAYER_VER = "mod33";
 
 export type AvatarViewAngle = "front" | "side" | "back";
 
@@ -668,16 +668,25 @@ export function composeModularOutfitToCanvas(params: {
           // Guard against WebKit canvas memory or CORS taint exceptions
         }
       }
+      const isMidiSkirt = Boolean(
+        !dressProd &&
+          (botProd?.id === "prod-ae-ivory-satin-bias-midi" ||
+            botProd?.id === "prod-ae-chocolate-satin-midi")
+      );
+      if (coversShins || isMidiSkirt) {
+        // Clear wider curvier base hips/thighs while keeping hands/thumbs (x<=332 & x>=568 below y=690) 100% intact!
+        ctx.clearRect(326, 525, 248, 165);
+        ctx.clearRect(333, 690, 234, 76);
+      }
       if (coversShins) {
-        // Clear lower shins/calves below y=765 (safely below hands at y<=755!) while keeping central ankle columns!
-        ctx.clearRect(338, 765, 224, 483);
-        ctx.clearRect(335, 1248, 66, 107);
-        ctx.clearRect(442, 1248, 16, 107);
-        ctx.clearRect(499, 1248, 66, 107);
-        ctx.clearRect(395, 1284, 110, 71);
+        // Clear all lower shins, calves & base pumps below y=765 (safely below hands at y<=755!) so trouser hems & _under_ shoes have ZERO double-shoe artifacts!
+        ctx.clearRect(320, 765, 260, 590);
+      } else if (shoeSlug === "shoe_meotina_boots") {
+        // Clear lower calves & base pumps inside solid boot shaft (y=1140..1355) so knee-high leather boots meet bare knees with zero gap!
+        ctx.clearRect(335, 1140, 230, 215);
       } else if (shoeSlug) {
-        // Clear base pointed nude pumps below ankle (y=1208..1355) so strappy sandals/boots sit cleanly!
-        ctx.clearRect(345, 1208, 210, 147);
+        // Clear base pointed nude pumps below feathered ankle blend (y=1202..1355) so bare-leg heels/sneakers join seamlessly!
+        ctx.clearRect(335, 1202, 230, 153);
       }
     } else {
       ctx.drawImage(ly, 0, 0, 900, 1355);
@@ -793,21 +802,59 @@ export function renderModularOutfitDataUrlAsync(
                 });
                 if (status === "ready") {
                   settled = true;
-                  let url: string | null = null;
-                  try {
-                    url = cv.toDataURL("image/webp", 0.84);
-                  } catch {
-                    url = null;
-                  }
-                  releaseCanvas();
-                  if (url) {
-                    if (DATA_URL_MEMO.size > 24) {
-                      const oldest = DATA_URL_MEMO.keys().next().value;
-                      if (oldest) DATA_URL_MEMO.delete(oldest);
+                  const commitUrl = (url: string | null) => {
+                    releaseCanvas();
+                    if (url) {
+                      if (DATA_URL_MEMO.size > 36) {
+                        const oldest = DATA_URL_MEMO.keys().next().value;
+                        if (oldest) {
+                          const prev = DATA_URL_MEMO.get(oldest);
+                          if (prev?.startsWith("blob:")) {
+                            try {
+                              URL.revokeObjectURL(prev);
+                            } catch {
+                              // ignore
+                            }
+                          }
+                          DATA_URL_MEMO.delete(oldest);
+                        }
+                      }
+                      DATA_URL_MEMO.set(key, url);
                     }
-                    DATA_URL_MEMO.set(key, url);
+                    finish(url);
+                  };
+
+                  if (typeof cv.toBlob === "function") {
+                    try {
+                      cv.toBlob(
+                        (blob) => {
+                          if (blob && typeof URL.createObjectURL === "function") {
+                            commitUrl(URL.createObjectURL(blob));
+                          } else {
+                            let fallbackUrl: string | null = null;
+                            try {
+                              fallbackUrl = cv ? cv.toDataURL("image/webp", 0.84) : null;
+                            } catch {
+                              fallbackUrl = null;
+                            }
+                            commitUrl(fallbackUrl);
+                          }
+                        },
+                        "image/webp",
+                        0.86
+                      );
+                    } catch {
+                      commitUrl(null);
+                    }
+                  } else {
+                    let url: string | null = null;
+                    try {
+                      url = cv.toDataURL("image/webp", 0.84);
+                    } catch {
+                      url = null;
+                    }
+                    commitUrl(url);
                   }
-                  finish(url);
                 }
               } catch {
                 settled = true;

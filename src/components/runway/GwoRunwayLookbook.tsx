@@ -285,6 +285,19 @@ export function GwoRunwayLookbook() {
       : 0;
   const rawActiveOutfit = runwayOutfits[safeActiveIdx] || runwayOutfits[0];
 
+  // Debounce heavy 360° WebGL hero hydration while user rapidly swipes/clicks across Runway looks!
+  const [settledHeroIdx, setSettledHeroIdx] = useState(0);
+  const settledHeroIdxRef = useRef(0);
+  settledHeroIdxRef.current = settledHeroIdx;
+  const kickRunwayRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSettledHeroIdx(safeActiveIdx);
+      requestAnimationFrame(() => kickRunwayRef.current?.());
+    }, 150);
+    return () => clearTimeout(t);
+  }, [safeActiveIdx]);
+
   // Background pre-warm adjacent Runway outfits AFTER active hero's 4K + QHD bundle settles!
   useEffect(() => {
     const N = runwayOutfits.length;
@@ -344,7 +357,27 @@ export function GwoRunwayLookbook() {
     };
   }, [avatarStats, rawActiveOutfit, swappedPieceBySlot]);
 
-  // Refs for Original Iconic Diagonal Multi-Model Runway Engine
+  const settledHeroOutfit = useMemo(() => {
+    const raw = runwayOutfits[settledHeroIdx] || rawActiveOutfit;
+    if (!raw) return raw;
+    const pieces = raw.pieces.map((p, slotIdx) => {
+      const swapKey = `${raw.id}:${slotIdx}`;
+      const override = swappedPieceBySlot[swapKey];
+      if (!override) return p;
+      const fit = analyzeExactAvatarFit(avatarStats, override);
+      return {
+        product: override,
+        recommendedSize: fit.recommendedSize,
+        confidencePct: fit.confidencePct,
+        fitVerdict: fit.headlineVerdict,
+      };
+    });
+    return {
+      ...raw,
+      pieces,
+      totalPriceUsd: pieces.reduce((s, x) => s + x.product.price, 0),
+    };
+  }, [avatarStats, rawActiveOutfit, runwayOutfits, settledHeroIdx, swappedPieceBySlot]);
   const stageRef = useRef<HTMLElement | null>(null);
   const heroWrapRef = useRef<HTMLDivElement | null>(null);
   const lineRef = useRef<HTMLDivElement | null>(null);
@@ -385,7 +418,7 @@ export function GwoRunwayLookbook() {
     (centerIdx: number, targetAngle: "front" | "back") => {
       const N = runwayOutfits.length;
       if (N === 0) return;
-      for (let offset = -2; offset <= 6; offset++) {
+      for (let offset = -2; offset <= 8; offset++) {
         const i = ((centerIdx + offset) % N + N) % N;
         const imgEl = modelTopImgElsRef.current[i];
         const outfit = runwayOutfits[i];
@@ -560,11 +593,13 @@ export function GwoRunwayLookbook() {
 
     let rafId = 0;
     const kickRunway = () => {
+      dirty = true;
       if (!rafId) {
         last = performance.now();
         rafId = requestAnimationFrame((ts) => frame(ts));
       }
     };
+    kickRunwayRef.current = kickRunway;
 
     jumpLookRef.current = (lookIndex: number) => {
       const currMod = wrap(Math.round(target), N);
@@ -635,7 +670,8 @@ export function GwoRunwayLookbook() {
         !footerDragging &&
         Math.abs(target - p) <= 0.028 &&
         distFromSlot <= 0.028;
-      const showLiveHero = isSettled && heroReady;
+      const showLiveHero =
+        isSettled && heroReady && settledHeroIdxRef.current === roundedIdx;
       const heroWrapEl = heroWrapRef.current;
       if (heroWrapEl) {
         const wantHeroOp = showLiveHero ? "1" : "0";
@@ -1041,7 +1077,7 @@ export function GwoRunwayLookbook() {
           <div className="mv-ring" ref={ringRef} />
 
           {/* Foreground Live WebGL 3D Character — Exact Same Full-Stage Scale as 360°! */}
-          {activeOutfit && (
+          {settledHeroOutfit && (
             <div
               ref={heroWrapRef}
               data-runway-3d-hero="true"
@@ -1052,14 +1088,14 @@ export function GwoRunwayLookbook() {
               <Interactive3DAvatarStage
                 mode="avatar"
                 dimensions={bodyDims}
-                wornPieces={activeOutfit.pieces.map((p) => ({
+                wornPieces={settledHeroOutfit.pieces.map((p) => ({
                   product: p.product,
                 }))}
                 faceOvalDataUrl={customAvatar?.faceOvalDataUrl || null}
                 customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
                 customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}
                 externalYawDeg={0}
-                externalYawSeq={safeActiveIdx}
+                externalYawSeq={settledHeroIdx}
                 centerXFrac={isMobileStage ? 0.68 : 0.66}
                 bottomReservePx={42}
                 ignoreLeftFraction={0.39}

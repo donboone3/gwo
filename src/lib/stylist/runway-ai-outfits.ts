@@ -110,7 +110,7 @@ export function buildAiRunwayOutfits(params: {
       if (hay.includes(tok)) bonus += 18;
     }
     // Keep signature 001-016 boosted so prebaked studio looks lead their archetype while ranking by Social DNA
-    const signatureBoost = !tpl.isModularRemix ? 12 : 0;
+    const signatureBoost = typeof tpl.prebakedLookIdx === "number" ? 12 : 0;
     const matchPct = Math.min(
       99,
       Math.max(85, Math.round(baseScore * 0.92 + 8 + Math.min(10, bonus * 0.4)))
@@ -278,9 +278,13 @@ export function buildSinglePieceRunwayLineup(params: {
       aiReason: `Single 360° 3D Piece on Your ${hDisplay} Body Scan • Recommended Size ${fit.recommendedSize} (${fit.confidencePct}% Fit Match).`,
       fitHeadline: `Exact ${hDisplay} Fit • Size ${fit.recommendedSize}`,
       matchScorePct: fit.confidencePct,
-      frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${oIdx}_front.webp?v=rw4k3`,
-      backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${oIdx}_back.webp?v=rw4k3`,
-      isModularRemix: matchingOutfit?.prebakedLookIdx === undefined,
+      frontAvatarUrl: matchingOutfit
+        ? matchingOutfit.frontAvatarUrl
+        : `${BASE}/models/runway_ai/ae_outfit_${oIdx}_front.webp?v=rw4k3`,
+      backAvatarUrl: matchingOutfit
+        ? matchingOutfit.backAvatarUrl
+        : `${BASE}/models/runway_ai/ae_outfit_${oIdx}_back.webp?v=rw4k3`,
+      isModularRemix: !matchingOutfit,
       pieces: [
         {
           product: prod,
