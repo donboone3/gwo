@@ -683,6 +683,10 @@ export function GwoRunwayLookbook() {
         const op = rawOp * heroFade;
         const f = bl > 0.25 ? `blur(${bl.toFixed(1)}px)` : "none";
         const o = op.toFixed(3);
+        const wantVis = heroFade === 0 ? "hidden" : "visible";
+        if (m.e.style.visibility !== wantVis) {
+          m.e.style.visibility = wantVis;
+        }
 
         m.cx = centerX;
         m.sc = sc;
@@ -1011,8 +1015,8 @@ export function GwoRunwayLookbook() {
       id: `custom-runway-${Date.now()}`,
       title,
       productIds: selectedCustomIds,
-      frontAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_0_front.webp?v=mod28`,
-      backAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_0_back.webp?v=mod28`,
+      frontAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_0_front.webp?v=rw4k3`,
+      backAvatarUrl: `${BASE_PATH}/models/runway_ai/ae_outfit_0_back.webp?v=rw4k3`,
     };
     persistCustomRunway([created, ...savedCustomOutfits]);
     setBrowseMode("outfits");
@@ -1042,6 +1046,7 @@ export function GwoRunwayLookbook() {
             <div
               ref={heroWrapRef}
               data-runway-3d-hero="true"
+              style={{ opacity: 0, pointerEvents: "none" }}
               className="absolute inset-0 w-full h-full z-[25]"
               title="Drag horizontally to spin your 3D Character 360°"
             >
@@ -1050,7 +1055,6 @@ export function GwoRunwayLookbook() {
                 dimensions={bodyDims}
                 wornPieces={activeOutfit.pieces.map((p) => ({
                   product: p.product,
-                  selectedSize: p.recommendedSize,
                 }))}
                 faceOvalDataUrl={customAvatar?.faceOvalDataUrl || null}
                 customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}

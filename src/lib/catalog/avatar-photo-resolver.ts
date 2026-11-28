@@ -80,13 +80,13 @@ export function resolveLifelikeAvatarPhotos(params: {
   if (resolvedIdx !== undefined && resolvedIdx >= 0 && resolvedIdx <= 15) {
     const front =
       explicitFrontUrl ||
-      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_front.webp?v=mod7`;
+      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_front.webp?v=rw4k3`;
     const back =
       explicitBackUrl ||
-      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_back.webp?v=mod7`;
+      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_back.webp?v=rw4k3`;
     const side =
       explicitSideUrl ||
-      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_side.webp?v=mod7`;
+      `${BASE}/models/runway_ai/ae_outfit_${resolvedIdx}_side.webp?v=rw4k3`;
     return {
       frontUrl: front,
       backUrl: back,
@@ -99,7 +99,7 @@ export function resolveLifelikeAvatarPhotos(params: {
   // 2. Explicit overrides
   if (explicitFrontUrl) {
     const back =
-      explicitBackUrl || `${BASE}/models/runway_ai/ae_outfit_0_back.webp?v=life4`;
+      explicitBackUrl || `${BASE}/models/runway_ai/ae_outfit_0_back.webp?v=rw4k3`;
     return {
       frontUrl: explicitFrontUrl,
       backUrl: back,
@@ -124,9 +124,9 @@ export function resolveLifelikeAvatarPhotos(params: {
   else if (/linen|cardigan|oat/.test(text)) fallbackIdx = 5;
   else if (/ivory|tweed|boucle|pleat/.test(text)) fallbackIdx = 1;
 
-  const front = `${BASE}/models/runway_ai/ae_outfit_${fallbackIdx}_front.webp?v=life4`;
-  const back = `${BASE}/models/runway_ai/ae_outfit_${fallbackIdx}_back.webp?v=life4`;
-  const side = `${BASE}/models/runway_ai/ae_outfit_${fallbackIdx}_side.webp?v=life4`;
+  const front = `${BASE}/models/runway_ai/ae_outfit_${fallbackIdx}_front.webp?v=rw4k3`;
+  const back = `${BASE}/models/runway_ai/ae_outfit_${fallbackIdx}_back.webp?v=rw4k3`;
+  const side = `${BASE}/models/runway_ai/ae_outfit_${fallbackIdx}_side.webp?v=rw4k3`;
   return {
     frontUrl: front,
     backUrl: back,

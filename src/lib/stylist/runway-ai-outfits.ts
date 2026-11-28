@@ -217,8 +217,8 @@ export function buildAiRunwayOutfits(params: {
         aiReason: `Live 3D modular capsule synthesized onto your ${hDisplay} body scan.`,
         fitHeadline: `Exact ${hDisplay} Scan Fit (${avatar.bustInches}" B • ${avatar.waistInches}" W • ${avatar.hipsInches}" H)`,
         matchScorePct: 96 - (k % 3),
-        frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${k % 16}_front.webp?v=mod7`,
-        backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${k % 16}_back.webp?v=mod7`,
+        frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${k % 16}_front.webp?v=rw4k3`,
+        backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${k % 16}_back.webp?v=rw4k3`,
         isModularRemix: true,
         pieces,
         totalPriceUsd: pieces.reduce((sum, x) => sum + x.product.price, 0),
@@ -278,8 +278,8 @@ export function buildSinglePieceRunwayLineup(params: {
       aiReason: `Single 360° 3D Piece on Your ${hDisplay} Body Scan • Recommended Size ${fit.recommendedSize} (${fit.confidencePct}% Fit Match).`,
       fitHeadline: `Exact ${hDisplay} Fit • Size ${fit.recommendedSize}`,
       matchScorePct: fit.confidencePct,
-      frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${oIdx}_front.webp?v=mod7`,
-      backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${oIdx}_back.webp?v=mod7`,
+      frontAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${oIdx}_front.webp?v=rw4k3`,
+      backAvatarUrl: `${BASE}/models/runway_ai/ae_outfit_${oIdx}_back.webp?v=rw4k3`,
       isModularRemix: matchingOutfit?.prebakedLookIdx === undefined,
       pieces: [
         {

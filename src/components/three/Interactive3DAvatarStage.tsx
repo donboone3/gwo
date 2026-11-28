@@ -733,8 +733,8 @@ export function Interactive3DAvatarStage({
     };
   }, [turntableSpec]);
 
-  // 4K Studio Master Texture Synthesizer (900x1355 = 4.1x higher figure pixel density than video cells!)
-  // - Canonical capsules: uses the razor-sharp 900x1355 studio master (`runway_ai/ae_outfit_X_front/back.webp`)
+  // 4K Studio Master Texture Synthesizer (1350x2032 = 9.2x higher pixel area than video cells!)
+  // - Canonical capsules: uses the razor-sharp 1350x2032 studio master (`runway_ai/ae_outfit_X_front/back.webp`)
   // - Custom Closet mixes: uses atomic 900x1355 modular studio layers (`composeModularOutfitToCanvas`) with ONLY selected clothes!
   useEffect(() => {
     if (typeof document === "undefined" || mode !== "avatar") {
@@ -747,13 +747,18 @@ export function Interactive3DAvatarStage({
 
     let cancelled = false;
     const ensureCanvas = (
-      ref: React.MutableRefObject<HTMLCanvasElement | null>
+      ref: React.MutableRefObject<HTMLCanvasElement | null>,
+      w: number,
+      h: number
     ): HTMLCanvasElement => {
       if (!ref.current) {
         const c = document.createElement("canvas");
-        c.width = 900;
-        c.height = 1355;
+        c.width = w;
+        c.height = h;
         ref.current = c;
+      } else if (ref.current.width !== w || ref.current.height !== h) {
+        ref.current.width = w;
+        ref.current.height = h;
       }
       return ref.current;
     };
@@ -765,36 +770,42 @@ export function Interactive3DAvatarStage({
     const paintCanonicalAngle = (angle: "front" | "back") => {
       if (cancelled || typeof turntableSpec.lookIdx !== "number") return;
       const idx = turntableSpec.lookIdx;
-      const url = `${basePrefix}/models/runway_ai/ae_outfit_${idx}_${angle}.webp?v=rw4k2`;
+      const url = `${basePrefix}/models/runway_ai/ae_outfit_${idx}_${angle}.webp?v=rw4k3`;
       const im = getCachedOrLoadImage(url, () => {
         if (!cancelled) paintCanonicalAngle(angle);
       });
       if (!im) return;
+      const W = 1350;
+      const H = 2032;
       const cv = ensureCanvas(
-        angle === "front" ? studioFrontCanvasRef : studioBackCanvasRef
+        angle === "front" ? studioFrontCanvasRef : studioBackCanvasRef,
+        W,
+        H
       );
       const ctx = cv.getContext("2d");
       if (!ctx) return;
-      ctx.clearRect(0, 0, 900, 1355);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.clearRect(0, 0, W, H);
       if (idx >= 10) {
         const sc = 1.095;
         ctx.drawImage(
           im,
-          450 - 450 * sc,
-          28 - 94 * sc,
-          900 * sc,
-          1355 * sc
+          W * 0.5 * (1 - sc),
+          H * (0.020664 - 0.069373 * sc),
+          W * sc,
+          H * sc
         );
       } else {
-        ctx.drawImage(im, 0, 0, 900, 1355);
+        ctx.drawImage(im, 0, 0, W, H);
       }
       if (faceOvalImgRef.current && angle === "front") {
-        const fw = 900 * 0.129;
-        const fh = 1355 * 0.097;
+        const fw = W * 0.129;
+        const fh = H * 0.097;
         ctx.drawImage(
           faceOvalImgRef.current,
-          900 * 0.4995 - fw / 2,
-          1355 * 0.132 - fh / 2,
+          W * 0.4995 - fw / 2,
+          H * 0.132 - fh / 2,
           fw,
           fh
         );
@@ -822,7 +833,7 @@ export function Interactive3DAvatarStage({
           : viewId === "back"
           ? studioBackCanvasRef
           : studioSideLCanvasRef;
-      const cv = ensureCanvas(targetRef);
+      const cv = ensureCanvas(targetRef, 900, 1355);
       const ctx = cv.getContext("2d");
       if (!ctx) return;
       const status = composeModularOutfitToCanvas({
@@ -1241,6 +1252,13 @@ export function Interactive3DAvatarStage({
            return clamp(s.rgb / s.a, 0.0, 1.0);
          }
 
+         vec3 sampleStudioSafe(vec2 uv, vec3 fallbackRgb) {
+           if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return fallbackRgb;
+           vec4 s = texture2D(uTexStudio, uv);
+           if (s.a < 0.45) return fallbackRgb;
+           return clamp(s.rgb / s.a, 0.0, 1.0);
+         }
+
          float evalMaskWeight(int maskId, vec3 c, float lum, float chroma) {
            float r = c.r;
            float g = c.g;
@@ -1421,9 +1439,16 @@ export function Interactive3DAvatarStage({
            float finalA = 0.0;
 
            // 2. Sample 72-frame 360° Turntable (plus Multi-Slot Upper Splicing when custom Closet mix!)
-           if (uHasBaseTex > 0.5 && uStudioMix < 0.995) {
-             vec2 uvBase = clamp(uUvRect.xy + sLoc * uUvRect.zw, uCellBounds.xy, uCellBounds.zw);
-             vec4 cBase = texture2D(uTex, uvBase);
+           if (uHasBaseTex > 0.5 && uStudioMix < 0.5) {
+             vec2 rawUvBase = clamp(uUvRect.xy + sLoc * uUvRect.zw, uCellBounds.xy, uCellBounds.zw);
+             vec2 texCoord = rawUvBase / uTexel - 0.5;
+             vec2 flTc = floor(texCoord);
+             vec2 frTc = texCoord - flTc;
+             vec2 sharpFr = mix(frTc, frTc * frTc * (3.0 - 2.0 * frTc), 0.28);
+             vec2 uvSharp = clamp((flTc + sharpFr + 0.5) * uTexel, uCellBounds.xy, uCellBounds.zw);
+             vec4 cEdge = texture2D(uTex, rawUvBase);
+             vec2 uvBase = cEdge.a > 0.72 ? uvSharp : rawUvBase;
+             vec4 cBase = cEdge.a > 0.72 ? texture2D(uTex, uvBase) : cEdge;
              vec3 bRgb = cBase.a > 0.008 ? clamp(cBase.rgb / max(cBase.a, 0.004), 0.0, 1.0) : vec3(1.0);
 
              if (uSharpAmt > 0.01 && cBase.a > 0.55) {
@@ -1433,7 +1458,7 @@ export function Interactive3DAvatarStage({
                vec3 eRgb = sampleStraightSafe(vec2(min(uCellBounds.z, uvBase.x + uTexel.x), uvBase.y), bRgb);
                vec3 mnRgb = min(bRgb, min(min(nRgb, s2Rgb), min(wRgb, eRgb)));
                vec3 mxRgb = max(bRgb, max(max(nRgb, s2Rgb), max(wRgb, eRgb)));
-               vec3 amp = sqrt(clamp(min(mnRgb, 1.0 - mxRgb) / max(mxRgb, vec3(0.004)), 0.0, 1.0)) * (-0.19 * uSharpAmt);
+               vec3 amp = sqrt(clamp(min(mnRgb, 1.0 - mxRgb) / max(mxRgb, vec3(0.004)), 0.0, 1.0)) * (-0.195 * uSharpAmt);
                bRgb = clamp((bRgb + (nRgb + s2Rgb + wRgb + eRgb) * amp) / (vec3(1.0) + 4.0 * amp), 0.0, 1.0);
              }
 
@@ -1489,34 +1514,35 @@ export function Interactive3DAvatarStage({
              finalA = bA;
            }
 
-           // 3. True 4K Studio Master Fusion + 4-Angle Cylindrical Modular Turntable (900x1355 razor-sharp eyelashes, hair strands & weave!)
-           if (uStudioMix > 0.004) {
-             float cylScale = max(0.74, uStudioCyl.y);
+           // 3. True 4K Studio Master (1350x2032 native + 5-tap CAS, strictly binary single-source — ZERO double-image ghosting!)
+           if (uStudioMix > 0.5) {
+             float cylScale = max(0.76, uStudioCyl.y);
              float stLocalX = 0.4765 + (sLoc.x - 0.4765) / cylScale;
              vec2 uvSt = vec2(
-               0.500 + (stLocalX - 0.4765) * 0.6733,
-               0.0235 + (sLoc.y - 0.0220) * 0.998
+               0.5028 + (stLocalX - 0.4765) * 0.6755,
+               0.0009 + sLoc.y * 0.9981
              );
              vec4 cSt = (uvSt.x >= 0.0 && uvSt.x <= 1.0 && uvSt.y >= 0.0 && uvSt.y <= 1.0)
                ? texture2D(uTexStudio, uvSt)
                : vec4(0.0);
-             if (uStudioCyl.x > 0.004) {
-               vec4 cSt2 = (uvSt.x >= 0.0 && uvSt.x <= 1.0 && uvSt.y >= 0.0 && uvSt.y <= 1.0)
-                 ? texture2D(uTexStudioNext, uvSt)
-                 : vec4(0.0);
-               cSt = mix(cSt, cSt2, uStudioCyl.x);
-             }
              vec3 stRgb = cSt.a > 0.008 ? clamp(cSt.rgb / max(cSt.a, 0.004), 0.0, 1.0) : vec3(1.0);
+             if (cSt.a > 0.55) {
+               float stStepX = uStudioCyl.x > 0.0001 ? uStudioCyl.x : (1.0 / 1350.0);
+               vec2 stStep = vec2(stStepX, stStepX * 0.66437);
+               vec3 stN = sampleStudioSafe(vec2(uvSt.x, uvSt.y - stStep.y), stRgb);
+               vec3 stS = sampleStudioSafe(vec2(uvSt.x, uvSt.y + stStep.y), stRgb);
+               vec3 stW = sampleStudioSafe(vec2(uvSt.x - stStep.x, uvSt.y), stRgb);
+               vec3 stE = sampleStudioSafe(vec2(uvSt.x + stStep.x, uvSt.y), stRgb);
+               vec3 stMn = min(stRgb, min(min(stN, stS), min(stW, stE)));
+               vec3 stMx = max(stRgb, max(max(stN, stS), max(stW, stE)));
+               vec3 stAmp = sqrt(clamp(min(stMn, 1.0 - stMx) / max(stMx, vec3(0.004)), 0.0, 1.0)) * (-0.16);
+               stRgb = clamp((stRgb + (stN + stS + stW + stE) * stAmp) / (vec3(1.0) + 4.0 * stAmp), 0.0, 1.0);
+             }
              if (uStudioPreColored < 0.5) {
                stRgb = applyPrimaryShifts(stRgb, sLoc);
              }
-             if (uHasBaseTex < 0.5 || uStudioMix >= 0.995) {
-               finalRgb = stRgb;
-               finalA = cSt.a;
-             } else {
-               finalRgb = mix(finalRgb, stRgb, uStudioMix);
-               finalA = mix(finalA, cSt.a, uStudioMix);
-             }
+             finalRgb = stRgb;
+             finalA = cSt.a;
            }
 
            if (finalA < 0.008) {
@@ -1659,9 +1685,9 @@ export function Interactive3DAvatarStage({
     kickRenderRef.current = kickRender;
 
     const updateCanvasSize = () => {
-      // 2.5x Super-Retina density delivers true 4K eyelash & fabric-weave sharpness!
-      dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-      dpr2d = Math.min(window.devicePixelRatio || 1, 2);
+      // Full 3.0x Super-Retina physical pixel density delivers 1:1 native OLED sharpness with zero browser upscaling blur!
+      dpr = Math.min(window.devicePixelRatio || 1, 3);
+      dpr2d = Math.min(window.devicePixelRatio || 1, 2.5);
       cw = Math.max(160, stageEl.clientWidth);
       ch = Math.max(200, stageEl.clientHeight);
       const nextW = Math.round(cw * dpr);
@@ -1916,6 +1942,31 @@ export function Interactive3DAvatarStage({
         if (Math.abs(velYawRef.current) <= 0.014) velYawRef.current = 0;
       }
 
+      // Gentle cardinal magnet-settle when released within ±13.5° of Front (0°) or Back (180°)
+      // so the avatar never rests at an awkward half-rotated angle and cleanly upgrades to 4K Studio Master!
+      if (
+        mode === "avatar" &&
+        !autoSpinRef.current &&
+        !isSpinningFinger &&
+        Math.abs(velYawRef.current) < 0.28
+      ) {
+        const dFrontRad = shortestAngleDeltaRad(targetYawRef.current, 0);
+        const dBackRad = shortestAngleDeltaRad(targetYawRef.current, Math.PI);
+        if (
+          Math.abs(dFrontRad) > 0.002 &&
+          Math.abs(dFrontRad) < (13.5 * Math.PI) / 180
+        ) {
+          velYawRef.current = 0;
+          targetYawRef.current += dFrontRad;
+        } else if (
+          Math.abs(dBackRad) > 0.002 &&
+          Math.abs(dBackRad) < (13.5 * Math.PI) / 180
+        ) {
+          velYawRef.current = 0;
+          targetYawRef.current += dBackRad;
+        }
+      }
+
       if (isSpinningFinger) {
         yawRef.current = targetYawRef.current;
       } else {
@@ -2130,17 +2181,18 @@ export function Interactive3DAvatarStage({
         }
       }
 
-      // Compute 4K Studio Master blend + 4-Angle Cylindrical Modular Turntable (for custom Closet mixes!)
+      // Compute 4K Studio Master state (STRICTLY BINARY 0.0 or 1.0 — NEVER partial blend two poses!)
       const distFront = Math.min(exactDeg, 360 - exactDeg);
       const distBack = Math.abs(exactDeg - 180);
       let studioMix = 0.0;
-      let studioNextMix = 0.0;
+      const studioNextMix = 0.0;
       let studioCylScale = 1.0;
       let primaryStudioTex: WebGLTexture | null = glTexStudioFront;
-      let nextStudioTex: WebGLTexture | null = null;
+      const nextStudioTex: WebGLTexture | null = null;
       const isCustom4K = Boolean(
         mode === "avatar" && turntableSpecRef.current.isCustomMix && glTexStudioFront
       );
+      const studioTexStepX = isCustom4K ? 1.0 / 900.0 : 1.0 / 1350.0;
 
       if (isCustom4K) {
         studioMix = 1.0;
@@ -2158,33 +2210,25 @@ export function Interactive3DAvatarStage({
         if (offsetDeg < -180) offsetDeg += 360;
 
         primaryStudioTex = viewTex(qIdx);
-        // Subtle 3D cylindrical foreshortening as she turns toward ±45° quadrant seam!
+        // Subtle 3D cylindrical foreshortening across each 90° quadrant — zero cross-fade ghosting!
         const normOff = Math.abs(offsetDeg) / 45;
-        studioCylScale = 1.0 - 0.14 * normOff * normOff;
-
-        if (offsetDeg > 29) {
-          const t = clamp((offsetDeg - 29) / 32, 0, 1);
-          studioNextMix = t * t * (3 - 2 * t) * 0.5;
-          nextStudioTex = viewTex(qIdx + 1);
-        } else if (offsetDeg < -29) {
-          const t = clamp((-offsetDeg - 29) / 32, 0, 1);
-          studioNextMix = t * t * (3 - 2 * t) * 0.5;
-          nextStudioTex = viewTex(qIdx - 1);
-        }
+        studioCylScale = 1.0 - 0.12 * normOff * normOff;
       } else if (mode === "avatar") {
-        if (glTexStudioFront && distFront < 14.5) {
-          const t = clamp((distFront - 5.5) / 9.0, 0, 1);
-          studioMix = 1 - t * t * (3 - 2 * t);
-          primaryStudioTex = glTexStudioFront;
-        } else if (glTexStudioBack && distBack < 14.5) {
-          const t = clamp((distBack - 5.5) / 9.0, 0, 1);
-          studioMix = 1 - t * t * (3 - 2 * t);
-          primaryStudioTex = glTexStudioBack;
-        }
-        // If turntable sheet is still downloading over cellular, hold 4K Front Studio cleanly at 1.0 near front!
-        if (!glTexA && glTexStudioFront && distFront < 45) {
+        const isSettledIdle =
+          !isSpinningFinger &&
+          !autoSpinRef.current &&
+          Math.abs(velYawRef.current) < 0.08;
+        if (
+          glTexStudioFront &&
+          ((isSettledIdle && distFront <= 2.6) || (!glTexA && distFront < 45))
+        ) {
           studioMix = 1.0;
           primaryStudioTex = glTexStudioFront;
+        } else if (glTexStudioBack && isSettledIdle && distBack <= 2.6) {
+          studioMix = 1.0;
+          primaryStudioTex = glTexStudioBack;
+        } else {
+          studioMix = 0.0;
         }
       }
 
@@ -2557,7 +2601,7 @@ export function Interactive3DAvatarStage({
         gl.uniform1f(uSeamlessLoc, seamlessStage ? 1.0 : 0.0);
         gl.uniform1f(
           uSharpAmtLoc,
-          baseB?.isFastTier ? 0.98 : 0.82
+          baseB?.isFastTier ? 1.05 : 0.98
         );
         gl.uniform1i(uShiftCountLoc, shiftCount);
         if (shiftCount > 0) {
@@ -2591,7 +2635,7 @@ export function Interactive3DAvatarStage({
         );
         gl.uniform2f(
           uStudioCylLoc,
-          nextStudioTex ? studioNextMix : 0.0,
+          studioTexStepX,
           studioCylScale
         );
         gl.uniform1f(

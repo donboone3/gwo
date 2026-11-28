@@ -20,7 +20,7 @@ import {
 } from "./avatar-ready-pipeline";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const TURNTABLE_VER = "hf360v8";
+export const TURNTABLE_VER = "hf360v9";
 export const NUM_TURNTABLE_FRAMES = 72;
 
 export const ATLAS_COLS = 12;
