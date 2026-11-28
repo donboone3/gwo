@@ -20,20 +20,20 @@ import {
 } from "./avatar-ready-pipeline";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const TURNTABLE_VER = "hf360v9";
+export const TURNTABLE_VER = "hf360v10";
 export const NUM_TURNTABLE_FRAMES = 72;
 
-export const ATLAS_COLS = 12;
-export const ATLAS_ROWS = 6;
-export const ATLAS_FRAMES_PER_SHEET = 72;
-export const ATLAS_CELL_W = 340;
-export const ATLAS_CELL_H = 682;
+export const ATLAS_COLS = 9;
+export const ATLAS_ROWS = 4;
+export const ATLAS_FRAMES_PER_SHEET = 36;
+export const ATLAS_CELL_W = 448;
+export const ATLAS_CELL_H = 1024;
 
-export const FAST_ATLAS_COLS = 8;
+export const FAST_ATLAS_COLS = 9;
 export const FAST_ATLAS_ROWS = 4;
-export const FAST_ATLAS_FRAMES = 32;
-export const FAST_CELL_W = 240;
-export const FAST_CELL_H = 482;
+export const FAST_ATLAS_FRAMES = 36;
+export const FAST_CELL_W = 224;
+export const FAST_CELL_H = 512;
 
 export const ATLAS_ROI_X0 = 0.195;
 export const ATLAS_ROI_W = 0.64;
@@ -643,6 +643,7 @@ export function turntableUrlsForIndex(lookIdx: number | "base"): {
   mp4Url: string;
   fastAtlasUrl: string;
   atlasUrl: string;
+  atlasUrlB: string;
   posterUrl: string;
 } {
   const slug = lookIdx === "base" ? "ae_base" : `ae_outfit_${lookIdx}`;
@@ -650,6 +651,7 @@ export function turntableUrlsForIndex(lookIdx: number | "base"): {
     mp4Url: `${BASE}/models/turntables/${slug}_360.mp4?v=${TURNTABLE_VER}`,
     fastAtlasUrl: `${BASE}/models/turntables/${slug}_fast.webp?v=${TURNTABLE_VER}`,
     atlasUrl: `${BASE}/models/turntables/${slug}_qhd.webp?v=${TURNTABLE_VER}`,
+    atlasUrlB: `${BASE}/models/turntables/${slug}_qhd_b.webp?v=${TURNTABLE_VER}`,
     posterUrl: `${BASE}/models/turntables/${slug}_poster.webp?v=${TURNTABLE_VER}`,
   };
 }
@@ -2167,8 +2169,8 @@ export function extractTurntableBitmapBundle(
   const evictIfNeeded = () => {
     const maxLru =
       typeof window !== "undefined" && window.innerWidth < 860
-        ? 3
-        : 5;
+        ? 2
+        : 3;
     while (BITMAP_LRU.size >= maxLru) {
       const oldestKey = BITMAP_LRU.keys().next().value;
       if (!oldestKey) break;
@@ -2268,16 +2270,30 @@ export function extractTurntableBitmapBundle(
           }
         }
 
-        const qhdSheet = await decodeNativeSheetOffThread(
-          spec.atlasUrl,
-          ATLAS_CELL_W,
-          ATLAS_CELL_H
-        );
+        const [qhdSheet, qhdSheetB] = await Promise.all([
+          decodeNativeSheetOffThread(
+            spec.atlasUrl,
+            ATLAS_CELL_W,
+            ATLAS_CELL_H
+          ),
+          spec.atlasUrlB
+            ? decodeNativeSheetOffThread(
+                spec.atlasUrlB,
+                ATLAS_CELL_W,
+                ATLAS_CELL_H
+              )
+            : Promise.resolve(null),
+        ]);
         if (qhdSheet) {
-          onProgress?.(NUM_TURNTABLE_FRAMES, NUM_TURNTABLE_FRAMES);
+          const hasDual = Boolean(qhdSheetB);
+          const totFrames = hasDual
+            ? ATLAS_FRAMES_PER_SHEET * 2
+            : ATLAS_FRAMES_PER_SHEET;
+          onProgress?.(totFrames, totFrames);
           evictIfNeeded();
           const bundle: CachedFrameBundle = {
             atlasBitmap: qhdSheet.bmp,
+            atlasBitmapB: qhdSheetB?.bmp,
             isPremultiplied: qhdSheet.isPremultiplied,
             isFastTier: false,
             cellW: qhdSheet.cellW,
@@ -2285,7 +2301,7 @@ export function extractTurntableBitmapBundle(
             cols: ATLAS_COLS,
             rows: ATLAS_ROWS,
             framesPerSheet: ATLAS_FRAMES_PER_SHEET,
-            totalFrames: ATLAS_FRAMES_PER_SHEET,
+            totalFrames: totFrames,
             frames: [],
             width: qhdSheet.cellW,
             height: qhdSheet.cellH,

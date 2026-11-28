@@ -1438,27 +1438,20 @@ export function Interactive3DAvatarStage({
            vec3 finalRgb = vec3(1.0);
            float finalA = 0.0;
 
-           // 2. Sample 72-frame 360° Turntable (plus Multi-Slot Upper Splicing when custom Closet mix!)
+           // 2. Sample 72-frame Dual-Sheet Ultra-HD (448x1024/cell) 360° Turntable — pure unblended single-frame clarity!
            if (uHasBaseTex > 0.5 && uStudioMix < 0.5) {
-             vec2 rawUvBase = clamp(uUvRect.xy + sLoc * uUvRect.zw, uCellBounds.xy, uCellBounds.zw);
-             vec2 texCoord = rawUvBase / uTexel - 0.5;
-             vec2 flTc = floor(texCoord);
-             vec2 frTc = texCoord - flTc;
-             vec2 sharpFr = mix(frTc, frTc * frTc * (3.0 - 2.0 * frTc), 0.28);
-             vec2 uvSharp = clamp((flTc + sharpFr + 0.5) * uTexel, uCellBounds.xy, uCellBounds.zw);
-             vec4 cEdge = texture2D(uTex, rawUvBase);
-             vec2 uvBase = cEdge.a > 0.72 ? uvSharp : rawUvBase;
-             vec4 cBase = cEdge.a > 0.72 ? texture2D(uTex, uvBase) : cEdge;
+             vec2 uvBase = clamp(uUvRect.xy + sLoc * uUvRect.zw, uCellBounds.xy, uCellBounds.zw);
+             vec4 cBase = texture2D(uTex, uvBase);
              vec3 bRgb = cBase.a > 0.008 ? clamp(cBase.rgb / max(cBase.a, 0.004), 0.0, 1.0) : vec3(1.0);
 
-             if (uSharpAmt > 0.01 && cBase.a > 0.55) {
+             if (uSharpAmt > 0.01 && cBase.a > 0.65) {
                vec3 nRgb = sampleStraightSafe(vec2(uvBase.x, max(uCellBounds.y, uvBase.y - uTexel.y)), bRgb);
                vec3 s2Rgb = sampleStraightSafe(vec2(uvBase.x, min(uCellBounds.w, uvBase.y + uTexel.y)), bRgb);
                vec3 wRgb = sampleStraightSafe(vec2(max(uCellBounds.x, uvBase.x - uTexel.x), uvBase.y), bRgb);
                vec3 eRgb = sampleStraightSafe(vec2(min(uCellBounds.z, uvBase.x + uTexel.x), uvBase.y), bRgb);
                vec3 mnRgb = min(bRgb, min(min(nRgb, s2Rgb), min(wRgb, eRgb)));
                vec3 mxRgb = max(bRgb, max(max(nRgb, s2Rgb), max(wRgb, eRgb)));
-               vec3 amp = sqrt(clamp(min(mnRgb, 1.0 - mxRgb) / max(mxRgb, vec3(0.004)), 0.0, 1.0)) * (-0.195 * uSharpAmt);
+               vec3 amp = sqrt(clamp(min(mnRgb, 1.0 - mxRgb) / max(mxRgb, vec3(0.004)), 0.0, 1.0)) * (-0.11 * uSharpAmt);
                bRgb = clamp((bRgb + (nRgb + s2Rgb + wRgb + eRgb) * amp) / (vec3(1.0) + 4.0 * amp), 0.0, 1.0);
              }
 
@@ -1514,19 +1507,19 @@ export function Interactive3DAvatarStage({
              finalA = bA;
            }
 
-           // 3. True 4K Studio Master (1350x2032 native + 5-tap CAS, strictly binary single-source — ZERO double-image ghosting!)
+           // 3. True 4K Studio Master (1350x2032 native, natural photographic skin & fabric — ZERO double-image ghosting!)
            if (uStudioMix > 0.5) {
              float cylScale = max(0.76, uStudioCyl.y);
-             float stLocalX = 0.4765 + (sLoc.x - 0.4765) / cylScale;
+             float stLocalX = 0.4783 + (sLoc.x - 0.4783) / cylScale;
              vec2 uvSt = vec2(
-               0.5028 + (stLocalX - 0.4765) * 0.6755,
-               0.0009 + sLoc.y * 0.9981
+               0.5028 + (stLocalX - 0.4783) * 0.6809,
+               0.0004 + sLoc.y * 1.0033
              );
              vec4 cSt = (uvSt.x >= 0.0 && uvSt.x <= 1.0 && uvSt.y >= 0.0 && uvSt.y <= 1.0)
                ? texture2D(uTexStudio, uvSt)
                : vec4(0.0);
              vec3 stRgb = cSt.a > 0.008 ? clamp(cSt.rgb / max(cSt.a, 0.004), 0.0, 1.0) : vec3(1.0);
-             if (cSt.a > 0.55) {
+             if (cSt.a > 0.65) {
                float stStepX = uStudioCyl.x > 0.0001 ? uStudioCyl.x : (1.0 / 1350.0);
                vec2 stStep = vec2(stStepX, stStepX * 0.66437);
                vec3 stN = sampleStudioSafe(vec2(uvSt.x, uvSt.y - stStep.y), stRgb);
@@ -1535,7 +1528,7 @@ export function Interactive3DAvatarStage({
                vec3 stE = sampleStudioSafe(vec2(uvSt.x + stStep.x, uvSt.y), stRgb);
                vec3 stMn = min(stRgb, min(min(stN, stS), min(stW, stE)));
                vec3 stMx = max(stRgb, max(max(stN, stS), max(stW, stE)));
-               vec3 stAmp = sqrt(clamp(min(stMn, 1.0 - stMx) / max(stMx, vec3(0.004)), 0.0, 1.0)) * (-0.16);
+               vec3 stAmp = sqrt(clamp(min(stMn, 1.0 - stMx) / max(stMx, vec3(0.004)), 0.0, 1.0)) * (-0.065);
                stRgb = clamp((stRgb + (stN + stS + stW + stE) * stAmp) / (vec3(1.0) + 4.0 * stAmp), 0.0, 1.0);
              }
              if (uStudioPreColored < 0.5) {
@@ -2601,7 +2594,7 @@ export function Interactive3DAvatarStage({
         gl.uniform1f(uSeamlessLoc, seamlessStage ? 1.0 : 0.0);
         gl.uniform1f(
           uSharpAmtLoc,
-          baseB?.isFastTier ? 1.05 : 0.98
+          baseB?.isFastTier ? 0.52 : 0.36
         );
         gl.uniform1i(uShiftCountLoc, shiftCount);
         if (shiftCount > 0) {
