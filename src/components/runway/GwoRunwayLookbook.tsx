@@ -286,7 +286,7 @@ export function GwoRunwayLookbook() {
       : 0;
   const rawActiveOutfit = runwayOutfits[safeActiveIdx] || runwayOutfits[0];
 
-  // Background pre-warm adjacent Runway outfits' Higgsfield 360° turntables in RAM for 0ms stepping!
+  // Background pre-warm adjacent Runway outfits AFTER active hero's 4K + QHD bundle settles!
   useEffect(() => {
     const N = runwayOutfits.length;
     if (N < 2) return;
@@ -299,7 +299,7 @@ export function GwoRunwayLookbook() {
           true
         );
       }
-    }, 220);
+    }, 1800);
     const t2 = isMobile
       ? null
       : setTimeout(() => {
@@ -317,7 +317,7 @@ export function GwoRunwayLookbook() {
               true
             );
           }
-        }, 700);
+        }, 2600);
     return () => {
       clearTimeout(t1);
       if (t2) clearTimeout(t2);

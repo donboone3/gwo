@@ -201,6 +201,7 @@ export function Avatar360Modal() {
                   mode="avatar"
                   dimensions={bodyDims}
                   wornPieces={wornSpecs}
+                  selectedSize={selectedSize}
                   focusProductId={primaryProduct.id}
                   seamlessStage={false}
                   faceOvalDataUrl={customAvatar?.faceOvalDataUrl}

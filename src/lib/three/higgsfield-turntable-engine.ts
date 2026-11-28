@@ -20,7 +20,7 @@ import {
 } from "./avatar-ready-pipeline";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const TURNTABLE_VER = "hf360v7";
+export const TURNTABLE_VER = "hf360v8";
 export const NUM_TURNTABLE_FRAMES = 72;
 
 export const ATLAS_COLS = 12;
@@ -119,6 +119,20 @@ export interface TurntableAvatarOptions {
   focusProductId?: string;
 }
 
+export interface UpperTurntableOverlaySpec {
+  lookIdx: number;
+  fastAtlasUrl: string;
+  atlasUrl: string;
+  blendMode:
+    | "separates_top"
+    | "open_outer_over_dress"
+    | "closed_outer_over_dress";
+  /** Normalized virtual y (0..1 of 1600p) where upper garment ends */
+  spliceYVirtual: number;
+  featherVirtual: number;
+  colorwayShifts?: ColorwayShiftSpec[];
+}
+
 export interface ResolvedTurntableSpec {
   cacheKey: string;
   kind: "higgsfield_mp4";
@@ -130,6 +144,9 @@ export interface ResolvedTurntableSpec {
   posterUrl: string;
   colorwayShift?: ColorwayShiftSpec;
   colorwayShifts?: ColorwayShiftSpec[];
+  upperOverlay?: UpperTurntableOverlaySpec;
+  isCustomMix?: boolean;
+  hasBagEquipped?: boolean;
   skinToneTargetHex?: string;
   products: Product[];
 }
@@ -1009,13 +1026,11 @@ export function resolveTurntableSpecForOutfit(
     bySlot.set(classifyWearableSlotAndAnchors(p).slot, p);
   }
 
-  const focusProd = avatarOptions?.focusProductId
-    ? userSelectedProducts.find((p) => p.id === avatarOptions.focusProductId) ||
-      effectiveProducts.find((p) => p.id === avatarOptions.focusProductId)
-    : undefined;
+  const hasUserBag = userSelectedProducts.some(
+    (p) => classifyWearableSlotAndAnchors(p).slot === "bag"
+  );
 
   // 2a. Check if equipped outfit matches one of the 16 pure studio-photographed canonical capsules
-  //     (and if the user just clicked a specific piece `focusProd`, ensure `focusProd` belongs to that capsule!)
   for (const cap of CANONICAL_16_CAPSULES) {
     let allCoreMatch = true;
     for (const [slot, reqId] of Object.entries(cap.coreSlots)) {
@@ -1030,134 +1045,368 @@ export function resolveTurntableSpecForOutfit(
     if (allCoreMatch && !("dress" in cap.coreSlots) && bySlot.has("dress")) {
       allCoreMatch = false;
     }
-    if (allCoreMatch && focusProd) {
-      const focusSlot = classifyWearableSlotAndAnchors(focusProd).slot;
-      const inCapsule =
-        Object.values(cap.coreSlots).includes(focusProd.id) ||
-        (focusSlot === "bag" && cap.nativeBag === focusProd.id) ||
-        (focusSlot === "shoes" && cap.nativeShoes === focusProd.id);
-      if (!inCapsule) {
-        allCoreMatch = false;
-      }
-    }
     if (allCoreMatch) {
       const urls = turntableUrlsForIndex(cap.lookIdx);
+      const accessoryShifts: ColorwayShiftSpec[] = [];
+      const shoeShift = buildSlotShiftForLook(bySlot.get("shoes"), cap.lookIdx, "shoes");
+      if (shoeShift) accessoryShifts.push(shoeShift);
+      const bagShift = hasUserBag
+        ? buildSlotShiftForLook(bySlot.get("bag"), cap.lookIdx, "bag")
+        : null;
+      if (bagShift) accessoryShifts.push(bagShift);
+
+      const exactNativeAccessories =
+        (!bySlot.get("shoes") || bySlot.get("shoes")?.id === cap.nativeShoes) &&
+        hasUserBag &&
+        bySlot.get("bag")?.id === cap.nativeBag;
+
       return {
-        cacheKey: `hf:${cap.lookIdx}|sk:${skinToneTargetHex || "def"}`,
+        cacheKey: `hf:${cap.lookIdx}:${accessoryShifts.map((s) => s.targetHex).join(",")}|sk:${skinToneTargetHex || "def"}`,
         kind: "higgsfield_mp4",
         lookIdx: cap.lookIdx,
         ...urls,
+        colorwayShift: accessoryShifts[0],
+        colorwayShifts: accessoryShifts.length > 0 ? accessoryShifts : undefined,
+        isCustomMix: !exactNativeAccessories,
+        hasBagEquipped: hasUserBag,
         skinToneTargetHex,
         products: effectiveProducts,
       };
     }
   }
 
-  // 2b. If customer just clicked/focused a verified boutique SKU in Closet (`focusProd`),
-  //     first check if `focusProd` pairs natively with another equipped garment in a canonical capsule,
-  //     otherwise route directly to `SINGLE_SKU_TURNTABLE_MAP[focusProd.id]` (100% pure studio photo, zero cross-slot bleed!)
-  if (focusProd) {
-    const equippedIds = new Set(userSelectedProducts.map((p) => p.id));
-    const pairedCap = CANONICAL_16_CAPSULES.find((cap) => {
-      const capIds = [
-        ...Object.values(cap.coreSlots),
-        ...(cap.nativeBag ? [cap.nativeBag] : []),
-        ...(cap.nativeShoes ? [cap.nativeShoes] : []),
-      ];
-      if (!capIds.includes(focusProd.id)) return false;
-      const otherCoreMatches = Object.values(cap.coreSlots).filter(
-        (cid) => cid !== focusProd.id && equippedIds.has(cid)
-      );
-      return otherCoreMatches.length > 0;
-    });
+  // 2b. TRUE MULTI-SLOT CLOSET & CUSTOM OUTFIT COMPOSITOR:
+  //     NEVER swaps out unselected clothes!
+  //     - Dress + Outerwear: Base = Dress turntable, UpperOverlay = Jacket turntable layered OVER Dress!
+  //     - Separates (Top + Bottom [+ Outerwear]): Base = Bottom turntable, UpperOverlay = Top or Outerwear turntable!
+  const dress = bySlot.get("dress");
+  const outer = bySlot.get("outerwear");
+  const top = bySlot.get("top");
+  const bot = bySlot.get("bottom");
+  const shoes = bySlot.get("shoes");
+  const bag = hasUserBag ? bySlot.get("bag") : undefined;
 
-    if (pairedCap) {
-      const urls = turntableUrlsForIndex(pairedCap.lookIdx);
+  if (dress) {
+    // Dress + Outerwear layered together: use coherent Jacket-Over-Dress donor `14` (zero severed limbs in 360°!)
+    // with independent non-overlapping GPU colorway shifts for Jacket `[0.19, 0.41]` and Dress `[0.412, 0.79]`,
+    // while 4K Studio Modular Layer renders the exact 1:1 modular blazer & dress at Front 0° and Back 180°!
+    if (outer) {
+      const comboLookIdx = 14;
+      const comboUrls = turntableUrlsForIndex(comboLookIdx);
+      const comboShifts: ColorwayShiftSpec[] = [];
+
+      const outerHex = outer.colorHex || "#EFECE6";
+      if (hexDistance01(outerHex, "#F2EFE9") > 0.08) {
+        comboShifts.push({
+          targetHex: outerHex,
+          nativeHex: "#F2EFE9",
+          isMetallic: isMetallicProduct(outer),
+          hasExplicitColorName: hasExplicitColorKeyword(outer),
+          sourceMask: "champagne_ivory",
+          yRange: [0.19, 0.41],
+        });
+      }
+
+      const dressHex = dress.colorHex || "#1F5441";
+      if (hexDistance01(dressHex, "#EDE2C8") > 0.08) {
+        comboShifts.push({
+          targetHex: dressHex,
+          nativeHex: "#EDE2C8",
+          isMetallic: isMetallicProduct(dress),
+          hasExplicitColorName: hasExplicitColorKeyword(dress),
+          sourceMask: "champagne_ivory",
+          yRange: [0.412, 0.79],
+        });
+        // Also color the visible center V-neck dress bodice inside the open jacket lapels!
+        comboShifts.push({
+          targetHex: dressHex,
+          nativeHex: "#EDE2C8",
+          isMetallic: isMetallicProduct(dress),
+          hasExplicitColorName: hasExplicitColorKeyword(dress),
+          sourceMask: "champagne_ivory",
+          yRange: [0.25, 0.41],
+          xRange: [0.435, 0.545],
+        });
+      }
+
+      const sShift = buildSlotShiftForLook(shoes, comboLookIdx, "shoes");
+      if (sShift) comboShifts.push(sShift);
+
       return {
-        cacheKey: `hf:${pairedCap.lookIdx}|sk:${skinToneTargetHex || "def"}`,
+        cacheKey: `hf:mix:d14:${dress.id}:o${outer.id}|sk:${skinToneTargetHex || "def"}`,
         kind: "higgsfield_mp4",
-        lookIdx: pairedCap.lookIdx,
-        ...urls,
+        lookIdx: comboLookIdx,
+        ...comboUrls,
+        colorwayShift: comboShifts[0],
+        colorwayShifts: comboShifts.length > 0 ? comboShifts : undefined,
+        isCustomMix: true,
+        hasBagEquipped: hasUserBag,
         skinToneTargetHex,
         products: effectiveProducts,
       };
     }
 
-    const mappedFocus = SINGLE_SKU_TURNTABLE_MAP[focusProd.id];
-    if (mappedFocus) {
-      const urls = turntableUrlsForIndex(mappedFocus.lookIdx);
-      return {
-        cacheKey: `${
-          mappedFocus.shift
-            ? `hf:${mappedFocus.lookIdx}:cw:${focusProd.id}`
-            : `hf:${mappedFocus.lookIdx}`
-        }|sk:${skinToneTargetHex || "def"}`,
-        kind: "higgsfield_mp4",
-        lookIdx: mappedFocus.lookIdx,
-        ...urls,
-        colorwayShift: mappedFocus.shift,
-        colorwayShifts: mappedFocus.shift ? [mappedFocus.shift] : undefined,
-        skinToneTargetHex,
-        products: effectiveProducts,
-      };
-    }
+    const baseLookIdx = resolveDonorLookForDress(dress);
+    const baseUrls = turntableUrlsForIndex(baseLookIdx);
+    const baseShifts: ColorwayShiftSpec[] = [];
+    const dShift = buildSlotShiftForLook(dress, baseLookIdx, "dress");
+    if (dShift) baseShifts.push(dShift);
+    const sShift = buildSlotShiftForLook(shoes, baseLookIdx, "shoes");
+    if (sShift) baseShifts.push(sShift);
+    const bShift = buildSlotShiftForLook(bag, baseLookIdx, "bag");
+    if (bShift) baseShifts.push(bShift);
 
-    // External URL submit / live store pull / uploaded photo focused in Closet or Modal -> shift ONLY `focusProd`!
-    return synthesizeUniversalHiggsfieldSpec(
-      [focusProd],
-      [focusProd],
-      skinToneTargetHex
+    return {
+      cacheKey: `hf:mix:d${baseLookIdx}:${dress.id}|sk:${skinToneTargetHex || "def"}`,
+      kind: "higgsfield_mp4",
+      lookIdx: baseLookIdx,
+      ...baseUrls,
+      colorwayShift: baseShifts[0],
+      colorwayShifts: baseShifts.length > 0 ? baseShifts : undefined,
+      isCustomMix: true,
+      hasBagEquipped: hasUserBag,
+      skinToneTargetHex,
+      products: effectiveProducts,
+    };
+  }
+
+  // Separates (`top` + `bottom`, with optional `outerwear`) — Single-Body Coherent 360° Donor + Multi-Zone GPU Shifts!
+  let baseLookIdx: number;
+  if (outer) {
+    const outerSpec = resolveDonorSpecForOuterwear(outer);
+    const bt = bot ? `${bot.title} ${bot.silhouette}`.toLowerCase() : "";
+    const isShortBot = Boolean(
+      bot && /mini|short|skort|pleat/.test(bt) && !/midi|maxi|trouser|wide|denim|jean/.test(bt)
     );
-  }
-
-  // 2c. Curated Runway / Closet remix without explicit `focusProd`:
-  //     Check if primary dress/top/outerwear/bottom is a verified colorway SKU, else clean canonical donor!
-  const priorityProduct =
-    bySlot.get("dress") ||
-    bySlot.get("outerwear") ||
-    userSelectedProducts.find(
-      (p) => p.sourceType === "scraped_url" || p.id.startsWith("uploaded-3d-")
-    ) ||
-    userSelectedProducts.find((p) => Boolean(SINGLE_SKU_TURNTABLE_MAP[p.id]?.shift)) ||
-    bySlot.get("top") ||
-    bySlot.get("bottom") ||
-    userSelectedProducts[0];
-
-  if (priorityProduct) {
-    const mapped = SINGLE_SKU_TURNTABLE_MAP[priorityProduct.id];
-    if (mapped) {
-      const urls = turntableUrlsForIndex(mapped.lookIdx);
-      return {
-        cacheKey: `${
-          mapped.shift
-            ? `hf:${mapped.lookIdx}:cw:${priorityProduct.id}`
-            : `hf:${mapped.lookIdx}`
-        }|sk:${skinToneTargetHex || "def"}`,
-        kind: "higgsfield_mp4",
-        lookIdx: mapped.lookIdx,
-        ...urls,
-        colorwayShift: mapped.shift,
-        colorwayShifts: mapped.shift ? [mapped.shift] : undefined,
-        skinToneTargetHex,
-        products: effectiveProducts,
-      };
+    if (isShortBot) {
+      baseLookIdx = outerSpec.isClosed ? 5 : 1;
+    } else if (outerSpec.spliceYVirtual > 0.65) {
+      baseLookIdx = 4;
+    } else if (outerSpec.lookIdx === 8) {
+      baseLookIdx = 8;
+    } else if (outerSpec.lookIdx === 13) {
+      baseLookIdx = 13;
+    } else {
+      baseLookIdx = 7;
     }
-    return synthesizeUniversalHiggsfieldSpec(
-      [priorityProduct],
-      [priorityProduct],
-      skinToneTargetHex
-    );
+  } else {
+    // No outerwear: NEVER pick a jacketed donor (1, 4, 5, 7, 13, 14)!
+    const rawBotLook = resolveDonorLookForBottom(bot, shoes);
+    baseLookIdx = rawBotLook === 1 || rawBotLook === 5 ? 15 : rawBotLook;
   }
 
-  return synthesizeUniversalHiggsfieldSpec(
-    userSelectedProducts,
-    effectiveProducts,
-    skinToneTargetHex
-  );
+  const baseUrls = turntableUrlsForIndex(baseLookIdx);
+  const baseShifts: ColorwayShiftSpec[] = [];
+
+  if (outer) {
+    const oShift = buildSlotShiftForLook(outer, baseLookIdx, "outerwear");
+    if (oShift) baseShifts.push(oShift);
+    const outerSpec = resolveDonorSpecForOuterwear(outer);
+    if (!outerSpec.isClosed && top) {
+      const tShift = buildSlotShiftForLook(top, baseLookIdx, "top");
+      if (tShift) baseShifts.push(tShift);
+    }
+  } else if (top) {
+    const tShift = buildSlotShiftForLook(top, baseLookIdx, "top");
+    if (tShift) baseShifts.push(tShift);
+  }
+
+  const botShift = buildSlotShiftForLook(bot, baseLookIdx, "bottom");
+  if (botShift) baseShifts.push(botShift);
+  const shoeShift = buildSlotShiftForLook(shoes, baseLookIdx, "shoes");
+  if (shoeShift) baseShifts.push(shoeShift);
+  const bShift = buildSlotShiftForLook(bag, baseLookIdx, "bag");
+  if (bShift) baseShifts.push(bShift);
+
+  return {
+    cacheKey: `hf:mix:b${baseLookIdx}:${bot?.id || "def"}:t${top?.id || "def"}:o${outer?.id || "none"}|sk:${skinToneTargetHex || "def"}`,
+    kind: "higgsfield_mp4",
+    lookIdx: baseLookIdx,
+    ...baseUrls,
+    colorwayShift: baseShifts[0],
+    colorwayShifts: baseShifts.length > 0 ? baseShifts : undefined,
+    isCustomMix: true,
+    hasBagEquipped: hasUserBag,
+    skinToneTargetHex,
+    products: effectiveProducts,
+  };
 }
 
-// ============================================================================
-// AUTOMATIC GARMENT PHOTO DOMINANT FABRIC COLOR SAMPLER
+function buildSlotShiftForLook(
+  prod: Product | undefined,
+  lookIdx: number,
+  slotName: "dress" | "outerwear" | "top" | "bottom" | "bag" | "shoes"
+): ColorwayShiftSpec | null {
+  if (!prod) return null;
+  const donor = DONOR_ANATOMY_BY_LOOK[lookIdx];
+  if (!donor) return null;
+  const zone = donor[slotName];
+  if (!zone) return null;
+
+  const capRule = CANONICAL_16_CAPSULES.find((c) => c.lookIdx === lookIdx);
+  if (capRule) {
+    if (capRule.coreSlots[slotName] === prod.id) return null;
+    if (slotName === "bag" && capRule.nativeBag === prod.id) return null;
+    if (slotName === "shoes" && capRule.nativeShoes === prod.id) return null;
+  }
+
+  const mappedSku = SINGLE_SKU_TURNTABLE_MAP[prod.id];
+  if (mappedSku && mappedSku.lookIdx === lookIdx) {
+    return mappedSku.shift || null;
+  }
+
+  const explicitColor = hasExplicitColorKeyword(prod);
+  const needsPhotoSample =
+    Boolean(prod.imageUrl) &&
+    (!explicitColor ||
+      prod.sourceType === "scraped_url" ||
+      prod.id.startsWith("uploaded-3d-"));
+  const targetHex = prod.colorHex || zone.nativeHex;
+  if (needsPhotoSample || hexDistance01(targetHex, zone.nativeHex) > 0.09) {
+    return {
+      targetHex,
+      nativeHex: zone.nativeHex,
+      isMetallic: isMetallicProduct(prod),
+      sampleFromImageUrl: needsPhotoSample ? prod.imageUrl : undefined,
+      hasExplicitColorName: explicitColor,
+      sourceMask: zone.mask,
+      yRange: zone.yRange,
+      xRange: zone.xRange,
+    };
+  }
+  return null;
+}
+
+function resolveDonorLookForBottom(bot?: Product, shoes?: Product): number {
+  if (!bot) return 0;
+  const id = bot.id;
+  if (
+    id === "prod-ae-champagne-trousers" ||
+    id === "prod-ae-obsidian-wide-trousers" ||
+    id === "prod-ae-olive-pleated-trousers"
+  ) {
+    return 0;
+  }
+  if (
+    id === "prod-ae-noir-pleated-mini" ||
+    id === "prod-ae-burgundy-pleated-mini"
+  ) {
+    if (shoes && /boot|knee/i.test(`${shoes.title} ${shoes.silhouette}`)) {
+      return 1;
+    }
+    return 5;
+  }
+  if (id === "prod-ae-vintage-wide-denim") return 9;
+  if (id === "prod-ae-sage-flare-leggings") return 8;
+  if (
+    id === "prod-ae-ivory-satin-bias-midi" ||
+    id === "prod-ae-chocolate-satin-midi"
+  ) {
+    return 10;
+  }
+  if (id === "prod-ae-charcoal-pinstripe-trousers") return 11;
+  if (id === "prod-ae-espresso-tailored-shorts") return 15;
+
+  const bt = `${bot.title} ${bot.silhouette} ${bot.fitMetadata?.hemLanding || ""}`.toLowerCase();
+  if (/legging|yoga|jogger/.test(bt)) return 8;
+  if (/short|skort/.test(bt)) return 15;
+  if (/mini/.test(bt) && !/midi|maxi/.test(bt)) return 5;
+  if (/midi|maxi|bias|skirt/.test(bt)) return 10;
+  if (/denim|jean|indigo/.test(bt)) return 9;
+  if (/pinstripe|charcoal/.test(bt)) return 11;
+  return 0;
+}
+
+function resolveDonorLookForDress(dress: Product): number {
+  const mapped = SINGLE_SKU_TURNTABLE_MAP[dress.id];
+  if (mapped) return mapped.lookIdx;
+  const t = `${dress.title} ${dress.silhouette} ${dress.fitMetadata?.hemLanding || ""}`.toLowerCase();
+  if (/blazer|tuxedo|lapel|romper|suit/.test(t)) return 3;
+  if (/asymmetric|draped|cobalt|blue|silver/.test(t) && !/corset|midi|maxi/.test(t)) {
+    return 12;
+  }
+  if (/midi|maxi|slip|gown|column|bias|cowl/.test(t) && !/mini/.test(t)) {
+    return 2;
+  }
+  return 6;
+}
+
+function resolveDonorSpecForOuterwear(outer: Product): {
+  lookIdx: number;
+  isClosed: boolean;
+  spliceYVirtual: number;
+} {
+  const id = outer.id;
+  if (id === "prod-ae-ivory-tweed-blazer" || id === "prod-ae-emerald-tweed-blazer") {
+    return { lookIdx: 1, isClosed: false, spliceYVirtual: 0.445 };
+  }
+  if (id === "prod-ae-noir-tailored-blazer" || id === "prod-ae-espresso-tailored-blazer") {
+    return { lookIdx: 7, isClosed: false, spliceYVirtual: 0.515 };
+  }
+  if (id === "prod-ae-camel-silk-wool-coat" || id === "prod-ae-charcoal-wool-coat") {
+    return { lookIdx: 4, isClosed: false, spliceYVirtual: 0.745 };
+  }
+  if (id === "prod-ae-linen-cinch-cardigan") {
+    return { lookIdx: 5, isClosed: true, spliceYVirtual: 0.505 };
+  }
+  if (id === "prod-ae-sage-zip-jacket") {
+    return { lookIdx: 8, isClosed: true, spliceYVirtual: 0.435 };
+  }
+  if (id === "prod-ae-burgundy-leather-trench") {
+    return { lookIdx: 13, isClosed: false, spliceYVirtual: 0.485 };
+  }
+  if (id === "prod-ae-cream-cropped-fur-jacket") {
+    return { lookIdx: 14, isClosed: false, spliceYVirtual: 0.425 };
+  }
+
+  const t = `${outer.title} ${outer.silhouette} ${outer.fitMetadata?.hemLanding || ""}`.toLowerCase();
+  if (/coat|maxi|long|wool|cashmere/.test(t) && !/cropped/.test(t)) {
+    return { lookIdx: 4, isClosed: false, spliceYVirtual: 0.745 };
+  }
+  if (/leather|moto|trench|biker|suede/.test(t)) {
+    return { lookIdx: 13, isClosed: false, spliceYVirtual: 0.485 };
+  }
+  if (/zip|hoodie|sweatshirt|active|pullover/.test(t)) {
+    return { lookIdx: 8, isClosed: true, spliceYVirtual: 0.435 };
+  }
+  if (/cardigan|knit|sweater|shawl/.test(t)) {
+    return { lookIdx: 5, isClosed: true, spliceYVirtual: 0.505 };
+  }
+  if (/fur|plush|bolero|sherpa/.test(t)) {
+    return { lookIdx: 14, isClosed: false, spliceYVirtual: 0.425 };
+  }
+  if (/boucl|tweed|cropped/.test(t)) {
+    return { lookIdx: 1, isClosed: false, spliceYVirtual: 0.445 };
+  }
+  return { lookIdx: 7, isClosed: false, spliceYVirtual: 0.515 };
+}
+
+function resolveDonorLookForTop(top: Product): number {
+  const id = top.id;
+  if (
+    id === "prod-ae-espresso-corset" ||
+    id === "prod-ae-ivory-pearl-corset" ||
+    id === "prod-ae-noir-satin-corset"
+  ) {
+    return 0;
+  }
+  if (id === "prod-ae-blush-ruched-offshoulder") return 10;
+  if (id === "prod-ae-noir-halter-vest" || id === "prod-ae-camel-tailored-vest") {
+    return 11;
+  }
+  if (
+    id === "prod-ae-butter-silk-cami" ||
+    id === "prod-ae-emerald-silk-cami" ||
+    id === "prod-ae-acetate-beaded-tank"
+  ) {
+    return 15;
+  }
+  const tt = `${top.title} ${top.silhouette}`.toLowerCase();
+  if (/vest|waistcoat|halter/.test(tt)) return 11;
+  if (/off-shoulder|ruched|mesh|blouse/.test(tt)) return 10;
+  if (/cami|tank|rib/.test(tt)) return 15;
+  return 0;
+}
 // ============================================================================
 
 const SAMPLED_HEX_CACHE = new Map<string, string>();
@@ -1672,11 +1921,6 @@ export function prefetchTurntableBundle(
         () => {}
       );
     }
-    if (spec.atlasUrl) {
-      void fetch(spec.atlasUrl, { mode: "cors", credentials: "omit" }).catch(
-        () => {}
-      );
-    }
     return;
   }
   void extractTurntableBitmapBundle(spec, seamlessKeying).catch(() => {
@@ -1987,34 +2231,21 @@ export function extractTurntableBitmapBundle(
     }
 
     // ========================================================================
-    // PARALLEL ZERO-CPU OFF-THREAD DECODE: FAST (32f) + FULL QHD (72f, 4080x4092)!
+    // UNCONTESTED TWO-STAGE STREAM: FAST (~200KB, <45ms) FIRST -> THEN QHD (72f)!
     // ========================================================================
     if (spec.atlasUrl) {
       try {
-        // Kick off QHD download/decode IMMEDIATELY at t=0 in parallel with Fast Tier!
-        const qhdPromise = decodeNativeSheetOffThread(
-          spec.atlasUrl,
-          ATLAS_CELL_W,
-          ATLAS_CELL_H
-        );
+        let emittedFast: CachedFrameBundle | null =
+          FAST_BUNDLE_CACHE.get(fullKey) || null;
 
-        let emittedFast: CachedFrameBundle | null = null;
-        let qhdSettled = false;
-        void qhdPromise.then(() => {
-          qhdSettled = true;
-        });
-
-        if (spec.fastAtlasUrl && !FAST_BUNDLE_CACHE.has(fullKey)) {
-          void decodeNativeSheetOffThread(
-            spec.fastAtlasUrl,
-            FAST_CELL_W,
-            FAST_CELL_H
-          )
-            .then((fastSheet) => {
-              if (!fastSheet || qhdSettled) {
-                fastSheet?.bmp.close();
-                return;
-              }
+        if (spec.fastAtlasUrl && !emittedFast) {
+          try {
+            const fastSheet = await decodeNativeSheetOffThread(
+              spec.fastAtlasUrl,
+              FAST_CELL_W,
+              FAST_CELL_H
+            );
+            if (fastSheet) {
               emittedFast = {
                 atlasBitmap: fastSheet.bmp,
                 isPremultiplied: fastSheet.isPremultiplied,
@@ -2031,11 +2262,17 @@ export function extractTurntableBitmapBundle(
               };
               FAST_BUNDLE_CACHE.set(fullKey, emittedFast);
               notifyFast(emittedFast);
-            })
-            .catch(() => {});
+            }
+          } catch {
+            // Proceed straight to QHD if fast sheet fails
+          }
         }
 
-        const qhdSheet = await qhdPromise;
+        const qhdSheet = await decodeNativeSheetOffThread(
+          spec.atlasUrl,
+          ATLAS_CELL_W,
+          ATLAS_CELL_H
+        );
         if (qhdSheet) {
           onProgress?.(NUM_TURNTABLE_FRAMES, NUM_TURNTABLE_FRAMES);
           evictIfNeeded();
@@ -2063,7 +2300,7 @@ export function extractTurntableBitmapBundle(
               } catch {
                 // ignore
               }
-            }, 1200);
+            }, 1500);
           }
           INFLIGHT_FAST_LISTENERS.delete(fullKey);
           notifyProgressive([], true);

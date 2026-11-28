@@ -249,17 +249,21 @@ export function VellGwoStudio() {
     [bodyDims.bustInches, bodyDims.hipsInches, bodyDims.waistInches]
   );
 
-  // Active 3D Dress-Up Slots (initialized to Outfit #01: Espresso Corset + Champagne Trousers + Gold Heels + Merlot Bag)
+  // Active 3D Dress-Up Slots (initialized to Outfit #01: Espresso Corset + Champagne Trousers + Noir Slingbacks + Merlot Bag)
   const [lookIdx, setLookIdx] = useState<number>(0);
   const [dressedSlots, setDressedSlots] = useState<DressedOutfitSlots>(() => ({
     topId: "prod-ae-espresso-corset",
     bottomId: "prod-ae-champagne-trousers",
     dressId: null,
     outerwearId: null,
-    shoesId: "prod-ae-gold-strappy-heels",
+    shoesId: "prod-ae-noir-slingbacks",
     bagId: "prod-ae-burgundy-crescent-bag",
     beltId: null,
   }));
+  const lastTopIdRef = useRef<string>("prod-ae-espresso-corset");
+  const lastBottomIdRef = useRef<string>("prod-ae-champagne-trousers");
+  const [closetFitSize, setClosetFitSize] = useState<string>("");
+  const activeClosetSize = closetFitSize || recSize;
 
   const [stageMode, setStageMode] = useState<"3d" | "lookbook">("3d");
   const [closetVisualMode, setClosetVisualMode] = useState<
@@ -297,21 +301,23 @@ export function VellGwoStudio() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Idle-prefetch core Closet capsules so switching tops, skirts, dresses, blazers & bags is instant!
+  // Idle-prefetch core Closet capsules after initial outfit settles so active bandwidth is 100% uncontested!
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const warmIds = [
-      "prod-ae-emerald-satin-midi",
-      "prod-ae-ivory-tweed-blazer",
-      "prod-ae-cobalt-draped-mini",
-      "prod-ae-butter-silk-cami",
-    ];
+    const isMobile = window.innerWidth < 860;
+    const warmIds = isMobile
+      ? ["prod-ae-emerald-satin-midi"]
+      : [
+          "prod-ae-emerald-satin-midi",
+          "prod-ae-ivory-tweed-blazer",
+          "prod-ae-cobalt-draped-mini",
+        ];
     const t = setTimeout(() => {
       for (const id of warmIds) {
         const p = allWearableById.get(id);
         if (p) prefetchTurntableBundle([p], false);
       }
-    }, 900);
+    }, 2200);
     return () => clearTimeout(t);
   }, [allWearableById]);
 
@@ -388,11 +394,14 @@ export function VellGwoStudio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allWearableById, applyPresetLook]);
 
-  // Equip or toggle a single 3D garment/shoe/bag/belt on the 3D Character!
+  // Equip or toggle ONLY the selected garment slot on the 3D Character (NEVER swaps other slots or removes jackets over dresses!)
   const equipProductPiece = useCallback(
     (prod: Product, forceEquip = false) => {
       const slot = classifyProductSlot(prod);
       setDressedSlots((prev) => {
+        if (prev.topId) lastTopIdRef.current = prev.topId;
+        if (prev.bottomId) lastBottomIdRef.current = prev.bottomId;
+
         const next = { ...prev };
         if (slot === "dress") {
           next.dressId =
@@ -400,17 +409,35 @@ export function VellGwoStudio() {
           if (next.dressId) {
             next.topId = null;
             next.bottomId = null;
-            if (prod.id !== "prod-ae-butter-lace-slip-midi") {
-              next.outerwearId = null;
-            }
+            // Keep `next.outerwearId`, `shoesId`, `bagId`, `beltId` 100% intact so jackets layer cleanly over dresses!
+          } else {
+            // Toggled dress off: restore previous separates so avatar stays dressed
+            next.topId = lastTopIdRef.current;
+            next.bottomId = lastBottomIdRef.current;
           }
         } else if (slot === "top") {
           next.topId = !forceEquip && prev.topId === prod.id ? null : prod.id;
-          if (next.topId) next.dressId = null;
+          if (next.topId) {
+            lastTopIdRef.current = next.topId;
+            if (prev.dressId) {
+              next.dressId = null;
+              if (!next.bottomId) {
+                next.bottomId = lastBottomIdRef.current;
+              }
+            }
+          }
         } else if (slot === "bottom") {
           next.bottomId =
             !forceEquip && prev.bottomId === prod.id ? null : prod.id;
-          if (next.bottomId) next.dressId = null;
+          if (next.bottomId) {
+            lastBottomIdRef.current = next.bottomId;
+            if (prev.dressId) {
+              next.dressId = null;
+              if (!next.topId) {
+                next.topId = lastTopIdRef.current;
+              }
+            }
+          }
         } else if (slot === "outerwear") {
           next.outerwearId =
             !forceEquip && prev.outerwearId === prod.id ? null : prod.id;
@@ -626,12 +653,12 @@ export function VellGwoStudio() {
         if (!product) return null;
         return {
           product,
-          selectedSize: recSize,
+          selectedSize: activeClosetSize,
           isOwnedInCloset: ownedProductIds.has(product.id),
         };
       })
       .filter((x): x is Worn3DPieceSpec => x !== null);
-  }, [allWearableById, dressedSlots, ownedProductIds, recSize]);
+  }, [activeClosetSize, allWearableById, dressedSlots, ownedProductIds]);
 
   const unownedStorePieces = useMemo(
     () => activeWornSpecs.filter((w) => !w.isOwnedInCloset && w.product.price > 0),
@@ -1071,6 +1098,7 @@ export function VellGwoStudio() {
                 mode="avatar"
                 dimensions={bodyDims}
                 wornPieces={activeWornSpecs}
+                selectedSize={activeClosetSize}
                 faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
                 customAvatarTurntableMp4Url={customAvatar?.turntableMp4Url}
                 customAvatarTurntablePosterUrl={customAvatar?.turntablePosterUrl}
@@ -1083,7 +1111,6 @@ export function VellGwoStudio() {
                 initialYawDeg={0}
                 seamlessStage={false}
                 inertiaSpin={true}
-                focusProductId={selectedPieceId}
                 onSelectProduct={(prod) => {
                   setSelectedPieceId(prod.id);
                   setActiveSlotFilter(classifyProductSlot(prod));
@@ -1097,6 +1124,7 @@ export function VellGwoStudio() {
                     mode="avatar"
                     dimensions={bodyDims}
                     wornPieces={activeWornSpecs}
+                    selectedSize={activeClosetSize}
                     faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
                     initialYawDeg={0}
                     seamlessStage={true}
@@ -1108,6 +1136,7 @@ export function VellGwoStudio() {
                     mode="avatar"
                     dimensions={bodyDims}
                     wornPieces={activeWornSpecs}
+                    selectedSize={activeClosetSize}
                     faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
                     initialYawDeg={180}
                     seamlessStage={true}
@@ -1171,6 +1200,35 @@ export function VellGwoStudio() {
                 </button>
               </div>
             )}
+
+            {/* Live Size-Fit Preview Selector (Compare XS / S / M / L / XL Fit on Body!) */}
+            <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-2xl bg-white border border-[#ECD7E1]">
+              <span className="text-[10.5px] font-bold text-[#22131A] whitespace-nowrap">
+                Try Fit Size:
+              </span>
+              <div className="flex items-center gap-1 overflow-x-auto">
+                {(["XS", "S", "M", "L", "XL"] as const).map((sz) => {
+                  const active = activeClosetSize.toUpperCase() === sz;
+                  const isRec = recSize.toUpperCase() === sz;
+                  return (
+                    <button
+                      key={sz}
+                      type="button"
+                      data-testid={`closet-size-${sz}`}
+                      onClick={() => setClosetFitSize(sz)}
+                      className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border transition cursor-pointer whitespace-nowrap ${
+                        active
+                          ? "bg-[#B83B6A] text-white border-[#B83B6A] shadow-2xs"
+                          : "bg-[#FDF6F9] text-[#6E5360] border-[#ECD7E1] hover:text-[#962953]"
+                      }`}
+                    >
+                      {sz}
+                      {isRec ? "★" : ""}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* Wardrobe Source Tabs */}
             <div className="flex items-center gap-1 overflow-x-auto pb-0.5">

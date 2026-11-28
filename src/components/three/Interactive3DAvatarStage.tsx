@@ -50,9 +50,18 @@ import {
   getCachedTurntableBundleSync,
   hexToRgb01,
   NUM_TURNTABLE_FRAMES,
+  ResolvedTurntableSpec,
   resolveHydratedShiftsAsync,
   resolveTurntableSpecForOutfit,
 } from "@/lib/three/higgsfield-turntable-engine";
+import {
+  composeModularOutfitToCanvas,
+  getCachedOrLoadImage,
+} from "@/lib/three/modular-outfit-compositor";
+import {
+  computeVisualSizeFitMorph,
+  deriveRecommendedApparelLetter,
+} from "@/lib/three/size-fit-morph";
 import {
   ImmersiveLightingPresetId,
   MASTER_IMMERSIVE_LIGHTING_PRESETS,
@@ -400,11 +409,22 @@ export function Interactive3DAvatarStage({
   const [isLoadingFrames, setIsLoadingFrames] = useState<boolean>(false);
 
   const bundleRef = useRef<CachedFrameBundle | null>(null);
+  const upperBundleRef = useRef<CachedFrameBundle | null>(null);
   const framesRef = useRef<ImageBitmap[]>([]);
   const posterBitmapRef = useRef<ImageBitmap | null>(null);
+  const studioFrontCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const studioSideRCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const studioBackCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const studioSideLCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const studioFrontVerRef = useRef<number>(0);
+  const studioSideRVerRef = useRef<number>(0);
+  const studioBackVerRef = useRef<number>(0);
+  const studioSideLVerRef = useRef<number>(0);
+  const studioPreColoredRef = useRef<boolean>(false);
   const paintVersionRef = useRef<number>(0);
   const faceOvalImgRef = useRef<HTMLImageElement | null>(null);
   const activeShiftsRef = useRef<ColorwayShiftSpec[]>([]);
+  const activeUpperShiftsRef = useRef<ColorwayShiftSpec[]>([]);
   const skinToneHexRef = useRef<string | undefined>(undefined);
 
   const setVisualMode = useCallback(
@@ -499,8 +519,14 @@ export function Interactive3DAvatarStage({
 
     const fullMap = new Map(chosen);
     const companions = getNeutralCompanionDefaults();
+    const outerChosen = fullMap.get("outerwear");
+    const hasClosedOuter = Boolean(
+      outerChosen &&
+        (outerChosen.id === "prod-ae-linen-cinch-cardigan" ||
+          outerChosen.id === "prod-ae-sage-zip-jacket")
+    );
     if (!hasDress) {
-      if (!fullMap.has("top") && companions.top) {
+      if (!fullMap.has("top") && !hasClosedOuter && companions.top) {
         fullMap.set("top", companions.top);
       }
       if (!fullMap.has("bottom") && companions.bottom) {
@@ -561,6 +587,81 @@ export function Interactive3DAvatarStage({
   const fitByProductIdRef = useRef(fitByProductId);
   fitByProductIdRef.current = fitByProductId;
 
+  // Live Physical Size-Fit Morphing (`XS` / `S` / `M` / `L` / `XL` visibly loosens/tightens & lengthens/shortens garment on her body!)
+  const { visualSizeMorph, hasExplicitSizeControl } = useMemo(() => {
+    const bodyRecLetter = deriveRecommendedApparelLetter(safeDimensions);
+    if (mode === "product" && targetSingleProd) {
+      const rep = fitByProductId.get(targetSingleProd.id);
+      return {
+        visualSizeMorph: computeVisualSizeFitMorph({
+          product: targetSingleProd,
+          selectedSize: selectedSize || rep?.recommendedSize || bodyRecLetter,
+          recommendedSize: rep?.recommendedSize || bodyRecLetter,
+          dimensions: safeDimensions,
+        }),
+        hasExplicitSizeControl: Boolean(selectedSize),
+      };
+    }
+
+    // Find explicit size selection from top-level `selectedSize` or per-piece `wornPieces`
+    const sizedEntry =
+      (focusProductId
+        ? wornPieces.find(
+            (w) => w.product.id === focusProductId && Boolean(w.selectedSize)
+          )
+        : undefined) ||
+      wornPieces.find((w) => {
+        if (!w.selectedSize) return false;
+        const s = classifyWearableSlotAndAnchors(w.product).slot;
+        return s === "dress" || s === "top" || s === "bottom" || s === "outerwear";
+      }) ||
+      wornPieces.find((w) => Boolean(w.selectedSize));
+
+    // If top-level `selectedSize` is passed in Closet (applying to the whole worn outfit), use `product: null` (`slotCode = 0`)
+    if (selectedSize && wornPieces.length > 1) {
+      return {
+        visualSizeMorph: computeVisualSizeFitMorph({
+          product: null,
+          selectedSize,
+          recommendedSize: bodyRecLetter,
+          dimensions: safeDimensions,
+        }),
+        hasExplicitSizeControl: true,
+      };
+    }
+
+    const morphProd = sizedEntry?.product || (wornPieces.length === 1 ? wornPieces[0]?.product : null);
+    const activeSz = selectedSize || sizedEntry?.selectedSize;
+    const rep = morphProd ? fitByProductId.get(morphProd.id) : undefined;
+    return {
+      visualSizeMorph: computeVisualSizeFitMorph({
+        product: morphProd,
+        selectedSize: activeSz || rep?.recommendedSize || bodyRecLetter,
+        recommendedSize: rep?.recommendedSize || bodyRecLetter,
+        dimensions: safeDimensions,
+      }),
+      hasExplicitSizeControl: Boolean(selectedSize || sizedEntry?.selectedSize),
+    };
+  }, [
+    fitByProductId,
+    focusProductId,
+    mode,
+    safeDimensions,
+    selectedSize,
+    targetSingleProd,
+    wornPieces,
+  ]);
+
+  const sizeMorphRef = useRef(visualSizeMorph);
+  sizeMorphRef.current = visualSizeMorph;
+  const animSizeStepRef = useRef<number>(visualSizeMorph.sizeStep);
+  const animHemDropRef = useRef<number>(visualSizeMorph.hemDropLocal);
+
+  useEffect(() => {
+    paintVersionRef.current++;
+    kickRenderRef.current?.();
+  }, [visualSizeMorph]);
+
   useEffect(() => {
     if (selectedProductId) {
       const found =
@@ -604,6 +705,9 @@ export function Interactive3DAvatarStage({
     ]
   );
 
+  const turntableSpecRef = useRef(turntableSpec);
+  turntableSpecRef.current = turntableSpec;
+
   // Hydrate colorway & skin-tone shader uniforms asynchronously (0ms for explicit colors, ~2ms for custom photo sampling)
   useEffect(() => {
     let cancelled = false;
@@ -612,6 +716,7 @@ export function Interactive3DAvatarStage({
       turntableSpec.colorwayShifts ||
       (turntableSpec.colorwayShift ? [turntableSpec.colorwayShift] : []);
     activeShiftsRef.current = immediate;
+    activeUpperShiftsRef.current = turntableSpec.upperOverlay?.colorwayShifts || [];
     paintVersionRef.current++;
     kickRenderRef.current?.();
 
@@ -628,8 +733,250 @@ export function Interactive3DAvatarStage({
     };
   }, [turntableSpec]);
 
+  // 4K Studio Master Texture Synthesizer (900x1355 = 4.1x higher figure pixel density than video cells!)
+  // - Canonical capsules: uses the razor-sharp 900x1355 studio master (`runway_ai/ae_outfit_X_front/back.webp`)
+  // - Custom Closet mixes: uses atomic 900x1355 modular studio layers (`composeModularOutfitToCanvas`) with ONLY selected clothes!
+  useEffect(() => {
+    if (typeof document === "undefined" || mode !== "avatar") {
+      studioFrontVerRef.current = 0;
+      studioBackVerRef.current = 0;
+      paintVersionRef.current++;
+      kickRenderRef.current?.();
+      return;
+    }
+
+    let cancelled = false;
+    const ensureCanvas = (
+      ref: React.MutableRefObject<HTMLCanvasElement | null>
+    ): HTMLCanvasElement => {
+      if (!ref.current) {
+        const c = document.createElement("canvas");
+        c.width = 900;
+        c.height = 1355;
+        ref.current = c;
+      }
+      return ref.current;
+    };
+
+    const basePrefix = process.env.NEXT_PUBLIC_BASE_PATH || "";
+    const isCanonicalNumber =
+      !turntableSpec.isCustomMix && typeof turntableSpec.lookIdx === "number";
+
+    const paintCanonicalAngle = (angle: "front" | "back") => {
+      if (cancelled || typeof turntableSpec.lookIdx !== "number") return;
+      const idx = turntableSpec.lookIdx;
+      const url = `${basePrefix}/models/runway_ai/ae_outfit_${idx}_${angle}.webp?v=rw4k2`;
+      const im = getCachedOrLoadImage(url, () => {
+        if (!cancelled) paintCanonicalAngle(angle);
+      });
+      if (!im) return;
+      const cv = ensureCanvas(
+        angle === "front" ? studioFrontCanvasRef : studioBackCanvasRef
+      );
+      const ctx = cv.getContext("2d");
+      if (!ctx) return;
+      ctx.clearRect(0, 0, 900, 1355);
+      if (idx >= 10) {
+        const sc = 1.095;
+        ctx.drawImage(
+          im,
+          450 - 450 * sc,
+          28 - 94 * sc,
+          900 * sc,
+          1355 * sc
+        );
+      } else {
+        ctx.drawImage(im, 0, 0, 900, 1355);
+      }
+      if (faceOvalImgRef.current && angle === "front") {
+        const fw = 900 * 0.129;
+        const fh = 1355 * 0.097;
+        ctx.drawImage(
+          faceOvalImgRef.current,
+          900 * 0.4995 - fw / 2,
+          1355 * 0.132 - fh / 2,
+          fw,
+          fh
+        );
+      }
+      studioPreColoredRef.current = false;
+      if (angle === "front") {
+        studioFrontVerRef.current++;
+        setFramesReady(true);
+      } else {
+        studioBackVerRef.current++;
+      }
+      paintVersionRef.current++;
+      kickRenderRef.current?.();
+    };
+
+    const paintModularAngle = (
+      viewId: "front" | "sideR" | "back" | "sideL"
+    ) => {
+      if (cancelled) return;
+      const targetRef =
+        viewId === "front"
+          ? studioFrontCanvasRef
+          : viewId === "sideR"
+          ? studioSideRCanvasRef
+          : viewId === "back"
+          ? studioBackCanvasRef
+          : studioSideLCanvasRef;
+      const cv = ensureCanvas(targetRef);
+      const ctx = cv.getContext("2d");
+      if (!ctx) return;
+      const status = composeModularOutfitToCanvas({
+        ctx,
+        products: effectiveEquippedProducts,
+        angle:
+          viewId === "front"
+            ? "front"
+            : viewId === "back"
+            ? "back"
+            : "side",
+        mirrorHorizontal: viewId === "sideL",
+        includeBag: Boolean(turntableSpec.hasBagEquipped),
+        faceOvalDataUrl,
+        onAssetReady: () => {
+          if (!cancelled) paintModularAngle(viewId);
+        },
+      });
+      if (status === "ready") {
+        studioPreColoredRef.current = true;
+        if (viewId === "front") {
+          studioFrontVerRef.current++;
+          setFramesReady(true);
+        } else if (viewId === "sideR") {
+          studioSideRVerRef.current++;
+        } else if (viewId === "back") {
+          studioBackVerRef.current++;
+        } else {
+          studioSideLVerRef.current++;
+        }
+        paintVersionRef.current++;
+        kickRenderRef.current?.();
+      }
+    };
+
+    studioFrontVerRef.current = 0;
+    studioSideRVerRef.current = 0;
+    studioBackVerRef.current = 0;
+    studioSideLVerRef.current = 0;
+
+    if (isCanonicalNumber) {
+      paintCanonicalAngle("front");
+      const backTimer = setTimeout(() => {
+        if (!cancelled) paintCanonicalAngle("back");
+      }, 140);
+      return () => {
+        cancelled = true;
+        clearTimeout(backTimer);
+      };
+    }
+
+    if (effectiveEquippedProducts.length > 0 || turntableSpec.lookIdx === "base") {
+      paintModularAngle("front");
+      const sideTimer = setTimeout(() => {
+        if (!cancelled) {
+          paintModularAngle("sideR");
+          paintModularAngle("back");
+          paintModularAngle("sideL");
+        }
+      }, 60);
+      return () => {
+        cancelled = true;
+        clearTimeout(sideTimer);
+      };
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    effectiveEquippedProducts,
+    faceOvalDataUrl,
+    mode,
+    turntableSpec.hasBagEquipped,
+    turntableSpec.isCustomMix,
+    turntableSpec.lookIdx,
+  ]);
+
+  // Multi-Slot Upper Turntable Loader (for custom Closet mixes like Shirt Swap or Jacket OVER Dress!)
+  useEffect(() => {
+    const up = turntableSpec.upperOverlay;
+    if (!up) {
+      upperBundleRef.current = null;
+      paintVersionRef.current++;
+      kickRenderRef.current?.();
+      return;
+    }
+
+    let cancelled = false;
+    const upSpec: ResolvedTurntableSpec = {
+      cacheKey: `hf:${up.lookIdx}`,
+      kind: "higgsfield_mp4",
+      lookIdx: up.lookIdx,
+      mp4Url: "",
+      fastAtlasUrl: up.fastAtlasUrl,
+      atlasUrl: up.atlasUrl,
+      posterUrl: "",
+      products: [],
+    };
+
+    const syncHit = getCachedTurntableBundleSync(upSpec, seamlessStage);
+    if (syncHit && syncHit.atlasBitmap) {
+      upperBundleRef.current = syncHit;
+      paintVersionRef.current++;
+      kickRenderRef.current?.();
+      return;
+    }
+
+    const syncFast = getCachedFastBundleSync(upSpec);
+    if (syncFast && syncFast.atlasBitmap) {
+      upperBundleRef.current = syncFast;
+      paintVersionRef.current++;
+      kickRenderRef.current?.();
+    } else {
+      upperBundleRef.current = null;
+    }
+
+    void extractTurntableBitmapBundle(
+      upSpec,
+      seamlessStage,
+      undefined,
+      undefined,
+      (fastB) => {
+        if (cancelled || !fastB.atlasBitmap) return;
+        if (!upperBundleRef.current || upperBundleRef.current.isFastTier) {
+          upperBundleRef.current = fastB;
+          paintVersionRef.current++;
+          kickRenderRef.current?.();
+        }
+      }
+    )
+      .then((qhdB) => {
+        if (cancelled || !qhdB.atlasBitmap) return;
+        upperBundleRef.current = qhdB;
+        paintVersionRef.current++;
+        kickRenderRef.current?.();
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [seamlessStage, turntableSpec.upperOverlay]);
+
   // Parallel Zero-Main-Thread-CPU Loader: Fast Tier (32f) + Full QHD (72f, 4080x4092)!
   useEffect(() => {
+    // Custom multi-slot Closet mixes use our instant 4-Angle 4K Modular Studio Cylindrical Engine (0KB video download, 100% exact selected clothes!)
+    if (mode === "avatar" && turntableSpec.isCustomMix) {
+      setIsLoadingFrames(false);
+      paintVersionRef.current++;
+      kickRenderRef.current?.();
+      return;
+    }
+
     let cancelled = false;
 
     // 1. Instant 0ms synchronous QHD LRU hit if already decoded in RAM!
@@ -768,9 +1115,20 @@ export function Interactive3DAvatarStage({
 
     let glProg: WebGLProgram | null = null;
     let glQuadBuf: WebGLBuffer | null = null;
+    let glDummyTex: WebGLTexture | null = null;
     let glTexA: WebGLTexture | null = null;
     let glTexB: WebGLTexture | null = null;
+    let glTexUpper: WebGLTexture | null = null;
+    let glTexStudioFront: WebGLTexture | null = null;
+    let glTexStudioSideR: WebGLTexture | null = null;
+    let glTexStudioBack: WebGLTexture | null = null;
+    let glTexStudioSideL: WebGLTexture | null = null;
     let uploadedBundleRef: CachedFrameBundle | null = null;
+    let uploadedUpperBundleRef: CachedFrameBundle | null = null;
+    let uploadedStudioFrontVer = 0;
+    let uploadedStudioSideRVer = 0;
+    let uploadedStudioBackVer = 0;
+    let uploadedStudioSideLVer = 0;
     let uRectLoc: WebGLUniformLocation | null = null;
     let uUvRectLoc: WebGLUniformLocation | null = null;
     let uCropYLoc: WebGLUniformLocation | null = null;
@@ -784,8 +1142,41 @@ export function Interactive3DAvatarStage({
     let uShiftTargetLoc: WebGLUniformLocation | null = null;
     let uShiftBoundsLoc: WebGLUniformLocation | null = null;
     let uSkinMulLoc: WebGLUniformLocation | null = null;
+    let uTexLoc: WebGLUniformLocation | null = null;
+    let uTexUpperLoc: WebGLUniformLocation | null = null;
+    let uTexStudioLoc: WebGLUniformLocation | null = null;
+    let uTexStudioNextLoc: WebGLUniformLocation | null = null;
+    let uHasBaseTexLoc: WebGLUniformLocation | null = null;
+    let uHasUpperLoc: WebGLUniformLocation | null = null;
+    let uUpperUvRectLoc: WebGLUniformLocation | null = null;
+    let uUpperSpliceLoc: WebGLUniformLocation | null = null;
+    let uUpperShiftCountLoc: WebGLUniformLocation | null = null;
+    let uUpperShiftMetaLoc: WebGLUniformLocation | null = null;
+    let uUpperShiftTargetLoc: WebGLUniformLocation | null = null;
+    let uUpperShiftBoundsLoc: WebGLUniformLocation | null = null;
+    let uStudioMixLoc: WebGLUniformLocation | null = null;
+    let uStudioCylLoc: WebGLUniformLocation | null = null;
+    let uStudioPreColoredLoc: WebGLUniformLocation | null = null;
+    let uSizeFitLoc: WebGLUniformLocation | null = null;
+    let uSizeMetaLoc: WebGLUniformLocation | null = null;
 
     if (gl) {
+      glDummyTex = gl.createTexture();
+      if (glDummyTex) {
+        gl.bindTexture(gl.TEXTURE_2D, glDummyTex);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          1,
+          1,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          new Uint8Array([0, 0, 0, 0])
+        );
+      }
+
       const compileShader = (type: number, src: string) => {
         const s = gl.createShader(type);
         if (!s) return null;
@@ -801,22 +1192,22 @@ export function Interactive3DAvatarStage({
         gl.VERTEX_SHADER,
         `attribute vec2 aPos;
          uniform vec4 uRect;
-         uniform vec4 uUvRect;
-         varying vec2 vUv;
          varying vec2 vLocal;
          void main() {
            vec2 p = uRect.xy + aPos * uRect.zw;
            gl_Position = vec4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0);
-           vUv = uUvRect.xy + aPos * uUvRect.zw;
            vLocal = aPos;
          }`
       );
       const fs = compileShader(
         gl.FRAGMENT_SHADER,
         `precision highp float;
-         varying vec2 vUv;
          varying vec2 vLocal;
          uniform sampler2D uTex;
+         uniform sampler2D uTexUpper;
+         uniform sampler2D uTexStudio;
+         uniform sampler2D uTexStudioNext;
+         uniform vec4 uUvRect;
          uniform vec4 uCropY;
          uniform vec3 uMood;
          uniform vec2 uTexel;
@@ -828,6 +1219,21 @@ export function Interactive3DAvatarStage({
          uniform vec3 uShiftTarget[4];
          uniform vec4 uShiftBounds[4];
          uniform vec4 uSkinMul;
+
+         uniform float uHasBaseTex;
+         uniform float uHasUpper;
+         uniform vec4 uUpperUvRect;
+         uniform vec4 uUpperSplice;
+         uniform int uUpperShiftCount;
+         uniform vec4 uUpperShiftMeta[2];
+         uniform vec3 uUpperShiftTarget[2];
+         uniform vec4 uUpperShiftBounds[2];
+
+         uniform float uStudioMix;
+         uniform vec2 uStudioCyl;
+         uniform float uStudioPreColored;
+         uniform vec4 uSizeFit;
+         uniform vec2 uSizeMeta;
 
          vec3 sampleStraightSafe(vec2 uv, vec3 fallbackRgb) {
            vec4 s = texture2D(uTex, uv);
@@ -916,6 +1322,54 @@ export function Interactive3DAvatarStage({
            return 0.0;
          }
 
+         vec3 applyPrimaryShifts(vec3 sRgb, vec2 loc) {
+           if (uShiftCount <= 0) return sRgb;
+           for (int i = 0; i < 4; i++) {
+             if (i >= uShiftCount) break;
+             vec4 bnd = uShiftBounds[i];
+             if (loc.y >= bnd.x && loc.y <= bnd.y && loc.x >= bnd.z && loc.x <= bnd.w) {
+               float mxC = max(sRgb.r, max(sRgb.g, sRgb.b));
+               float mnC = min(sRgb.r, min(sRgb.g, sRgb.b));
+               float chr = mxC - mnC;
+               float lum = 0.299 * sRgb.r + 0.587 * sRgb.g + 0.114 * sRgb.b;
+               int mId = int(uShiftMeta[i].x + 0.5);
+               float w = evalMaskWeight(mId, sRgb, lum, chr);
+               if (w > 0.008) {
+                 float foldRatio = clamp(lum / max(uShiftMeta[i].y, 0.08), 0.32, 1.68);
+                 float shaped = max(0.18, 1.0 + (foldRatio - 1.0) * 0.86);
+                 float spec = foldRatio > 1.06 ? (foldRatio - 1.06) * uShiftMeta[i].z : 0.0;
+                 vec3 nextRgb = clamp(uShiftTarget[i] * shaped + vec3(spec), 0.0, 1.0);
+                 sRgb = mix(sRgb, nextRgb, w);
+               }
+             }
+           }
+           return sRgb;
+         }
+
+         vec3 applyUpperShifts(vec3 sRgb, vec2 loc) {
+           if (uUpperShiftCount <= 0) return sRgb;
+           for (int i = 0; i < 2; i++) {
+             if (i >= uUpperShiftCount) break;
+             vec4 bnd = uUpperShiftBounds[i];
+             if (loc.y >= bnd.x && loc.y <= bnd.y && loc.x >= bnd.z && loc.x <= bnd.w) {
+               float mxC = max(sRgb.r, max(sRgb.g, sRgb.b));
+               float mnC = min(sRgb.r, min(sRgb.g, sRgb.b));
+               float chr = mxC - mnC;
+               float lum = 0.299 * sRgb.r + 0.587 * sRgb.g + 0.114 * sRgb.b;
+               int mId = int(uUpperShiftMeta[i].x + 0.5);
+               float w = evalMaskWeight(mId, sRgb, lum, chr);
+               if (w > 0.008) {
+                 float foldRatio = clamp(lum / max(uUpperShiftMeta[i].y, 0.08), 0.32, 1.68);
+                 float shaped = max(0.18, 1.0 + (foldRatio - 1.0) * 0.86);
+                 float spec = foldRatio > 1.06 ? (foldRatio - 1.06) * uUpperShiftMeta[i].z : 0.0;
+                 vec3 nextRgb = clamp(uUpperShiftTarget[i] * shaped + vec3(spec), 0.0, 1.0);
+                 sRgb = mix(sRgb, nextRgb, w);
+               }
+             }
+           }
+           return sRgb;
+         }
+
          void main() {
            float vLocalY = vLocal.y;
            if (vLocalY < uCropY.x || vLocalY > uCropY.y) {
@@ -931,8 +1385,141 @@ export function Interactive3DAvatarStage({
              : 1.0;
            float cropMask = mTop * mBot;
 
-           vec4 c = texture2D(uTex, vUv);
-           if (c.a < 0.008) {
+           // 1. Live Physical Size-Fit Garment Morph (XS / S / M / L / XL):
+           //    Expands/tightens ONLY the garment silhouette & shifts garment hem length while
+           //    keeping head/face (y < y0) and ankles/shoes (y > y1) 100% anatomically locked!
+           vec2 sLoc = vLocal;
+           float szStep = uSizeFit.x;
+           float szEaseProfile = 0.0;
+           if (abs(szStep) > 0.015) {
+             float y0 = uSizeFit.y;
+             float y1 = uSizeFit.z;
+             float yPeak = uSizeFit.w;
+             float hemDrop = uSizeMeta.x;
+
+             float envUp = smoothstep(y0, min(yPeak, y0 + 0.095), vLocal.y);
+             float envDn = 1.0 - smoothstep(max(yPeak, y1 - 0.13), y1 + 0.045, vLocal.y);
+             float yEnv = envUp * envDn;
+
+             float wDist = (vLocal.y - yPeak) / 0.135;
+             float wBell = exp(-wDist * wDist * 0.5);
+             szEaseProfile = yEnv * (0.56 + 0.54 * wBell);
+             float easeAmt = szStep * 0.075 * szEaseProfile;
+
+             float cx = 0.4765;
+             float dx = vLocal.x - cx;
+             float radEnv = exp(-(dx * dx) / (2.0 * 0.21 * 0.21));
+             float scaleX = max(0.76, 1.0 + easeAmt * radEnv);
+             sLoc.x = cx + dx / scaleX;
+
+             float hemEnv = smoothstep(y0 + 0.05, min(y1, y0 + 0.22), vLocal.y)
+               * (1.0 - smoothstep(y1 - 0.015, y1 + 0.085, vLocal.y));
+             sLoc.y = vLocal.y - hemDrop * hemEnv;
+           }
+
+           vec3 finalRgb = vec3(1.0);
+           float finalA = 0.0;
+
+           // 2. Sample 72-frame 360° Turntable (plus Multi-Slot Upper Splicing when custom Closet mix!)
+           if (uHasBaseTex > 0.5 && uStudioMix < 0.995) {
+             vec2 uvBase = clamp(uUvRect.xy + sLoc * uUvRect.zw, uCellBounds.xy, uCellBounds.zw);
+             vec4 cBase = texture2D(uTex, uvBase);
+             vec3 bRgb = cBase.a > 0.008 ? clamp(cBase.rgb / max(cBase.a, 0.004), 0.0, 1.0) : vec3(1.0);
+
+             if (uSharpAmt > 0.01 && cBase.a > 0.55) {
+               vec3 nRgb = sampleStraightSafe(vec2(uvBase.x, max(uCellBounds.y, uvBase.y - uTexel.y)), bRgb);
+               vec3 s2Rgb = sampleStraightSafe(vec2(uvBase.x, min(uCellBounds.w, uvBase.y + uTexel.y)), bRgb);
+               vec3 wRgb = sampleStraightSafe(vec2(max(uCellBounds.x, uvBase.x - uTexel.x), uvBase.y), bRgb);
+               vec3 eRgb = sampleStraightSafe(vec2(min(uCellBounds.z, uvBase.x + uTexel.x), uvBase.y), bRgb);
+               vec3 mnRgb = min(bRgb, min(min(nRgb, s2Rgb), min(wRgb, eRgb)));
+               vec3 mxRgb = max(bRgb, max(max(nRgb, s2Rgb), max(wRgb, eRgb)));
+               vec3 amp = sqrt(clamp(min(mnRgb, 1.0 - mxRgb) / max(mxRgb, vec3(0.004)), 0.0, 1.0)) * (-0.19 * uSharpAmt);
+               bRgb = clamp((bRgb + (nRgb + s2Rgb + wRgb + eRgb) * amp) / (vec3(1.0) + 4.0 * amp), 0.0, 1.0);
+             }
+
+             bRgb = applyPrimaryShifts(bRgb, sLoc);
+             float bA = cBase.a;
+
+             if (uHasUpper > 0.5) {
+               vec2 uvUp = uUpperUvRect.xy + sLoc * uUpperUvRect.zw;
+               vec4 cUp = texture2D(uTexUpper, uvUp);
+               vec3 uRgb = cUp.a > 0.008 ? clamp(cUp.rgb / max(cUp.a, 0.004), 0.0, 1.0) : vec3(1.0);
+               uRgb = applyUpperShifts(uRgb, sLoc);
+
+               float spY = uUpperSplice.x;
+               float spF = uUpperSplice.y;
+               float modeId = uUpperSplice.z;
+               float frontFac = uUpperSplice.w;
+
+               if (modeId < 1.5) {
+                 // Mode 1: Separates Top / Jacket above Bottom (clean horizontal waist splice)
+                 float upZone = 1.0 - smoothstep(spY - spF, spY + spF, sLoc.y);
+                 float outA = mix(bA, cUp.a, upZone);
+                 bRgb = mix(bRgb, uRgb, clamp(upZone, 0.0, 1.0));
+                 bA = outA;
+               } else {
+                 // Mode 2 & 3: Jacket / Blazer / Coat layered OVER a Dress!
+                 // Preserves head (y < 0.16) and full dress skirt below jacket hem (y > spY)!
+                 float vertW = smoothstep(0.145, 0.178, sLoc.y)
+                   * (1.0 - smoothstep(spY - spF, spY + spF, sLoc.y));
+                 float jacketKeep = 1.0;
+                 if (modeId < 2.5 && frontFac > 0.02) {
+                   // Open Blazer/Coat: let the customer's actual Dress bodice show right through the open center lapels!
+                   float centerBand = 1.0 - smoothstep(0.052, 0.095, abs(sLoc.x - 0.4765));
+                   if (centerBand > 0.01) {
+                     float mxU = max(uRgb.r, max(uRgb.g, uRgb.b));
+                     float mnU = min(uRgb.r, min(uRgb.g, uRgb.b));
+                     float lumU = 0.299 * uRgb.r + 0.587 * uRgb.g + 0.114 * uRgb.b;
+                     float innerTankW = evalMaskWeight(4, uRgb, lumU, mxU - mnU);
+                     float chestSkinW = clamp((uRgb.r - uRgb.g - 0.055) / 0.05, 0.0, 1.0)
+                       * clamp((uRgb.g - uRgb.b - 0.035) / 0.05, 0.0, 1.0)
+                       * clamp((lumU - 0.28) / 0.10, 0.0, 1.0);
+                     float openHole = clamp(max(innerTankW, chestSkinW), 0.0, 1.0) * centerBand * frontFac;
+                     jacketKeep = 1.0 - openHole;
+                   }
+                 }
+                 float jW = vertW * jacketKeep * cUp.a;
+                 float combA = max(bA, vertW * cUp.a);
+                 bRgb = mix(bRgb, uRgb, clamp(jW, 0.0, 1.0));
+                 bA = combA;
+               }
+             }
+
+             finalRgb = bRgb;
+             finalA = bA;
+           }
+
+           // 3. True 4K Studio Master Fusion + 4-Angle Cylindrical Modular Turntable (900x1355 razor-sharp eyelashes, hair strands & weave!)
+           if (uStudioMix > 0.004) {
+             float cylScale = max(0.74, uStudioCyl.y);
+             float stLocalX = 0.4765 + (sLoc.x - 0.4765) / cylScale;
+             vec2 uvSt = vec2(
+               0.500 + (stLocalX - 0.4765) * 0.6733,
+               0.0235 + (sLoc.y - 0.0220) * 0.998
+             );
+             vec4 cSt = (uvSt.x >= 0.0 && uvSt.x <= 1.0 && uvSt.y >= 0.0 && uvSt.y <= 1.0)
+               ? texture2D(uTexStudio, uvSt)
+               : vec4(0.0);
+             if (uStudioCyl.x > 0.004) {
+               vec4 cSt2 = (uvSt.x >= 0.0 && uvSt.x <= 1.0 && uvSt.y >= 0.0 && uvSt.y <= 1.0)
+                 ? texture2D(uTexStudioNext, uvSt)
+                 : vec4(0.0);
+               cSt = mix(cSt, cSt2, uStudioCyl.x);
+             }
+             vec3 stRgb = cSt.a > 0.008 ? clamp(cSt.rgb / max(cSt.a, 0.004), 0.0, 1.0) : vec3(1.0);
+             if (uStudioPreColored < 0.5) {
+               stRgb = applyPrimaryShifts(stRgb, sLoc);
+             }
+             if (uHasBaseTex < 0.5 || uStudioMix >= 0.995) {
+               finalRgb = stRgb;
+               finalA = cSt.a;
+             } else {
+               finalRgb = mix(finalRgb, stRgb, uStudioMix);
+               finalA = mix(finalA, cSt.a, uStudioMix);
+             }
+           }
+
+           if (finalA < 0.008) {
              if (uSeamless < 0.5) {
                gl_FragColor = vec4(cropMask, cropMask, cropMask, cropMask);
              } else {
@@ -941,67 +1528,34 @@ export function Interactive3DAvatarStage({
              return;
            }
 
-           vec3 sRgb = clamp(c.rgb / max(c.a, 0.004), 0.0, 1.0);
-
-           // 5-Tap FidelityFX Contrast-Adaptive Sharpening (CAS) — crisp eyes, hair & weave, zero edge halo!
-           if (uSharpAmt > 0.01 && c.a > 0.55) {
-             vec3 nRgb = sampleStraightSafe(vec2(vUv.x, max(uCellBounds.y, vUv.y - uTexel.y)), sRgb);
-             vec3 s2Rgb = sampleStraightSafe(vec2(vUv.x, min(uCellBounds.w, vUv.y + uTexel.y)), sRgb);
-             vec3 wRgb = sampleStraightSafe(vec2(max(uCellBounds.x, vUv.x - uTexel.x), vUv.y), sRgb);
-             vec3 eRgb = sampleStraightSafe(vec2(min(uCellBounds.z, vUv.x + uTexel.x), vUv.y), sRgb);
-             vec3 mnRgb = min(sRgb, min(min(nRgb, s2Rgb), min(wRgb, eRgb)));
-             vec3 mxRgb = max(sRgb, max(max(nRgb, s2Rgb), max(wRgb, eRgb)));
-             vec3 amp = sqrt(clamp(min(mnRgb, 1.0 - mxRgb) / max(mxRgb, vec3(0.004)), 0.0, 1.0)) * (-0.18 * uSharpAmt);
-             sRgb = clamp((sRgb + (nRgb + s2Rgb + wRgb + eRgb) * amp) / (vec3(1.0) + 4.0 * amp), 0.0, 1.0);
-           }
-
-           // Hardware GPU Multi-Zone Colorway Shader (0.00ms CPU!)
-           if (uShiftCount > 0) {
-             for (int i = 0; i < 4; i++) {
-               if (i >= uShiftCount) break;
-               vec4 bnd = uShiftBounds[i];
-               if (vLocalY >= bnd.x && vLocalY <= bnd.y && vLocal.x >= bnd.z && vLocal.x <= bnd.w) {
-                 float mxC = max(sRgb.r, max(sRgb.g, sRgb.b));
-                 float mnC = min(sRgb.r, min(sRgb.g, sRgb.b));
-                 float chr = mxC - mnC;
-                 float lum = 0.299 * sRgb.r + 0.587 * sRgb.g + 0.114 * sRgb.b;
-                 int mId = int(uShiftMeta[i].x + 0.5);
-                 float w = evalMaskWeight(mId, sRgb, lum, chr);
-                 if (w > 0.008) {
-                   float foldRatio = clamp(lum / max(uShiftMeta[i].y, 0.08), 0.32, 1.68);
-                   float shaped = max(0.18, 1.0 + (foldRatio - 1.0) * 0.86);
-                   float spec = foldRatio > 1.06 ? (foldRatio - 1.06) * uShiftMeta[i].z : 0.0;
-                   vec3 nextRgb = clamp(uShiftTarget[i] * shaped + vec3(spec), 0.0, 1.0);
-                   sRgb = mix(sRgb, nextRgb, w);
-                 }
-               }
-             }
+           // Subtle physical fabric tension highlight on snug/tight sizes vs softer drape on loose sizes
+           if (abs(szStep) > 0.25 && szEaseProfile > 0.15) {
+             float tensionShade = clamp(-szStep * 0.014 * szEaseProfile, -0.03, 0.03);
+             finalRgb = clamp(finalRgb + vec3(tensionShade), 0.0, 1.0);
            }
 
            // Optional Customer Skin-Tone Harmonization in GPU
            if (uSkinMul.w > 0.5 && vLocalY < 0.96) {
-             float lumS = 0.299 * sRgb.r + 0.587 * sRgb.g + 0.114 * sRgb.b;
-             float sw = clamp((sRgb.r - sRgb.g - 0.065) / 0.05, 0.0, 1.0)
-               * clamp((0.24 - (sRgb.r - sRgb.g)) / 0.06, 0.0, 1.0)
-               * clamp((sRgb.g - sRgb.b - 0.045) / 0.045, 0.0, 1.0)
+             float lumS = 0.299 * finalRgb.r + 0.587 * finalRgb.g + 0.114 * finalRgb.b;
+             float sw = clamp((finalRgb.r - finalRgb.g - 0.065) / 0.05, 0.0, 1.0)
+               * clamp((0.24 - (finalRgb.r - finalRgb.g)) / 0.06, 0.0, 1.0)
+               * clamp((finalRgb.g - finalRgb.b - 0.045) / 0.045, 0.0, 1.0)
                * clamp((lumS - 0.28) / 0.10, 0.0, 1.0)
                * clamp((0.82 - lumS) / 0.08, 0.0, 1.0) * 0.62;
              if (sw > 0.01) {
-               sRgb = clamp(mix(sRgb, sRgb * uSkinMul.rgb, sw), 0.0, 1.0);
+               finalRgb = clamp(mix(finalRgb, finalRgb * uSkinMul.rgb, sw), 0.0, 1.0);
              }
            }
 
-           vec3 moodRgb = clamp(sRgb * uMood, 0.0, 1.0);
+           vec3 moodRgb = clamp(finalRgb * uMood, 0.0, 1.0);
 
            if (uSeamless < 0.5) {
-             // Pure #FFFFFF Studio White Stage: composite smoothly onto pure white with sub-pixel anti-aliasing!
-             vec3 whiteComp = mix(vec3(1.0), moodRgb, c.a);
+             vec3 whiteComp = mix(vec3(1.0), moodRgb, finalA);
              gl_FragColor = vec4(whiteComp * cropMask, cropMask);
            } else {
-             // Runway Seamless Foreground Hero: smooth anti-aliased alpha + inverse white de-spill!
-             vec3 deSpill = clamp((moodRgb - vec3(1.0 - c.a) * 0.68) / max(c.a, 0.32), 0.0, 1.0);
-             vec3 cleanRgb = mix(moodRgb, deSpill, clamp(1.0 - c.a, 0.0, 0.85));
-             float outA = c.a * cropMask;
+             vec3 deSpill = clamp((moodRgb - vec3(1.0 - finalA) * 0.68) / max(finalA, 0.32), 0.0, 1.0);
+             vec3 cleanRgb = mix(moodRgb, deSpill, clamp(1.0 - finalA, 0.0, 0.85));
+             float outA = finalA * cropMask;
              gl_FragColor = vec4(cleanRgb * outA, outA);
            }
          }`
@@ -1029,6 +1583,30 @@ export function Interactive3DAvatarStage({
             uShiftTargetLoc = gl.getUniformLocation(p, "uShiftTarget[0]");
             uShiftBoundsLoc = gl.getUniformLocation(p, "uShiftBounds[0]");
             uSkinMulLoc = gl.getUniformLocation(p, "uSkinMul");
+
+            uTexLoc = gl.getUniformLocation(p, "uTex");
+            uTexUpperLoc = gl.getUniformLocation(p, "uTexUpper");
+            uTexStudioLoc = gl.getUniformLocation(p, "uTexStudio");
+            uTexStudioNextLoc = gl.getUniformLocation(p, "uTexStudioNext");
+            uHasBaseTexLoc = gl.getUniformLocation(p, "uHasBaseTex");
+            uHasUpperLoc = gl.getUniformLocation(p, "uHasUpper");
+            uUpperUvRectLoc = gl.getUniformLocation(p, "uUpperUvRect");
+            uUpperSpliceLoc = gl.getUniformLocation(p, "uUpperSplice");
+            uUpperShiftCountLoc = gl.getUniformLocation(p, "uUpperShiftCount");
+            uUpperShiftMetaLoc = gl.getUniformLocation(p, "uUpperShiftMeta[0]");
+            uUpperShiftTargetLoc = gl.getUniformLocation(p, "uUpperShiftTarget[0]");
+            uUpperShiftBoundsLoc = gl.getUniformLocation(p, "uUpperShiftBounds[0]");
+            uStudioMixLoc = gl.getUniformLocation(p, "uStudioMix");
+            uStudioCylLoc = gl.getUniformLocation(p, "uStudioCyl");
+            uStudioPreColoredLoc = gl.getUniformLocation(p, "uStudioPreColored");
+            uSizeFitLoc = gl.getUniformLocation(p, "uSizeFit");
+            uSizeMetaLoc = gl.getUniformLocation(p, "uSizeMeta");
+
+            gl.uniform1i(uTexLoc, 0);
+            gl.uniform1i(uTexUpperLoc, 1);
+            gl.uniform1i(uTexStudioLoc, 2);
+            gl.uniform1i(uTexStudioNextLoc, 3);
+
             glQuadBuf = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, glQuadBuf);
             gl.bufferData(
@@ -1044,14 +1622,14 @@ export function Interactive3DAvatarStage({
     }
 
     const uploadGpuTexture = (
-      bmp: ImageBitmap,
+      bmp: ImageBitmap | HTMLCanvasElement,
       isPremultiplied?: boolean
     ): WebGLTexture | null => {
       if (!gl) return null;
       const tex = gl.createTexture();
       if (!tex) return null;
+      gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
-      // Zero-copy GPU DMA upload when `createImageBitmap` already premultiplied alpha in C++!
       gl.pixelStorei(
         gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,
         isPremultiplied ? 0 : 1
@@ -1081,8 +1659,8 @@ export function Interactive3DAvatarStage({
     kickRenderRef.current = kickRender;
 
     const updateCanvasSize = () => {
-      // 2x Retina cap cuts mobile GPU fill-rate by 56% while exceeding native studio resolution!
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // 2.5x Super-Retina density delivers true 4K eyelash & fabric-weave sharpness!
+      dpr = Math.min(window.devicePixelRatio || 1, 2.5);
       dpr2d = Math.min(window.devicePixelRatio || 1, 2);
       cw = Math.max(160, stageEl.clientWidth);
       ch = Math.max(200, stageEl.clientHeight);
@@ -1231,8 +1809,11 @@ export function Interactive3DAvatarStage({
       if (!activeDrag || e.touches.length !== 1) return;
       const t = e.touches[0];
       const spinning = updateDrag(t.clientX, t.clientY);
-      if (spinning && e.cancelable) {
-        e.preventDefault();
+      if (spinning) {
+        e.stopPropagation();
+        if (e.cancelable) {
+          e.preventDefault();
+        }
       }
     };
     const onTouchEnd = (e: TouchEvent) => {
@@ -1253,7 +1834,9 @@ export function Interactive3DAvatarStage({
     };
     const onPointerMove = (e: PointerEvent) => {
       if (e.pointerType === "touch" || !activeDrag) return;
-      updateDrag(e.clientX, e.clientY);
+      if (updateDrag(e.clientX, e.clientY)) {
+        e.stopPropagation();
+      }
     };
     const onPointerUp = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
@@ -1298,9 +1881,21 @@ export function Interactive3DAvatarStage({
     let lastShowRings: boolean | null = null;
     let lastMoodId = "";
     let lastDimsSig = "";
+    let lastSizeStepDrawn = -999;
+    let lastStudioMixDrawn = -999;
+    let lastCylBucketDrawn = -999;
     let lastDomDeg = -1;
     let lastCbDeg = -999;
     let overlayWasDirty = false;
+    let deferredUploadTimer = 0;
+
+    const scheduleDeferredUpload = () => {
+      if (deferredUploadTimer) return;
+      deferredUploadTimer = window.setTimeout(() => {
+        deferredUploadTimer = 0;
+        kickRender();
+      }, 95);
+    };
 
     const renderFrame = (now: number) => {
       rafId = 0;
@@ -1339,10 +1934,27 @@ export function Interactive3DAvatarStage({
         zoomRef.current = targetZoomRef.current;
       }
 
+      // Smooth 120Hz spring animation when customer clicks XS / S / M / L / XL!
+      const targetMorph = sizeMorphRef.current;
+      const szDiff = targetMorph.sizeStep - animSizeStepRef.current;
+      if (Math.abs(szDiff) > 0.003) {
+        animSizeStepRef.current += szDiff * (1 - Math.exp(-18 * dt));
+      } else {
+        animSizeStepRef.current = targetMorph.sizeStep;
+      }
+      const hemDiff = targetMorph.hemDropLocal - animHemDropRef.current;
+      if (Math.abs(hemDiff) > 0.0002) {
+        animHemDropRef.current += hemDiff * (1 - Math.exp(-18 * dt));
+      } else {
+        animHemDropRef.current = targetMorph.hemDropLocal;
+      }
+
       const normProgress =
         (((yawRef.current / (Math.PI * 2)) % 1) + 1) % 1;
+      const exactDeg = normProgress * 360;
 
       const activeBundle = bundleRef.current;
+      const activeUpperBundle = upperBundleRef.current;
       const frames = framesRef.current;
       const hasAtlas = Boolean(activeBundle?.atlasBitmap);
       const totalFrames = hasAtlas
@@ -1368,7 +1980,7 @@ export function Interactive3DAvatarStage({
       const curCxFrac = centerXFracRef.current;
       const dimsSig = `${dims.heightInches}:${dims.bustInches}:${dims.waistInches}:${dims.hipsInches}:${macroKey}:${curCxFrac}`;
 
-      const deg = Math.round(normProgress * 360) % 360;
+      const deg = Math.round(exactDeg) % 360;
       if (deg !== lastDomDeg) {
         lastDomDeg = deg;
         if (degBadgeRef.current) {
@@ -1380,46 +1992,216 @@ export function Interactive3DAvatarStage({
         }
       }
 
-      // Zero-copy (<1ms) single-texture GPU upload when bundle arrives or upgrades from Fast -> QHD!
-      if (
-        gl &&
-        glProg &&
-        activeBundle &&
-        activeBundle !== uploadedBundleRef &&
-        activeBundle.atlasBitmap
-      ) {
-        try {
-          if (glTexA) gl.deleteTexture(glTexA);
-          if (glTexB) {
-            gl.deleteTexture(glTexB);
-            glTexB = null;
-          }
-          glTexA = uploadGpuTexture(
-            activeBundle.atlasBitmap,
-            activeBundle.isPremultiplied
-          );
-          if (activeBundle.atlasBitmapB) {
-            glTexB = uploadGpuTexture(
-              activeBundle.atlasBitmapB,
-              activeBundle.isPremultiplied
-            );
-          }
-          uploadedBundleRef = activeBundle;
+      // Defer 66.8MB QHD GPU upload if customer's finger is actively spinning on Fast Tier -> 0ms hitch!
+      const isActivelyMovingFast =
+        isSpinningFinger || Math.abs(velYawRef.current) > 0.45;
+
+      if (gl && glProg) {
+        // Upload 4K Studio Master canvases (~4.8MB -> <2ms upload!)
+        if (
+          studioFrontVerRef.current > 0 &&
+          studioFrontVerRef.current !== uploadedStudioFrontVer &&
+          studioFrontCanvasRef.current
+        ) {
+          if (glTexStudioFront) gl.deleteTexture(glTexStudioFront);
+          glTexStudioFront = uploadGpuTexture(studioFrontCanvasRef.current, false);
+          uploadedStudioFrontVer = studioFrontVerRef.current;
           lastFrameIdx = -2;
-        } catch {
-          // fallback cleanly if bitmap was disposed
+        } else if (studioFrontVerRef.current === 0 && glTexStudioFront) {
+          gl.deleteTexture(glTexStudioFront);
+          glTexStudioFront = null;
+          uploadedStudioFrontVer = 0;
+        }
+
+        if (
+          studioSideRVerRef.current > 0 &&
+          studioSideRVerRef.current !== uploadedStudioSideRVer &&
+          studioSideRCanvasRef.current
+        ) {
+          if (glTexStudioSideR) gl.deleteTexture(glTexStudioSideR);
+          glTexStudioSideR = uploadGpuTexture(studioSideRCanvasRef.current, false);
+          uploadedStudioSideRVer = studioSideRVerRef.current;
+          lastFrameIdx = -2;
+        } else if (studioSideRVerRef.current === 0 && glTexStudioSideR) {
+          gl.deleteTexture(glTexStudioSideR);
+          glTexStudioSideR = null;
+          uploadedStudioSideRVer = 0;
+        }
+
+        if (
+          studioBackVerRef.current > 0 &&
+          studioBackVerRef.current !== uploadedStudioBackVer &&
+          studioBackCanvasRef.current
+        ) {
+          if (glTexStudioBack) gl.deleteTexture(glTexStudioBack);
+          glTexStudioBack = uploadGpuTexture(studioBackCanvasRef.current, false);
+          uploadedStudioBackVer = studioBackVerRef.current;
+          lastFrameIdx = -2;
+        } else if (studioBackVerRef.current === 0 && glTexStudioBack) {
+          gl.deleteTexture(glTexStudioBack);
+          glTexStudioBack = null;
+          uploadedStudioBackVer = 0;
+        }
+
+        if (
+          studioSideLVerRef.current > 0 &&
+          studioSideLVerRef.current !== uploadedStudioSideLVer &&
+          studioSideLCanvasRef.current
+        ) {
+          if (glTexStudioSideL) gl.deleteTexture(glTexStudioSideL);
+          glTexStudioSideL = uploadGpuTexture(studioSideLCanvasRef.current, false);
+          uploadedStudioSideLVer = studioSideLVerRef.current;
+          lastFrameIdx = -2;
+        } else if (studioSideLVerRef.current === 0 && glTexStudioSideL) {
+          gl.deleteTexture(glTexStudioSideL);
+          glTexStudioSideL = null;
+          uploadedStudioSideLVer = 0;
+        }
+
+        // Primary Turntable Sheet upload
+        if (
+          activeBundle &&
+          activeBundle !== uploadedBundleRef &&
+          activeBundle.atlasBitmap
+        ) {
+          const canDeferUpgrade =
+            isActivelyMovingFast &&
+            Boolean(glTexA) &&
+            uploadedBundleRef?.isFastTier &&
+            !activeBundle.isFastTier;
+          if (canDeferUpgrade) {
+            scheduleDeferredUpload();
+          } else {
+            try {
+              if (glTexA) gl.deleteTexture(glTexA);
+              if (glTexB) {
+                gl.deleteTexture(glTexB);
+                glTexB = null;
+              }
+              glTexA = uploadGpuTexture(
+                activeBundle.atlasBitmap,
+                activeBundle.isPremultiplied
+              );
+              if (activeBundle.atlasBitmapB) {
+                glTexB = uploadGpuTexture(
+                  activeBundle.atlasBitmapB,
+                  activeBundle.isPremultiplied
+                );
+              }
+              uploadedBundleRef = activeBundle;
+              lastFrameIdx = -2;
+            } catch {
+              // fallback cleanly if bitmap was disposed
+            }
+          }
+        }
+
+        // Optional Upper Turntable Sheet upload (for Multi-Slot Closet Splicing!)
+        if (!activeUpperBundle) {
+          if (glTexUpper) {
+            gl.deleteTexture(glTexUpper);
+            glTexUpper = null;
+          }
+          uploadedUpperBundleRef = null;
+        } else if (
+          activeUpperBundle !== uploadedUpperBundleRef &&
+          activeUpperBundle.atlasBitmap
+        ) {
+          const canDeferUpper =
+            isActivelyMovingFast &&
+            Boolean(glTexUpper) &&
+            uploadedUpperBundleRef?.isFastTier &&
+            !activeUpperBundle.isFastTier;
+          if (canDeferUpper) {
+            scheduleDeferredUpload();
+          } else {
+            try {
+              if (glTexUpper) gl.deleteTexture(glTexUpper);
+              glTexUpper = uploadGpuTexture(
+                activeUpperBundle.atlasBitmap,
+                activeUpperBundle.isPremultiplied
+              );
+              uploadedUpperBundleRef = activeUpperBundle;
+              lastFrameIdx = -2;
+            } catch {
+              // ignore
+            }
+          }
         }
       }
+
+      // Compute 4K Studio Master blend + 4-Angle Cylindrical Modular Turntable (for custom Closet mixes!)
+      const distFront = Math.min(exactDeg, 360 - exactDeg);
+      const distBack = Math.abs(exactDeg - 180);
+      let studioMix = 0.0;
+      let studioNextMix = 0.0;
+      let studioCylScale = 1.0;
+      let primaryStudioTex: WebGLTexture | null = glTexStudioFront;
+      let nextStudioTex: WebGLTexture | null = null;
+      const isCustom4K = Boolean(
+        mode === "avatar" && turntableSpecRef.current.isCustomMix && glTexStudioFront
+      );
+
+      if (isCustom4K) {
+        studioMix = 1.0;
+        const viewTex = (q: number): WebGLTexture | null => {
+          const m = ((q % 4) + 4) % 4;
+          if (m === 0) return glTexStudioFront;
+          if (m === 1) return glTexStudioSideR || glTexStudioFront;
+          if (m === 2) return glTexStudioBack || glTexStudioFront;
+          return glTexStudioSideL || glTexStudioSideR || glTexStudioFront;
+        };
+        const qIdx = Math.floor(((exactDeg + 45) % 360) / 90);
+        const qCenter = qIdx * 90;
+        let offsetDeg = exactDeg - qCenter;
+        if (offsetDeg > 180) offsetDeg -= 360;
+        if (offsetDeg < -180) offsetDeg += 360;
+
+        primaryStudioTex = viewTex(qIdx);
+        // Subtle 3D cylindrical foreshortening as she turns toward ±45° quadrant seam!
+        const normOff = Math.abs(offsetDeg) / 45;
+        studioCylScale = 1.0 - 0.14 * normOff * normOff;
+
+        if (offsetDeg > 29) {
+          const t = clamp((offsetDeg - 29) / 32, 0, 1);
+          studioNextMix = t * t * (3 - 2 * t) * 0.5;
+          nextStudioTex = viewTex(qIdx + 1);
+        } else if (offsetDeg < -29) {
+          const t = clamp((-offsetDeg - 29) / 32, 0, 1);
+          studioNextMix = t * t * (3 - 2 * t) * 0.5;
+          nextStudioTex = viewTex(qIdx - 1);
+        }
+      } else if (mode === "avatar") {
+        if (glTexStudioFront && distFront < 14.5) {
+          const t = clamp((distFront - 5.5) / 9.0, 0, 1);
+          studioMix = 1 - t * t * (3 - 2 * t);
+          primaryStudioTex = glTexStudioFront;
+        } else if (glTexStudioBack && distBack < 14.5) {
+          const t = clamp((distBack - 5.5) / 9.0, 0, 1);
+          studioMix = 1 - t * t * (3 - 2 * t);
+          primaryStudioTex = glTexStudioBack;
+        }
+        // If turntable sheet is still downloading over cellular, hold 4K Front Studio cleanly at 1.0 near front!
+        if (!glTexA && glTexStudioFront && distFront < 45) {
+          studioMix = 1.0;
+          primaryStudioTex = glTexStudioFront;
+        }
+      }
+
+      const cylBucket = isCustom4K ? Math.round(exactDeg * 2) : -1;
 
       const needsMotionFrame =
         autoSpinRef.current ||
         isSpinningFinger ||
         Math.abs(velYawRef.current) > 0.014 ||
         Math.abs(targetYawRef.current - yawRef.current) > 0.0004 ||
-        Math.abs(targetZoomRef.current - zoomRef.current) > 0.0005;
+        Math.abs(targetZoomRef.current - zoomRef.current) > 0.0005 ||
+        Math.abs(targetMorph.sizeStep - animSizeStepRef.current) > 0.003 ||
+        Math.abs(targetMorph.hemDropLocal - animHemDropRef.current) > 0.0002;
 
       if (
         frameIdx === lastFrameIdx &&
+        cylBucket === lastCylBucketDrawn &&
         Math.abs(zoom - lastZoom) < 0.0006 &&
         cw === lastCw &&
         ch === lastCh &&
@@ -1427,7 +2209,9 @@ export function Interactive3DAvatarStage({
         curVisMode === lastVisMode &&
         curRings === lastShowRings &&
         curMood === lastMoodId &&
-        dimsSig === lastDimsSig
+        dimsSig === lastDimsSig &&
+        Math.abs(animSizeStepRef.current - lastSizeStepDrawn) < 0.002 &&
+        Math.abs(studioMix - lastStudioMixDrawn) < 0.004
       ) {
         if (needsMotionFrame) {
           rafId = requestAnimationFrame(renderFrame);
@@ -1436,6 +2220,7 @@ export function Interactive3DAvatarStage({
       }
 
       lastFrameIdx = frameIdx;
+      lastCylBucketDrawn = cylBucket;
       lastZoom = zoom;
       lastCw = cw;
       lastCh = ch;
@@ -1444,6 +2229,8 @@ export function Interactive3DAvatarStage({
       lastShowRings = curRings;
       lastMoodId = curMood;
       lastDimsSig = dimsSig;
+      lastSizeStepDrawn = animSizeStepRef.current;
+      lastStudioMixDrawn = studioMix;
 
       // Frame geometry inside stage (maximizes clean full-screen avatar height with minimal studio margin!)
       const isNarrowMobile = cw < 460;
@@ -1530,28 +2317,54 @@ export function Interactive3DAvatarStage({
 
       let renderedViaWebGL = false;
 
-      // ULTRA-FAST 0.02ms HARDWARE WEBGL QHD + CAS + GPU COLORWAY DRAW!
-      if (gl && glProg && hasAtlas && glTexA && frameIdx >= 0 && activeBundle) {
+      const hasUploadedBase = Boolean(
+        !isCustom4K && hasAtlas && glTexA && frameIdx >= 0 && uploadedBundleRef
+      );
+      const canRenderStudioOnly = Boolean(
+        studioMix > 0.99 && primaryStudioTex
+      );
+
+      // ULTRA-FAST HARDWARE WEBGL 4K STUDIO + 72-FRAME QHD + MULTI-SLOT SPLICING + LIVE SIZE-FIT MORPH!
+      if (gl && glProg && (hasUploadedBase || canRenderStudioOnly)) {
         const curShifts = activeShiftsRef.current;
+        const curUpShifts = activeUpperShiftsRef.current;
         const curSkinHex = skinToneHexRef.current;
+        const specNow = turntableSpecRef.current;
+
         if (posterImgRef.current) {
           posterImgRef.current.style.opacity = "0";
         }
 
-        const cols = activeBundle.cols || ATLAS_COLS;
-        const rows = activeBundle.rows || ATLAS_ROWS;
-        const perSheet = activeBundle.framesPerSheet || ATLAS_FRAMES_PER_SHEET;
-        const cwCell = activeBundle.cellW || ATLAS_CELL_W;
-        const chCell = activeBundle.cellH || ATLAS_CELL_H;
-        const useB = frameIdx >= perSheet && Boolean(glTexB);
-        const localIdx = useB ? frameIdx - perSheet : frameIdx % perSheet;
-        const col = localIdx % cols;
-        const row = (localIdx / cols) | 0;
+        let u0 = 0;
+        let v0 = 0;
+        let uw = 1;
+        let vh = 1;
+        let sheetW = 4080;
+        let sheetH = 4092;
+        let useB = false;
+        const baseB = uploadedBundleRef;
 
-        const sheetW = cols * cwCell;
-        const sheetH = rows * chCell;
-        const padU = 0.5 / sheetW;
-        const padV = 0.5 / sheetH;
+        if (hasUploadedBase && baseB) {
+          const cols = baseB.cols || ATLAS_COLS;
+          const rows = baseB.rows || ATLAS_ROWS;
+          const perSheet = baseB.framesPerSheet || ATLAS_FRAMES_PER_SHEET;
+          const cwCell = baseB.cellW || ATLAS_CELL_W;
+          const chCell = baseB.cellH || ATLAS_CELL_H;
+          const bTotal = baseB.totalFrames || perSheet;
+          const bFrameIdx = Math.floor(normProgress * bTotal) % bTotal;
+          useB = bFrameIdx >= perSheet && Boolean(glTexB);
+          const localIdx = useB ? bFrameIdx - perSheet : bFrameIdx % perSheet;
+          const col = localIdx % cols;
+          const row = (localIdx / cols) | 0;
+          sheetW = cols * cwCell;
+          sheetH = rows * chCell;
+          const padU = 0.5 / sheetW;
+          const padV = 0.5 / sheetH;
+          u0 = col / cols + padU;
+          v0 = row / rows + padV;
+          uw = 1 / cols - 2 * padU;
+          vh = 1 / rows - 2 * padV;
+        }
 
         const moodGain =
           curMood === "golden_atelier"
@@ -1561,11 +2374,6 @@ export function Interactive3DAvatarStage({
             : curMood === "evening_soiree"
             ? [1.06, 0.99, 0.92]
             : [1.0, 1.0, 1.0];
-
-        const u0 = col / cols + padU;
-        const v0 = row / rows + padV;
-        const uw = 1 / cols - 2 * padU;
-        const vh = 1 / rows - 2 * padV;
 
         const shiftCount = Math.min(4, curShifts.length);
         const metaArr = new Float32Array(16);
@@ -1605,6 +2413,93 @@ export function Interactive3DAvatarStage({
             : 1;
         }
 
+        // Upper Overlay Uniforms (Multi-Slot Closet Splicing!)
+        const upSpec = specNow.upperOverlay;
+        const upB = uploadedUpperBundleRef;
+        const hasValidUpper = Boolean(upSpec && glTexUpper && upB);
+        let upU0 = 0;
+        let upV0 = 0;
+        let upUw = 1;
+        let upVh = 1;
+        let spliceLocalY = 0.4;
+        let spliceLocalF = 0.03;
+        let upperModeId = 1;
+        let frontFacingW = 0;
+
+        if (hasValidUpper && upSpec && upB) {
+          const uCols = upB.cols || ATLAS_COLS;
+          const uRows = upB.rows || ATLAS_ROWS;
+          const uPerSheet = upB.framesPerSheet || ATLAS_FRAMES_PER_SHEET;
+          const uCwCell = upB.cellW || ATLAS_CELL_W;
+          const uChCell = upB.cellH || ATLAS_CELL_H;
+          const uTotal = upB.totalFrames || uPerSheet;
+          const uFrameIdx = Math.floor(normProgress * uTotal) % uTotal;
+          const uLocal = uFrameIdx % uPerSheet;
+          const uCol = uLocal % uCols;
+          const uRow = (uLocal / uCols) | 0;
+          const uPadU = 0.5 / (uCols * uCwCell);
+          const uPadV = 0.5 / (uRows * uChCell);
+          upU0 = uCol / uCols + uPadU;
+          upV0 = uRow / uRows + uPadV;
+          upUw = 1 / uCols - 2 * uPadU;
+          upVh = 1 / uRows - 2 * uPadV;
+
+          spliceLocalY = clamp(
+            (upSpec.spliceYVirtual - ATLAS_ROI_Y0) / ATLAS_ROI_H,
+            0.18,
+            0.92
+          );
+          spliceLocalF = Math.max(0.015, upSpec.featherVirtual / ATLAS_ROI_H);
+          upperModeId =
+            upSpec.blendMode === "open_outer_over_dress"
+              ? 2
+              : upSpec.blendMode === "closed_outer_over_dress"
+              ? 3
+              : 1;
+          frontFacingW =
+            distFront < 82
+              ? 1 - clamp((distFront - 48) / 34, 0, 1)
+              : 0;
+        }
+
+        const upShiftCount = hasValidUpper ? Math.min(2, curUpShifts.length) : 0;
+        const upMetaArr = new Float32Array(8);
+        const upTargetArr = new Float32Array(6);
+        const upBoundsArr = new Float32Array(8);
+        for (let ui = 0; ui < upShiftCount; ui++) {
+          const sh = curUpShifts[ui];
+          const [tr, tg, tb] = hexToRgb01(sh.targetHex);
+          const nativeHex =
+            sh.nativeHex || DEFAULT_MASK_NATIVE_HEX[sh.sourceMask];
+          const [dr, dg, db] = hexToRgb01(nativeHex);
+          const donorLum = clamp(0.299 * dr + 0.587 * dg + 0.114 * db, 0.11, 0.85);
+          upMetaArr[ui * 4] = DONOR_MASK_TO_GL_ID[sh.sourceMask] || 0;
+          upMetaArr[ui * 4 + 1] = donorLum;
+          upMetaArr[ui * 4 + 2] = sh.isMetallic ? 0.30 : 0.14;
+          upMetaArr[ui * 4 + 3] = 0;
+
+          upTargetArr[ui * 3] = tr;
+          upTargetArr[ui * 3 + 1] = tg;
+          upTargetArr[ui * 3 + 2] = tb;
+
+          upBoundsArr[ui * 4] = clamp(
+            (sh.yRange[0] - ATLAS_ROI_Y0) / ATLAS_ROI_H,
+            0,
+            1
+          );
+          upBoundsArr[ui * 4 + 1] = clamp(
+            (sh.yRange[1] - ATLAS_ROI_Y0) / ATLAS_ROI_H,
+            0,
+            1
+          );
+          upBoundsArr[ui * 4 + 2] = sh.xRange
+            ? clamp((sh.xRange[0] - ATLAS_ROI_X0) / ATLAS_ROI_W, 0, 1)
+            : 0;
+          upBoundsArr[ui * 4 + 3] = sh.xRange
+            ? clamp((sh.xRange[1] - ATLAS_ROI_X0) / ATLAS_ROI_W, 0, 1)
+            : 1;
+        }
+
         let skinMulVec: [number, number, number, number] = [1, 1, 1, 0];
         if (curSkinHex) {
           const [sr, sg, sb] = hexToRgb01(curSkinHex);
@@ -1624,7 +2519,29 @@ export function Interactive3DAvatarStage({
         }
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(glProg);
-        gl.bindTexture(gl.TEXTURE_2D, useB ? glTexB : glTexA);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(
+          gl.TEXTURE_2D,
+          hasUploadedBase ? (useB ? glTexB : glTexA) : glDummyTex
+        );
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(
+          gl.TEXTURE_2D,
+          hasValidUpper ? glTexUpper : glDummyTex
+        );
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(
+          gl.TEXTURE_2D,
+          studioMix > 0.004 && primaryStudioTex ? primaryStudioTex : glDummyTex
+        );
+        gl.activeTexture(gl.TEXTURE3);
+        gl.bindTexture(
+          gl.TEXTURE_2D,
+          studioNextMix > 0.004 && nextStudioTex ? nextStudioTex : glDummyTex
+        );
+        gl.activeTexture(gl.TEXTURE0);
+
         gl.uniform4f(uRectLoc, dstX / cw, dstY / ch, dstW / cw, dstH / ch);
         gl.uniform4f(uUvRectLoc, u0, v0, uw, vh);
         gl.uniform2f(uTexelLoc, 1 / sheetW, 1 / sheetH);
@@ -1638,13 +2555,62 @@ export function Interactive3DAvatarStage({
         );
         gl.uniform3f(uMoodLoc, moodGain[0], moodGain[1], moodGain[2]);
         gl.uniform1f(uSeamlessLoc, seamlessStage ? 1.0 : 0.0);
-        gl.uniform1f(uSharpAmtLoc, activeBundle.isFastTier ? 0.95 : 0.75);
+        gl.uniform1f(
+          uSharpAmtLoc,
+          baseB?.isFastTier ? 0.98 : 0.82
+        );
         gl.uniform1i(uShiftCountLoc, shiftCount);
         if (shiftCount > 0) {
           gl.uniform4fv(uShiftMetaLoc, metaArr);
           gl.uniform3fv(uShiftTargetLoc, targetArr);
           gl.uniform4fv(uShiftBoundsLoc, boundsArr);
         }
+
+        gl.uniform1f(uHasBaseTexLoc, hasUploadedBase ? 1.0 : 0.0);
+        gl.uniform1f(uHasUpperLoc, hasValidUpper ? 1.0 : 0.0);
+        if (hasValidUpper) {
+          gl.uniform4f(uUpperUvRectLoc, upU0, upV0, upUw, upVh);
+          gl.uniform4f(
+            uUpperSpliceLoc,
+            spliceLocalY,
+            spliceLocalF,
+            upperModeId,
+            frontFacingW
+          );
+        }
+        gl.uniform1i(uUpperShiftCountLoc, upShiftCount);
+        if (upShiftCount > 0) {
+          gl.uniform4fv(uUpperShiftMetaLoc, upMetaArr);
+          gl.uniform3fv(uUpperShiftTargetLoc, upTargetArr);
+          gl.uniform4fv(uUpperShiftBoundsLoc, upBoundsArr);
+        }
+
+        gl.uniform1f(
+          uStudioMixLoc,
+          primaryStudioTex ? studioMix : 0.0
+        );
+        gl.uniform2f(
+          uStudioCylLoc,
+          nextStudioTex ? studioNextMix : 0.0,
+          studioCylScale
+        );
+        gl.uniform1f(
+          uStudioPreColoredLoc,
+          studioPreColoredRef.current ? 1.0 : 0.0
+        );
+        gl.uniform4f(
+          uSizeFitLoc,
+          animSizeStepRef.current,
+          targetMorph.yStartLocal,
+          targetMorph.yEndLocal,
+          targetMorph.yWaistPeakLocal
+        );
+        gl.uniform2f(
+          uSizeMetaLoc,
+          animHemDropRef.current,
+          targetMorph.slotCode
+        );
+
         gl.uniform4f(
           uSkinMulLoc,
           skinMulVec[0],
@@ -1810,6 +2776,7 @@ export function Interactive3DAvatarStage({
 
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
+      if (deferredUploadTimer) clearTimeout(deferredUploadTimer);
       kickRenderRef.current = null;
       ro.disconnect();
       stageEl.removeEventListener("touchstart", onTouchStart);
@@ -1822,8 +2789,14 @@ export function Interactive3DAvatarStage({
       stageEl.removeEventListener("pointercancel", onPointerUp);
       stageEl.removeEventListener("wheel", onWheel);
       if (gl) {
+        if (glDummyTex) gl.deleteTexture(glDummyTex);
         if (glTexA) gl.deleteTexture(glTexA);
         if (glTexB) gl.deleteTexture(glTexB);
+        if (glTexUpper) gl.deleteTexture(glTexUpper);
+        if (glTexStudioFront) gl.deleteTexture(glTexStudioFront);
+        if (glTexStudioSideR) gl.deleteTexture(glTexStudioSideR);
+        if (glTexStudioBack) gl.deleteTexture(glTexStudioBack);
+        if (glTexStudioSideL) gl.deleteTexture(glTexStudioSideL);
         if (glQuadBuf) gl.deleteBuffer(glQuadBuf);
         if (glProg) gl.deleteProgram(glProg);
       }
@@ -1854,6 +2827,8 @@ export function Interactive3DAvatarStage({
       data-frames-ready={framesReady ? "true" : "false"}
       data-realism-spec={MASTER_REALISM_SPEC_VERSION}
       data-3d-mode={mode}
+      data-active-size={visualSizeMorph.activeSize}
+      data-size-step={visualSizeMorph.sizeStep.toFixed(2)}
       data-worn-count={mode === "product" ? 1 : userSelectedProducts.length}
       className={`relative w-full h-full select-none overflow-hidden ${
         seamlessStage ? "bg-transparent" : "bg-white"
@@ -1868,7 +2843,7 @@ export function Interactive3DAvatarStage({
           ref={glCanvasRef}
           className="block w-full h-full"
         />
-        {mode === "avatar" && !seamlessStage && (
+        {mode === "avatar" && !seamlessStage && !turntableSpec.isCustomMix && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
             ref={posterImgRef}
@@ -1883,6 +2858,30 @@ export function Interactive3DAvatarStage({
           className="pointer-events-none absolute inset-0 w-full h-full"
         />
       </div>
+
+      {/* Live Physical Size-Fit Indicator when inspecting XS / S / M / L / XL on Body */}
+      {hasExplicitSizeControl &&
+        !seamlessStage &&
+        visualSizeMorph.slotCode !== 5 &&
+        Math.abs(visualSizeMorph.sizeStep) > 0.05 && (
+          <div className="pointer-events-none absolute top-2.5 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-white/94 backdrop-blur-md border border-[#ECD7E1] shadow-sm flex items-center gap-1.5 whitespace-nowrap">
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                visualSizeMorph.tone === "tight" || visualSizeMorph.tone === "snug"
+                  ? "bg-[#D97706]"
+                  : visualSizeMorph.tone === "ideal"
+                  ? "bg-[#10B981]"
+                  : "bg-[#B83B6A]"
+              }`}
+            />
+            <span className="text-[10.5px] font-bold text-[#22131A]">
+              {visualSizeMorph.badgeTitle}
+            </span>
+            <span className="hidden sm:inline text-[10px] font-semibold text-[#962953]">
+              • {visualSizeMorph.badgeDetail}
+            </span>
+          </div>
+        )}
 
       {showHud && isLoadingFrames && mode === "avatar" && (
         <div className="pointer-events-none absolute top-11 left-1/2 -translate-x-1/2 z-20 px-2.5 py-1 rounded-full bg-white/95 border border-black/[0.08] shadow-xs text-[10px] font-bold text-[#244B3B] inline-flex items-center gap-1">

@@ -5,7 +5,7 @@ import {
 } from "./avatar-ready-pipeline";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-export const LAYER_VER = "mod27";
+export const LAYER_VER = "mod29";
 
 export type AvatarViewAngle = "front" | "side" | "back";
 
@@ -150,32 +150,18 @@ function modUrl(name: string): string {
   return modLayerUrl(name);
 }
 
-export function resolveSideOutfitFallbackIndex(products: Product[]): number {
-  for (const p of products) {
-    if (p.id in MOD_OUTER_SLUG) return MOD_OUTER_SLUG[p.id].sideOutfitIdx;
-  }
+function resolveLowerSideIndex(products: Product[]): number {
   for (const p of products) {
     if (p.id in MOD_DRESS_SLUG) return MOD_DRESS_SLUG[p.id].sideOutfitIdx;
   }
   const ids = new Set(products.map((p) => p.id));
   if (
-    ids.has("prod-ae-blush-ruched-offshoulder") ||
     ids.has("prod-ae-ivory-satin-bias-midi") ||
     ids.has("prod-ae-chocolate-satin-midi")
   )
     return 10;
-  if (
-    ids.has("prod-ae-noir-halter-vest") ||
-    ids.has("prod-ae-camel-tailored-vest") ||
-    ids.has("prod-ae-charcoal-pinstripe-trousers")
-  )
-    return 11;
-  if (
-    ids.has("prod-ae-butter-silk-cami") ||
-    ids.has("prod-ae-emerald-silk-cami") ||
-    ids.has("prod-ae-espresso-tailored-shorts")
-  )
-    return 15;
+  if (ids.has("prod-ae-charcoal-pinstripe-trousers")) return 11;
+  if (ids.has("prod-ae-espresso-tailored-shorts")) return 15;
   if (ids.has("prod-ae-vintage-wide-denim")) return 9;
   if (ids.has("prod-ae-sage-flare-leggings")) return 8;
   if (
@@ -184,6 +170,44 @@ export function resolveSideOutfitFallbackIndex(products: Product[]): number {
   )
     return 5;
   return 0;
+}
+
+function resolveUpperSideSpec(
+  products: Product[]
+): { idx: number; splitY: number } | null {
+  for (const p of products) {
+    if (p.id in MOD_OUTER_SLUG) {
+      const idx = MOD_OUTER_SLUG[p.id].sideOutfitIdx;
+      const splitY = idx === 4 ? 930 : idx === 5 || idx === 7 || idx === 13 ? 665 : 595;
+      return { idx, splitY };
+    }
+  }
+  const hasDress = products.some((p) => p.id in MOD_DRESS_SLUG);
+  if (hasDress) return null;
+
+  const ids = new Set(products.map((p) => p.id));
+  if (ids.has("prod-ae-blush-ruched-offshoulder")) return { idx: 10, splitY: 555 };
+  if (ids.has("prod-ae-noir-halter-vest") || ids.has("prod-ae-camel-tailored-vest"))
+    return { idx: 11, splitY: 560 };
+  if (
+    ids.has("prod-ae-butter-silk-cami") ||
+    ids.has("prod-ae-emerald-silk-cami") ||
+    ids.has("prod-ae-acetate-beaded-tank")
+  )
+    return { idx: 15, splitY: 550 };
+  if (
+    ids.has("prod-ae-espresso-corset") ||
+    ids.has("prod-ae-ivory-pearl-corset") ||
+    ids.has("prod-ae-noir-satin-corset")
+  )
+    return { idx: 0, splitY: 565 };
+  return null;
+}
+
+export function resolveSideOutfitFallbackIndex(products: Product[]): number {
+  const up = resolveUpperSideSpec(products);
+  if (up) return up.idx;
+  return resolveLowerSideIndex(products);
 }
 
 function hexToRgb01(hex: string): [number, number, number] {
@@ -316,11 +340,15 @@ export function composeModularOutfitToCanvas(params: {
     onAssetReady,
   } = params;
 
-  // Side 90°/270° profile uses right-facing purse-free side_clean_{idx} + dynamic colorway tint + optional side bag!
+  // Side 90°/270° profile composites exact lower (dress/bottom) + upper (outerwear/top) side profiles + colorway tint + optional side bag!
   if (angle === "side") {
-    const sideIdx = resolveSideOutfitFallbackIndex(products);
-    const sideUrl = modUrl(`side_clean_${sideIdx}`);
-    const sideImg = getCachedOrLoadImage(sideUrl, onAssetReady);
+    const lowerIdx = resolveLowerSideIndex(products);
+    const upperSpec = resolveUpperSideSpec(products);
+    const lowerImg = getCachedOrLoadImage(modUrl(`side_clean_${lowerIdx}`), onAssetReady);
+    const upperImg =
+      upperSpec && upperSpec.idx !== lowerIdx
+        ? getCachedOrLoadImage(modUrl(`side_clean_${upperSpec.idx}`), onAssetReady)
+        : null;
 
     const bagProdSide = includeBag
       ? products.find((p) => classifyWearableSlotAndAnchors(p).slot === "bag")
@@ -330,11 +358,52 @@ export function composeModularOutfitToCanvas(params: {
       ? getCachedOrLoadImage(modUrl(`${sideBagSlug}_side`), onAssetReady)
       : null;
 
-    if (!sideImg || (sideBagSlug && !sideBagImg)) return "loading";
+    if (
+      !lowerImg ||
+      (upperSpec && upperSpec.idx !== lowerIdx && !upperImg) ||
+      (sideBagSlug && !sideBagImg)
+    ) {
+      return "loading";
+    }
 
     ctx.clearRect(0, 0, 900, 1355);
-    ctx.drawImage(sideImg, 0, 0, 900, 1355);
-    applyDynamicSideColorwayTint(ctx, products, sideIdx);
+    ctx.drawImage(lowerImg, 0, 0, 900, 1355);
+    applyDynamicSideColorwayTint(ctx, products, lowerIdx);
+
+    if (upperImg && upperSpec) {
+      const upCv = document.createElement("canvas");
+      upCv.width = 900;
+      upCv.height = 1355;
+      const upCtx = upCv.getContext("2d");
+      if (upCtx) {
+        upCtx.drawImage(upperImg, 0, 0, 900, 1355);
+        applyDynamicSideColorwayTint(upCtx, products, upperSpec.idx);
+        const splitY = upperSpec.splitY;
+        const feather = 28;
+        ctx.clearRect(0, 0, 900, splitY - feather);
+        ctx.drawImage(
+          upCv,
+          0,
+          0,
+          900,
+          splitY - feather,
+          0,
+          0,
+          900,
+          splitY - feather
+        );
+        for (let sy = splitY - feather; sy < splitY + feather; sy += 2) {
+          const t = (sy - (splitY - feather)) / (2 * feather);
+          ctx.save();
+          ctx.globalAlpha = 1 - t;
+          ctx.drawImage(upCv, 0, sy, 900, 2, 0, sy, 900, 2);
+          ctx.restore();
+        }
+      }
+      upCv.width = 0;
+      upCv.height = 0;
+    }
+
     if (sideBagImg) {
       ctx.drawImage(sideBagImg, 0, 0, 900, 1355);
     }
@@ -493,7 +562,7 @@ export function composeModularOutfitToCanvas(params: {
   }
 
   // Cascade natural studio hair locks over sleeveless/strapless tops and over the back collar of jackets!
-  if (!dressProd && (!outerProd || angle === "back")) {
+  if ((!dressProd && !outerProd) || (outerProd && angle === "back")) {
     orderedUrls.push(modUrl(`hair_over_${sfx}`));
   }
 
@@ -600,8 +669,8 @@ export function composeModularOutfitToCanvas(params: {
         }
       }
       if (coversShins) {
-        // Clear outer calves/heels below y=765 while keeping two 38px central ankle columns (y=1248..1284) so zero gap or outer foot overhang appears!
-        ctx.clearRect(335, 765, 230, 483);
+        // Clear lower shins/calves below y=765 (safely below hands at y<=755!) while keeping central ankle columns!
+        ctx.clearRect(338, 765, 224, 483);
         ctx.clearRect(335, 1248, 66, 107);
         ctx.clearRect(442, 1248, 16, 107);
         ctx.clearRect(499, 1248, 66, 107);

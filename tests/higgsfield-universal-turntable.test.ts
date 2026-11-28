@@ -3,6 +3,7 @@ import {
   NUM_TURNTABLE_FRAMES,
   resolveTurntableSpecForOutfit,
 } from "@/lib/three/higgsfield-turntable-engine";
+import { computeVisualSizeFitMorph } from "@/lib/three/size-fit-morph";
 import { Product } from "@/lib/types";
 
 function makeScrapedProduct(overrides: Partial<Product>): Product {
@@ -137,22 +138,24 @@ describe("Universal Dual-Sheet 1024p HD Higgsfield 360° Turntable Engine (Store
       sourceType: "aliexpress_dropship",
     });
 
-    // Focusing on Silver Metallic Shoulder Bag in Closet routes cleanly to pure photographed Outfit 12!
+    // Equipping Silver Bag with Espresso Corset + Noir Pleated Mini preserves BOTH the Mini/Short silhouette (15) AND Corset/Skirt colors without swapping to Cobalt Dress!
     const bagFocusSpec = resolveTurntableSpecForOutfit(
       [corset, pleatedMini, silverBag],
       [corset, pleatedMini, silverBag],
       { focusProductId: silverBag.id }
     );
-    expect(bagFocusSpec.lookIdx).toBe(12);
-    expect(bagFocusSpec.colorwayShifts).toBeUndefined();
+    expect(bagFocusSpec.lookIdx).toBe(15);
+    expect(bagFocusSpec.isCustomMix).toBe(true);
+    expect(bagFocusSpec.hasBagEquipped).toBe(true);
 
-    // Focusing on Noir Pleated Mini Skirt routes cleanly to pure photographed Outfit 1!
+    // Espresso Corset + Noir Pleated Mini (no jacket) uses jacket-free mini/short separates donor (15) with zero unwanted blazer!
     const miniFocusSpec = resolveTurntableSpecForOutfit(
       [corset, pleatedMini],
       [corset, pleatedMini],
       { focusProductId: pleatedMini.id }
     );
-    expect(miniFocusSpec.lookIdx).toBe(1);
+    expect(miniFocusSpec.lookIdx).toBe(15);
+    expect(miniFocusSpec.hasBagEquipped).toBe(false);
 
     // Pairing Espresso Corset + Vintage Wide Denim matches Canonical Capsule 9 natively!
     const vintageDenim = makeScrapedProduct({
@@ -170,5 +173,98 @@ describe("Universal Dual-Sheet 1024p HD Higgsfield 360° Turntable Engine (Store
       { focusProductId: vintageDenim.id }
     );
     expect(denimPairSpec.lookIdx).toBe(9);
+    expect(denimPairSpec.upperOverlay).toBeUndefined();
+  });
+
+  it("layers jackets over dresses and swaps shirts in Closet without changing unselected clothes, and morphs XS vs L fit", () => {
+    const emeraldDress = makeScrapedProduct({
+      id: "prod-ae-emerald-satin-midi",
+      title: "Emerald Cowl-Neck Bias Satin Midi Slip Dress",
+      category: "dress",
+      silhouette: "slip-dress",
+      colorName: "Emerald",
+      colorHex: "#1F5441",
+      sourceType: "aliexpress_dropship",
+    });
+    const noirBlazer = makeScrapedProduct({
+      id: "prod-ae-noir-tailored-blazer",
+      title: "Double-Breasted Noir Tailored Boyfriend Blazer",
+      category: "outerwear",
+      silhouette: "cropped-jacket",
+      colorName: "Studio Noir",
+      colorHex: "#18191D",
+      sourceType: "aliexpress_dropship",
+    });
+    const blushTop = makeScrapedProduct({
+      id: "prod-ae-blush-ruched-offshoulder",
+      title: "Blush Rose Ruched Off-Shoulder Mesh Top",
+      category: "top",
+      silhouette: "crop-tank",
+      colorName: "Blush Rose",
+      colorHex: "#D8ACB4",
+      sourceType: "aliexpress_dropship",
+    });
+    const champagnePants = makeScrapedProduct({
+      id: "prod-ae-champagne-trousers",
+      title: "Champagne High-Waist Pleated Wide-Leg Trousers",
+      category: "bottom",
+      silhouette: "wide-denim",
+      colorName: "Champagne Oat",
+      colorHex: "#D9CEBE",
+      sourceType: "aliexpress_dropship",
+    });
+
+    // Jacket over Dress: uses coherent Jacket-Over-Dress donor (14) with independent Noir Blazer + Emerald Dress GPU shifts and 4K modular studio mix!
+    const jacketOverDress = resolveTurntableSpecForOutfit(
+      [emeraldDress, noirBlazer],
+      [emeraldDress, noirBlazer]
+    );
+    expect(jacketOverDress.lookIdx).toBe(14);
+    expect(jacketOverDress.isCustomMix).toBe(true);
+    expect(
+      jacketOverDress.colorwayShifts?.some((s) => s.targetHex === "#18191D")
+    ).toBe(true);
+    expect(
+      jacketOverDress.colorwayShifts?.some((s) => s.targetHex === "#1F5441")
+    ).toBe(true);
+
+    // Shirt Swap: keeps Champagne Trousers on coherent donor (0) and shifts ONLY the top zone to Blush Rose!
+    const shirtSwap = resolveTurntableSpecForOutfit(
+      [blushTop, champagnePants],
+      [blushTop, champagnePants]
+    );
+    expect(shirtSwap.lookIdx).toBe(0);
+    expect(shirtSwap.isCustomMix).toBe(true);
+    expect(
+      shirtSwap.colorwayShifts?.some((s) => s.targetHex === "#D8ACB4")
+    ).toBe(true);
+
+    // Live Visual Size-Fit Morphing: XS < S < M < L < XL in both width ease and hem length!
+    const xsFit = computeVisualSizeFitMorph({
+      product: emeraldDress,
+      selectedSize: "XS",
+      recommendedSize: "S",
+    });
+    const sFit = computeVisualSizeFitMorph({
+      product: emeraldDress,
+      selectedSize: "S",
+      recommendedSize: "S",
+    });
+    const lFit = computeVisualSizeFitMorph({
+      product: emeraldDress,
+      selectedSize: "L",
+      recommendedSize: "S",
+    });
+    const xlFit = computeVisualSizeFitMorph({
+      product: emeraldDress,
+      selectedSize: "XL",
+      recommendedSize: "S",
+    });
+    expect(xsFit.widthEaseScale).toBeLessThan(sFit.widthEaseScale);
+    expect(sFit.widthEaseScale).toBeCloseTo(1.0, 4);
+    expect(lFit.widthEaseScale).toBeGreaterThan(1.12);
+    expect(xlFit.widthEaseScale).toBeGreaterThan(lFit.widthEaseScale);
+    expect(xsFit.hemDropLocal).toBeLessThan(0);
+    expect(lFit.hemDropLocal).toBeGreaterThan(0.02);
   });
 });
