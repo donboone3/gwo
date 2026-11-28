@@ -7,7 +7,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Plus,
   RefreshCw,
   Rotate3d,
   ShoppingBag,
@@ -97,7 +96,7 @@ export function GwoRunwayLookbook() {
   );
 
   const [browseMode, setBrowseMode] = useState<"outfits" | "pieces">("outfits");
-  const [occasionFilter, setOccasionFilter] = useState<string>("all");
+  const [occasionFilter] = useState<string>("all");
   const [extraAiCount, setExtraAiCount] = useState(0);
   const [runwayYawDeg] = useState<number>(0);
   const runwayAngle: "front" | "back" =
@@ -1207,97 +1206,17 @@ export function GwoRunwayLookbook() {
           {activeOutfit && (
             <>
               <div className="space-y-3">
-                {/* Editorial "In This Look" Header & Action Row */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#ECD7E1] shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      id="gwo-runway-buy-full-outfit-btn"
-                      onClick={() => handleAddOrBuyCurrentEntry(true)}
-                      className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#B83B6A] to-[#962953] hover:brightness-105 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-[0_4px_12px_rgba(184,59,106,0.25)] cursor-pointer min-h-[30px] whitespace-nowrap"
-                    >
-                      {browseMode === "pieces"
-                        ? `Buy ($${activeOutfit.totalPriceUsd})`
-                        : `Shop Full Outfit ($${activeOutfit.totalPriceUsd})`}
-                    </button>
-                    <button
-                      type="button"
-                      id="gwo-runway-bag-full-outfit-btn"
-                      onClick={() => handleAddOrBuyCurrentEntry(false)}
-                      className="px-3 py-1.5 rounded-full bg-[#22131A] hover:bg-[#381F2B] text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer min-h-[30px] whitespace-nowrap"
-                    >
-                      <ShoppingBag className="w-3 h-3 text-[#F9CFE0]" />{" "}
-                      {browseMode === "pieces" ? "+ Bag" : "+ Set"}
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1">
-                    {browseMode === "outfits" && (
-                      <select
-                        aria-label="Filter 100 outfits by occasion"
-                        value={occasionFilter}
-                        onChange={(e) => {
-                          setOccasionFilter(e.target.value);
-                          currentPosRef.current = 0;
-                          setActiveLookIdx(0);
-                          setTimeout(() => jumpLookRef.current?.(0), 30);
-                        }}
-                        className="px-2.5 py-1 rounded-full bg-white border border-[#EBD2DE] text-[10.5px] font-bold text-[#962953] min-h-[28px] cursor-pointer"
-                      >
-                        <option value="all">All 100 Outfits</option>
-                        <option value="Date Night">Date Night</option>
-                        <option value="Cocktail">Cocktail &amp; Gala</option>
-                        <option value="Party">Party &amp; Night Out</option>
-                        <option value="Work">Work &amp; Executive</option>
-                        <option value="Brunch">Brunch &amp; Chic</option>
-                        <option value="Street">Street &amp; Off-Duty</option>
-                        <option value="Pilates">Pilates &amp; Travel</option>
-                      </select>
-                    )}
-
-                    <div className="inline-flex items-center p-0.5 rounded-full bg-white/95 border border-[#EBD2DE]">
-                      {(
-                        [
-                          [
-                            "outfits",
-                            `Outfits (${
-                              browseMode === "outfits" ? runwayOutfits.length : 100
-                            })`,
-                          ],
-                          ["pieces", `Pieces (${boutiqueCatalog.length})`],
-                        ] as const
-                      ).map(([modeKey, lbl]) => (
-                        <button
-                          key={modeKey}
-                          type="button"
-                          onClick={() => {
-                            setBrowseMode(modeKey);
-                            currentPosRef.current = 0;
-                            setActiveLookIdx(0);
-                            setTimeout(() => jumpLookRef.current?.(0), 30);
-                          }}
-                          className={`px-2 py-1 rounded-full text-[10px] font-bold cursor-pointer transition min-h-[24px] whitespace-nowrap ${
-                            browseMode === modeKey
-                              ? "bg-[#B83B6A] text-white"
-                              : "text-[#6E5360] hover:text-[#962953]"
-                          }`}
-                        >
-                          {lbl}
-                        </button>
-                      ))}
-                    </div>
-
-                    <button
-                      type="button"
-                      id="gwo-runway-build-outfit-btn"
-                      onClick={() => setBuildModalOpen(true)}
-                      className="p-1.5 rounded-full bg-[#FCECF3] hover:bg-[#F8DCE8] border border-[#F0C5D7] text-[#962953] cursor-pointer min-w-[28px] min-h-[28px] inline-flex items-center justify-center"
-                      title="Build custom outfit"
-                      aria-label="Build custom outfit"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                {/* Clean Single-Action Buy Full Outfit Button */}
+                <div className="pb-2.5 border-b border-[#ECD7E1] shrink-0">
+                  <button
+                    type="button"
+                    id="gwo-runway-buy-full-outfit-btn"
+                    onClick={() => handleAddOrBuyCurrentEntry(true)}
+                    className="w-full py-2.5 px-5 rounded-full bg-gradient-to-r from-[#B83B6A] to-[#962953] hover:brightness-105 active:scale-[0.99] text-white text-xs sm:text-[13px] font-extrabold tracking-[0.01em] inline-flex items-center justify-center gap-2 shadow-[0_8px_22px_rgba(184,59,106,0.24)] cursor-pointer transition min-h-[40px]"
+                  >
+                    <ShoppingBag className="w-3.5 h-3.5 text-[#FCECF3]" />
+                    <span>Buy Full Outfit (${activeOutfit.totalPriceUsd})</span>
+                  </button>
                 </div>
 
                 {/* Editorial Subhead for Pieces in Current Runway Outfit */}
