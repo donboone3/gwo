@@ -11,9 +11,14 @@ import {
 interface GarmentArtworkProps {
   product: Product;
   className?: string;
+  cleanCard?: boolean;
 }
 
-export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps) {
+export function GarmentArtwork({
+  product,
+  className = "",
+  cleanCard = false,
+}: GarmentArtworkProps) {
   const [useProxyFallback, setUseProxyFallback] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const [isolatedUrl, setIsolatedUrl] = useState<string | null>(null);
@@ -76,7 +81,9 @@ export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps)
         }}
         onPointerLeave={() => setTilt({ rx: 0, ry: 0, gx: 50, gy: 50 })}
         style={{ perspective: "620px" }}
-        className={`relative overflow-hidden bg-white flex items-center justify-center p-1.5 ${className}`}
+        className={`relative overflow-hidden ${
+          cleanCard ? "bg-transparent" : "bg-white"
+        } flex items-center justify-center p-1.5 ${className}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -106,9 +113,11 @@ export function GarmentArtwork({ product, className = "" }: GarmentArtworkProps)
             }}
           />
         )}
-        <span className="pointer-events-none absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-[#141518]/[0.05] text-[8.5px] font-extrabold tracking-wider text-[#141518]/65 uppercase">
-          3D
-        </span>
+        {!cleanCard && (
+          <span className="pointer-events-none absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-[#22131A]/[0.05] text-[8.5px] font-extrabold tracking-wider text-[#22131A]/60 uppercase">
+            3D
+          </span>
+        )}
       </div>
     );
   }

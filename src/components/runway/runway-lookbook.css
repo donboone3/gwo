@@ -1,29 +1,35 @@
 .mv-page {
-  --ink: #181615;
-  --mid: #665d56;
-  --dim: #988d84;
-  --line: #e5d7ca;
+  --ink: #22131a;
+  --mid: #745c67;
+  --dim: #9e8490;
+  --line: #ecd7e1;
+  --berry: #b83b6a;
+  --berry-deep: #962953;
+  --blush-soft: #fcebf2;
 
-  height: calc(100svh - 64px);
+  min-height: calc(100svh - 64px);
+  height: auto;
   display: flex;
   flex-direction: column;
-  background: #faf3ec;
+  background: #fdf8fa;
   color: var(--ink);
   font-family: var(--font-sans), "Plus Jakarta Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   position: relative;
   isolation: isolate;
   z-index: 1;
 }
 
-/* Exact 50% Avatar Stage / 50% Outfit Clothes Split Directly Below Top Menu */
+/* Top Fold: Exact 50% Avatar Stage / 50% Editorial Look Rail on Desktop */
 .mv-main {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  height: 100%;
-  min-height: 0;
+  height: calc(100svh - 64px);
+  min-height: 560px;
+  border-bottom: 1px solid var(--line);
 }
 
 .mv-stage {
@@ -38,10 +44,10 @@
   cursor: none;
   outline: none;
   background:
-    radial-gradient(circle at 18% 26%, rgba(244, 198, 178, 0.58) 0%, transparent 52%),
-    radial-gradient(circle at 84% 76%, rgba(176, 222, 203, 0.52) 0%, transparent 54%),
-    radial-gradient(circle at 62% 46%, rgba(255, 253, 250, 0.94) 0%, transparent 58%),
-    linear-gradient(180deg, #fdf6f0 0%, #f7ece3 56%, #eef6f2 100%);
+    radial-gradient(circle at 16% 24%, rgba(246, 198, 219, 0.56) 0%, transparent 52%),
+    radial-gradient(circle at 86% 78%, rgba(246, 215, 202, 0.5) 0%, transparent 54%),
+    radial-gradient(circle at 62% 46%, rgba(255, 255, 255, 0.98) 0%, transparent 58%),
+    linear-gradient(180deg, #fffbfd 0%, #fbf0f5 56%, #fdf5f2 100%);
 }
 
 .mv-line {
@@ -115,7 +121,7 @@
   position: absolute;
   pointer-events: none;
   object-fit: contain;
-  filter: drop-shadow(0 8px 12px rgba(20, 21, 24, 0.22));
+  filter: drop-shadow(0 8px 12px rgba(34, 19, 26, 0.2));
 }
 
 .mv-m img.mv-face-oval {
@@ -139,7 +145,7 @@
   border-radius: 50%;
   background: radial-gradient(
     closest-side,
-    rgba(60, 72, 90, 0.24),
+    rgba(116, 70, 92, 0.22),
     transparent
   );
 }
@@ -158,11 +164,11 @@
   letter-spacing: -0.02em;
   gap: 6px;
   pointer-events: auto;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
   padding: 3px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(20, 21, 24, 0.07);
+  border: 1px solid rgba(184, 59, 106, 0.14);
 }
 
 .mv-win {
@@ -190,7 +196,7 @@
   width: 44px;
   height: 44px;
   margin: -22px 0 0 -22px;
-  border: 2px solid #141518;
+  border: 2px solid #962953;
   border-radius: 99px;
   pointer-events: none;
   opacity: 0;
@@ -210,19 +216,20 @@
   margin: -16px 0 0 -40px;
 }
 
-/* Other Half of Screen: Outfit Clothes Panel */
+/* Right Half of Top Fold: "In This Look" Editorial Styling Rail */
 .mv-rail {
   position: relative;
   height: 100%;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  background: linear-gradient(180deg, #faf1ea 0%, #f6efe8 52%, #eff6f2 100%);
-  border-left: 1px solid #e5d7ca;
-  padding: 12px 14px 16px;
+  background: linear-gradient(180deg, #fffbfd 0%, #fcf2f7 56%, #fdf6f3 100%);
+  border-left: 1px solid var(--line);
+  padding: 14px 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .mv-pieces-grid {
@@ -237,21 +244,49 @@
   }
 }
 
-@media (max-width: 820px) {
-  .mv-page {
-    height: auto;
-    min-height: calc(100svh - 64px);
-    overflow-x: hidden;
-    overflow-y: visible;
+/* Luxury Boutique Product Card Choreography */
+.gwo-ecomm-card {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.52s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.52s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.22s ease,
+    box-shadow 0.26s ease;
+}
+
+.gwo-ecomm-card.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gwo-ecomm-card {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
+}
+
+.gwo-heart-btn {
+  transition: transform 0.26s cubic-bezier(0.22, 1.5, 0.36, 1), background-color 0.2s ease;
+}
+
+.gwo-heart-btn[aria-pressed="true"] {
+  transform: scale(1.08);
+}
+
+@media (max-width: 820px) {
   .mv-main {
     display: flex;
     flex-direction: column;
     height: auto;
+    min-height: 0;
   }
   .mv-stage {
-    height: calc(100svh - 64px);
-    min-height: 480px;
+    height: calc(78svh - 64px);
+    min-height: 468px;
+    max-height: 640px;
     width: 100%;
     flex-shrink: 0;
     cursor: auto;
@@ -277,8 +312,8 @@
     height: auto;
     overflow: visible;
     border-left: 0;
-    border-top: 1px solid rgba(20, 21, 24, 0.09);
-    padding: 14px 12px 36px;
+    border-top: 1px solid var(--line);
+    padding: 14px 12px 18px;
     gap: 10px;
   }
   .mv-pieces-grid {

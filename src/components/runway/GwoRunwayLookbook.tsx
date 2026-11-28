@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  ArrowDown,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -10,7 +11,6 @@ import {
   RefreshCw,
   Rotate3d,
   ShoppingBag,
-  Sparkles,
   Store,
   X,
 } from "lucide-react";
@@ -18,6 +18,8 @@ import "./runway-lookbook.css";
 import { useGwo } from "@/context/GwoAppContext";
 import { GarmentArtwork } from "../studio/GarmentArtwork";
 import { Interactive3DAvatarStage } from "../three/Interactive3DAvatarStage";
+import { MotionSitesBoutiqueStorefront } from "../shop/MotionSitesBoutiqueStorefront";
+import { launchFlyToBag } from "@/lib/motion/fly-to-bag";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 import {
   formatCompactOutfitTitle,
@@ -826,12 +828,11 @@ export function GwoRunwayLookbook() {
     let wheelAcc = 0;
     let wheelT: ReturnType<typeof setTimeout> | null = null;
     const onWheel = (e: WheelEvent) => {
-      if (window.innerWidth <= 820 && Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.15) {
         return;
       }
       e.preventDefault();
-      const d =
-        Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const d = e.deltaX;
       wheelAcc += d * (e.deltaMode === 1 ? 32 : 1);
       if (Math.abs(wheelAcc) > 55) {
         target = Math.round(target) + Math.sign(wheelAcc);
@@ -1126,7 +1127,7 @@ export function GwoRunwayLookbook() {
                     // ignore
                   }
                 }}
-                className="pointer-events-auto h-9 max-w-[94%] sm:max-w-[420px] inline-flex items-center justify-between gap-1.5 px-1.5 rounded-full bg-white/94 backdrop-blur-md border border-[#E3D4C6] shadow-[0_10px_26px_rgba(27,77,59,0.12)] select-none"
+                className="pointer-events-auto h-9 max-w-[94%] sm:max-w-[420px] inline-flex items-center justify-between gap-1.5 px-1.5 rounded-full bg-white/95 backdrop-blur-md border border-[#EBD2DE] shadow-[0_10px_26px_rgba(150,41,83,0.14)] select-none"
               >
                 <button
                   type="button"
@@ -1140,7 +1141,7 @@ export function GwoRunwayLookbook() {
                     stepLookRef.current?.(-1);
                   }}
                   aria-label="Previous outfit"
-                  className="w-7 h-7 rounded-full bg-[#F5E9DF] hover:bg-[#ECDAD0] text-[#184535] inline-flex items-center justify-center shrink-0 cursor-pointer transition"
+                  className="w-7 h-7 rounded-full bg-[#FCECF3] hover:bg-[#F8DCE8] text-[#962953] inline-flex items-center justify-center shrink-0 cursor-pointer transition"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -1159,10 +1160,10 @@ export function GwoRunwayLookbook() {
                   title="Tap or swipe to step through outfits"
                   className="px-2 min-w-0 flex items-center gap-1.5 cursor-pointer text-center"
                 >
-                  <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-[#1B4D3B] to-[#296B53] text-[#F9E7BE] text-[10px] font-extrabold shrink-0">
+                  <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-[#B83B6A] to-[#962953] text-white text-[10px] font-extrabold shrink-0">
                     {String(activeOutfit.outfitNumber).padStart(2, "0")}
                   </span>
-                  <span className="text-xs font-extrabold text-[#181615] truncate">
+                  <span className="text-xs font-extrabold text-[#22131A] truncate">
                     {browseMode === "pieces"
                       ? formatCompactProductTitle(
                           activeOutfit.pieces[0]?.product || activeOutfit.title,
@@ -1184,7 +1185,7 @@ export function GwoRunwayLookbook() {
                     stepLookRef.current?.(1);
                   }}
                   aria-label="Next outfit"
-                  className="w-7 h-7 rounded-full bg-[#F5E9DF] hover:bg-[#ECDAD0] text-[#184535] inline-flex items-center justify-center shrink-0 cursor-pointer transition"
+                  className="w-7 h-7 rounded-full bg-[#FCECF3] hover:bg-[#F8DCE8] text-[#962953] inline-flex items-center justify-center shrink-0 cursor-pointer transition"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -1193,7 +1194,7 @@ export function GwoRunwayLookbook() {
           )}
         </section>
 
-        {/* ==================== HALF 2 (50% DESKTOP / SCROLL DOWN ON MOBILE): CLEAN CLOTHES RAIL ==================== */}
+        {/* ==================== HALF 2 (50% DESKTOP / SCROLL DOWN ON MOBILE): "IN THIS LOOK" EDITORIAL RAIL ==================== */}
         <aside
           id="gwo-runway-products-rail"
           className="mv-rail scroll-mt-16"
@@ -1201,246 +1202,303 @@ export function GwoRunwayLookbook() {
         >
           {activeOutfit && (
             <>
-              {/* Single Streamlined Action & Filter Row (Zero Redundant Title/Button Clutter!) */}
-              <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-[#E5D7CA] shrink-0">
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    id="gwo-runway-buy-full-outfit-btn"
-                    onClick={() => handleAddOrBuyCurrentEntry(true)}
-                    className="px-3 py-1.5 rounded-full bg-gradient-to-r from-[#C0352B] to-[#982335] hover:brightness-105 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-[0_3px_10px_rgba(192,53,43,0.22)] cursor-pointer min-h-[28px] whitespace-nowrap"
-                  >
-                    {browseMode === "pieces"
-                      ? `Buy ($${activeOutfit.totalPriceUsd})`
-                      : `Buy Outfit ($${activeOutfit.totalPriceUsd})`}
-                  </button>
-                  <button
-                    type="button"
-                    id="gwo-runway-bag-full-outfit-btn"
-                    onClick={() => handleAddOrBuyCurrentEntry(false)}
-                    className="px-2.5 py-1.5 rounded-full bg-[#1B4D3B] hover:bg-[#143B2D] text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer min-h-[28px] whitespace-nowrap"
-                  >
-                    <ShoppingBag className="w-3 h-3 text-[#F9E7BE]" />{" "}
-                    {browseMode === "pieces" ? "+ Bag" : "+ Set"}
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1">
-                  {browseMode === "outfits" && (
-                    <select
-                      aria-label="Filter 100 outfits by occasion"
-                      value={occasionFilter}
-                      onChange={(e) => {
-                        setOccasionFilter(e.target.value);
-                        currentPosRef.current = 0;
-                        setActiveLookIdx(0);
-                        setTimeout(() => jumpLookRef.current?.(0), 30);
-                      }}
-                      className="px-2.5 py-1 rounded-full bg-white border border-[#E3D4C6] text-[10.5px] font-bold text-[#184535] min-h-[28px] cursor-pointer"
+              <div className="space-y-3">
+                {/* Editorial "In This Look" Header & Action Row */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#ECD7E1] shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      id="gwo-runway-buy-full-outfit-btn"
+                      onClick={() => handleAddOrBuyCurrentEntry(true)}
+                      className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#B83B6A] to-[#962953] hover:brightness-105 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-[0_4px_12px_rgba(184,59,106,0.25)] cursor-pointer min-h-[30px] whitespace-nowrap"
                     >
-                      <option value="all">All 100 Outfits</option>
-                      <option value="Date Night">Date Night</option>
-                      <option value="Cocktail">Cocktail &amp; Gala</option>
-                      <option value="Party">Party &amp; Night Out</option>
-                      <option value="Work">Work &amp; Executive</option>
-                      <option value="Brunch">Brunch &amp; Chic</option>
-                      <option value="Street">Street &amp; Off-Duty</option>
-                      <option value="Pilates">Pilates &amp; Travel</option>
-                    </select>
-                  )}
+                      {browseMode === "pieces"
+                        ? `Buy ($${activeOutfit.totalPriceUsd})`
+                        : `Shop Full Outfit ($${activeOutfit.totalPriceUsd})`}
+                    </button>
+                    <button
+                      type="button"
+                      id="gwo-runway-bag-full-outfit-btn"
+                      onClick={() => handleAddOrBuyCurrentEntry(false)}
+                      className="px-3 py-1.5 rounded-full bg-[#22131A] hover:bg-[#381F2B] text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer min-h-[30px] whitespace-nowrap"
+                    >
+                      <ShoppingBag className="w-3 h-3 text-[#F9CFE0]" />{" "}
+                      {browseMode === "pieces" ? "+ Bag" : "+ Set"}
+                    </button>
+                  </div>
 
-                  <div className="inline-flex items-center p-0.5 rounded-full bg-white/90 border border-[#E3D4C6]">
-                    {(
-                      [
-                        [
-                          "outfits",
-                          `Outfits (${
-                            browseMode === "outfits" ? runwayOutfits.length : 100
-                          })`,
-                        ],
-                        ["pieces", `Pieces (${boutiqueCatalog.length})`],
-                      ] as const
-                    ).map(([modeKey, lbl]) => (
-                      <button
-                        key={modeKey}
-                        type="button"
-                        onClick={() => {
-                          setBrowseMode(modeKey);
+                  <div className="flex flex-wrap items-center gap-1">
+                    {browseMode === "outfits" && (
+                      <select
+                        aria-label="Filter 100 outfits by occasion"
+                        value={occasionFilter}
+                        onChange={(e) => {
+                          setOccasionFilter(e.target.value);
                           currentPosRef.current = 0;
                           setActiveLookIdx(0);
                           setTimeout(() => jumpLookRef.current?.(0), 30);
                         }}
-                        className={`px-2 py-1 rounded-full text-[10px] font-bold cursor-pointer transition min-h-[24px] whitespace-nowrap ${
-                          browseMode === modeKey
-                            ? "bg-[#1B4D3B] text-white"
-                            : "text-[#665D56] hover:text-[#184535]"
-                        }`}
+                        className="px-2.5 py-1 rounded-full bg-white border border-[#EBD2DE] text-[10.5px] font-bold text-[#962953] min-h-[28px] cursor-pointer"
                       >
-                        {lbl}
-                      </button>
-                    ))}
-                  </div>
+                        <option value="all">All 100 Outfits</option>
+                        <option value="Date Night">Date Night</option>
+                        <option value="Cocktail">Cocktail &amp; Gala</option>
+                        <option value="Party">Party &amp; Night Out</option>
+                        <option value="Work">Work &amp; Executive</option>
+                        <option value="Brunch">Brunch &amp; Chic</option>
+                        <option value="Street">Street &amp; Off-Duty</option>
+                        <option value="Pilates">Pilates &amp; Travel</option>
+                      </select>
+                    )}
 
+                    <div className="inline-flex items-center p-0.5 rounded-full bg-white/95 border border-[#EBD2DE]">
+                      {(
+                        [
+                          [
+                            "outfits",
+                            `Outfits (${
+                              browseMode === "outfits" ? runwayOutfits.length : 100
+                            })`,
+                          ],
+                          ["pieces", `Pieces (${boutiqueCatalog.length})`],
+                        ] as const
+                      ).map(([modeKey, lbl]) => (
+                        <button
+                          key={modeKey}
+                          type="button"
+                          onClick={() => {
+                            setBrowseMode(modeKey);
+                            currentPosRef.current = 0;
+                            setActiveLookIdx(0);
+                            setTimeout(() => jumpLookRef.current?.(0), 30);
+                          }}
+                          className={`px-2 py-1 rounded-full text-[10px] font-bold cursor-pointer transition min-h-[24px] whitespace-nowrap ${
+                            browseMode === modeKey
+                              ? "bg-[#B83B6A] text-white"
+                              : "text-[#6E5360] hover:text-[#962953]"
+                          }`}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      id="gwo-runway-build-outfit-btn"
+                      onClick={() => setBuildModalOpen(true)}
+                      className="p-1.5 rounded-full bg-[#FCECF3] hover:bg-[#F8DCE8] border border-[#F0C5D7] text-[#962953] cursor-pointer min-w-[28px] min-h-[28px] inline-flex items-center justify-center"
+                      title="Build custom outfit"
+                      aria-label="Build custom outfit"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Editorial Subhead for Pieces in Current Runway Outfit */}
+                <div className="flex items-center justify-between gap-2 px-0.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-[#962953]">
+                    In This Look • {activeOutfit.pieces.length} Pieces
+                  </span>
                   <button
                     type="button"
-                    id="gwo-runway-build-outfit-btn"
-                    onClick={() => setBuildModalOpen(true)}
-                    className="p-1.5 rounded-full bg-[#FCEBE6] hover:bg-[#F8DDD5] border border-[#F0C9BD] text-[#A33022] cursor-pointer min-w-[28px] min-h-[28px] inline-flex items-center justify-center"
-                    title="Build custom outfit"
-                    aria-label="Build custom outfit"
+                    onClick={() =>
+                      document
+                        .getElementById("gwo-ecomm-storefront")
+                        ?.scrollIntoView({ behavior: "smooth" })
+                    }
+                    className="text-[11px] font-bold text-[#B83B6A] hover:underline inline-flex items-center gap-1 cursor-pointer"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    Shop All {boutiqueCatalog.length} Pieces{" "}
+                    <ArrowDown className="w-3 h-3" />
                   </button>
+                </div>
+
+                {/* All Pieces in Current Runway Outfit Grid */}
+                <div
+                  className={`mv-pieces-grid ${
+                    activeOutfit.pieces.length >= 5 ? "dense-six" : ""
+                  }`}
+                >
+                  {activeOutfit.pieces.map((spec, slotIdx) => {
+                    const prod = spec.product;
+                    const isOwned = ownedIds.has(prod.id);
+                    const pdpHref = `/product/${encodeURIComponent(prod.id)}`;
+
+                    return (
+                      <article
+                        key={`${prod.id}-${slotIdx}`}
+                        data-outfit-piece-card="true"
+                        className="group rounded-2xl bg-white border border-[#ECD7E1] hover:border-[#D99BB4] p-2.5 flex flex-col justify-between gap-2 shadow-[0_6px_18px_rgba(150,41,83,0.05)] transition"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-1">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[9.5px] font-extrabold tracking-wide truncate ${
+                                isOwned
+                                  ? "bg-[#FCECF3] text-[#8A244C]"
+                                  : "bg-[#F9EFF4] text-[#962953]"
+                              }`}
+                            >
+                              {isOwned
+                                ? "In Closet ✓"
+                                : spec.recommendedSize === "ONE SIZE"
+                                ? `One Size • ${spec.confidencePct}%`
+                                : `Size ${spec.recommendedSize} • ${spec.confidencePct}%`}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openAvatar360({
+                                  title: `${prod.brand} — ${prod.title}`,
+                                  primaryProduct: prod,
+                                  companionProducts: activeOutfit.pieces
+                                    .map((x) => x.product)
+                                    .filter((x) => x.id !== prod.id),
+                                  avatarFrontUrl: activeOutfit.frontAvatarUrl,
+                                  avatarBackUrl: activeOutfit.backAvatarUrl,
+                                })
+                              }
+                              className="px-2 py-0.5 rounded-full bg-[#FDF6F9] hover:bg-[#FCECF3] border border-[#ECD7E1] text-[#22131A] text-[9.5px] font-bold inline-flex items-center gap-0.5 cursor-pointer min-h-[22px] shrink-0"
+                              title="Spin 360° Front, Side & Back"
+                            >
+                              <Rotate3d className="w-2.5 h-2.5 text-[#B83B6A]" /> 360°
+                            </button>
+                          </div>
+
+                          <Link
+                            href={pdpHref}
+                            className="relative h-28 sm:h-32 rounded-xl bg-gradient-to-b from-[#FFFDFE] to-[#FCF3F7] border border-[#F2E2EA] overflow-hidden flex items-center justify-center p-2 block"
+                          >
+                            <GarmentArtwork
+                              product={prod}
+                              className="w-full h-full group-hover:scale-105 transition-transform duration-300"
+                            />
+                          </Link>
+
+                          <div className="min-w-0">
+                            <div className="flex items-baseline justify-between gap-1">
+                              <Link
+                                href={pdpHref}
+                                className="text-[11.5px] leading-snug font-bold text-[#22131A] hover:text-[#B83B6A] truncate"
+                              >
+                                {formatCompactProductTitle(prod, 22)}
+                              </Link>
+                              <span className="font-editorial text-sm font-bold text-[#22131A] shrink-0">
+                                ${prod.price}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-1 mt-0.5">
+                              <span className="text-[10px] font-medium text-[#745C67] truncate">
+                                {prod.colorName}
+                              </span>
+                              <Link
+                                href={pdpHref}
+                                className="text-[9.5px] font-bold text-[#B83B6A] hover:underline shrink-0"
+                              >
+                                Page →
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={(ev) => {
+                              const cardEl = ev.currentTarget.closest("article");
+                              launchFlyToBag(cardEl, prod.imageUrl);
+                              addToBag({
+                                productId: prod.id,
+                                title: prod.title,
+                                brand: prod.brand,
+                                price: prod.price,
+                                size: spec.recommendedSize || recSize,
+                                imageUrl: prod.imageUrl,
+                                avatarFrontUrl: activeOutfit.frontAvatarUrl,
+                                avatarBackUrl: activeOutfit.backAvatarUrl,
+                                storeUrl: prod.canonicalUrl,
+                              });
+                            }}
+                            className="flex-1 py-1.5 px-2.5 rounded-full bg-gradient-to-r from-[#B83B6A] to-[#962953] hover:brightness-105 text-white text-[10.5px] font-bold cursor-pointer min-h-[28px]"
+                          >
+                            + Add to Bag
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSwapPieceInOutfit(slotIdx, prod)}
+                            className="p-1.5 rounded-full bg-[#FCECF3] hover:bg-[#F8DCE8] text-[#962953] cursor-pointer min-w-[28px] min-h-[28px] inline-flex items-center justify-center"
+                            title="Swap piece on avatar"
+                            aria-label={`Swap ${prod.title}`}
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* All Pieces Grid */}
-              <div
-                className={`mv-pieces-grid ${
-                  activeOutfit.pieces.length >= 5 ? "dense-six" : ""
-                }`}
+              {/* Scroll-to-Full-Boutique Storefront Cue */}
+              <button
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById("gwo-ecomm-storefront")
+                    ?.scrollIntoView({ behavior: "smooth" })
+                }
+                className="w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-[#FCECF3] border border-[#EBD2DE] text-xs font-bold text-[#962953] flex items-center justify-between transition cursor-pointer shrink-0 shadow-xs"
               >
-                {activeOutfit.pieces.map((spec, slotIdx) => {
-                  const prod = spec.product;
-                  const isOwned = ownedIds.has(prod.id);
-                  const pdpHref = `/product/${encodeURIComponent(prod.id)}`;
-
-                  return (
-                    <article
-                      key={`${prod.id}-${slotIdx}`}
-                      data-outfit-piece-card="true"
-                      className="rounded-2xl bg-white border border-[#E6D8CB] p-2.5 flex flex-col justify-between gap-1.5 shadow-[0_4px_14px_rgba(27,77,59,0.05)]"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-1">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[9.5px] font-extrabold uppercase tracking-wide truncate ${
-                              isOwned
-                                ? "bg-[#E7F3EE] text-[#1D4232]"
-                                : "bg-[#C80815] text-white"
-                            }`}
-                          >
-                            {isOwned
-                              ? "In Closet ✓"
-                              : spec.recommendedSize === "ONE SIZE"
-                              ? `One Size • ${spec.confidencePct}%`
-                              : `Size ${spec.recommendedSize} • ${spec.confidencePct}%`}
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openAvatar360({
-                                title: `${prod.brand} — ${prod.title}`,
-                                primaryProduct: prod,
-                                companionProducts: activeOutfit.pieces
-                                  .map((x) => x.product)
-                                  .filter((x) => x.id !== prod.id),
-                                avatarFrontUrl: activeOutfit.frontAvatarUrl,
-                                avatarBackUrl: activeOutfit.backAvatarUrl,
-                              })
-                            }
-                            className="px-2 py-0.5 rounded-full bg-[#F1F2F5] hover:bg-[#E2E5EC] text-[#141518] text-[9.5px] font-bold inline-flex items-center gap-0.5 cursor-pointer min-h-[22px] shrink-0"
-                            title="Spin 360° Front, Side & Back"
-                          >
-                            <Rotate3d className="w-2.5 h-2.5 text-[#244B3B]" /> 360°
-                          </button>
-                        </div>
-
-                        <Link
-                          href={pdpHref}
-                          className="relative h-28 sm:h-32 rounded-xl bg-white border border-black/[0.04] overflow-hidden flex items-center justify-center block"
-                        >
-                          <GarmentArtwork
-                            product={prod}
-                            className="w-full h-full"
-                          />
-                        </Link>
-
-                        <div className="min-w-0">
-                          <Link
-                            href={pdpHref}
-                            className="block text-[11.5px] leading-snug font-bold text-[#141518] hover:underline line-clamp-2"
-                          >
-                            {formatCompactProductTitle(prod, 24)}
-                          </Link>
-                          <p className="text-[10.5px] font-bold text-[#244B3B] truncate">
-                            ${prod.price} • {prod.colorName}
-                          </p>
-                          <div className="flex items-center justify-between gap-1 mt-0.5">
-                            <span className="text-[9.5px] font-medium text-[#686D76] truncate">
-                              {spec.recommendedSize === "ONE SIZE"
-                                ? "One Size Match"
-                                : `Size ${spec.recommendedSize} Match`}
-                            </span>
-                            <Link
-                              href={pdpHref}
-                              className="text-[9.5px] font-bold text-[#244B3B] hover:underline shrink-0"
-                            >
-                              Details →
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 pt-0.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            addToBag({
-                              productId: prod.id,
-                              title: prod.title,
-                              brand: prod.brand,
-                              price: prod.price,
-                              size: spec.recommendedSize || recSize,
-                              imageUrl: prod.imageUrl,
-                              avatarFrontUrl: activeOutfit.frontAvatarUrl,
-                              avatarBackUrl: activeOutfit.backAvatarUrl,
-                              storeUrl: prod.canonicalUrl,
-                            });
-                            openDropshipCheckout("checkout");
-                          }}
-                          className="flex-1 py-1.5 px-2 rounded-full bg-[#FDECEB] hover:bg-[#F9DAD7] text-[#9E2A22] text-[10.5px] font-bold cursor-pointer min-h-[26px]"
-                        >
-                          Buy (${prod.price})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            addToBag({
-                              productId: prod.id,
-                              title: prod.title,
-                              brand: prod.brand,
-                              price: prod.price,
-                              size: spec.recommendedSize || recSize,
-                              imageUrl: prod.imageUrl,
-                              avatarFrontUrl: activeOutfit.frontAvatarUrl,
-                              avatarBackUrl: activeOutfit.backAvatarUrl,
-                              storeUrl: prod.canonicalUrl,
-                            })
-                          }
-                          className="py-1.5 px-2.5 rounded-full bg-[#1B4D3B] hover:bg-[#143B2D] text-white text-[10.5px] font-bold cursor-pointer min-h-[26px]"
-                        >
-                          + Bag
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSwapPieceInOutfit(slotIdx, prod)}
-                          className="p-1.5 rounded-full bg-[#F5E9DF] hover:bg-[#ECDAD0] text-[#184535] cursor-pointer min-w-[26px] min-h-[26px] inline-flex items-center justify-center"
-                          title="Swap piece"
-                          aria-label={`Swap ${prod.title}`}
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                <span>
+                  Browse Full Boutique Store ({boutiqueCatalog.length} Dresses, Tops, Skirts &amp; Heels)
+                </span>
+                <span className="inline-flex items-center gap-1 text-[#B83B6A]">
+                  Shop Below <ArrowDown className="w-3.5 h-3.5" />
+                </span>
+              </button>
             </>
           )}
         </aside>
       </main>
+
+      {/* ==================== FULL E-COMMERCE CLOTHING STOREFRONT + 1-FOR-1 SPIN-PRODUCT SHOWCASE ==================== */}
+      <MotionSitesBoutiqueStorefront
+        catalog={boutiqueCatalog}
+        outfits={runwayOutfits}
+        ownedIds={ownedIds}
+        onTryPieceOnRunway={(prod) => {
+          const matchOutfitIdx = runwayOutfits.findIndex((o) =>
+            o.pieces.some((p) => p.product.id === prod.id)
+          );
+          if (matchOutfitIdx >= 0) {
+            jumpLookRef.current?.(matchOutfitIdx);
+            showToast(`Trying "${prod.title}" on your Runway!`);
+          } else if (rawActiveOutfit) {
+            const slotIdx = Math.max(
+              0,
+              rawActiveOutfit.pieces.findIndex(
+                (p) => p.product.category === prod.category
+              )
+            );
+            setSwappedPieceBySlot((prev) => ({
+              ...prev,
+              [`${rawActiveOutfit.id}:${slotIdx}`]: prod,
+            }));
+            showToast(`Styled "${prod.title}" onto your Runway Avatar!`);
+          }
+        }}
+        onJumpToOutfitOnRunway={(outfitIdx) => {
+          if (browseMode !== "outfits") {
+            setBrowseMode("outfits");
+            setTimeout(() => jumpLookRef.current?.(outfitIdx), 40);
+          } else {
+            jumpLookRef.current?.(outfitIdx);
+          }
+        }}
+      />
 
       {/* ==================== BUILD CUSTOM OUTFIT MODAL ==================== */}
       {buildModalOpen && (
@@ -1468,9 +1526,9 @@ export function GwoRunwayLookbook() {
                     setBuildModalOpen(false);
                     setAddUrlModalOpen(true);
                   }}
-                  className="px-3 py-1.5 rounded-full bg-[#F1F2F5] hover:bg-[#E4E6EC] text-xs font-bold text-[#141518] inline-flex items-center gap-1 cursor-pointer"
+                  className="px-3 py-1.5 rounded-full bg-[#FCECF3] hover:bg-[#F8DCE8] text-xs font-bold text-[#962953] inline-flex items-center gap-1 cursor-pointer"
                 >
-                  <Store className="w-3.5 h-3.5 text-[#244B3B]" /> Paste URL
+                  <Store className="w-3.5 h-3.5 text-[#B83B6A]" /> Paste URL
                 </button>
                 <button
                   type="button"
@@ -1506,23 +1564,23 @@ export function GwoRunwayLookbook() {
                     }
                     className={`rounded-2xl p-2 border text-left transition cursor-pointer flex flex-col justify-between ${
                       selected
-                        ? "border-[#244B3B] ring-2 ring-[#244B3B]/20 bg-[#F4F8F5]"
-                        : "border-black/[0.08] bg-white hover:bg-[#FAFBFD]"
+                        ? "border-[#B83B6A] ring-2 ring-[#B83B6A]/20 bg-[#FDF2F7]"
+                        : "border-[#ECD7E1] bg-white hover:bg-[#FFFBFD]"
                     }`}
                   >
                     <div>
                       <div className="h-28 rounded-xl bg-white border border-black/[0.05] overflow-hidden mb-1.5 relative">
                         <GarmentArtwork product={prod} className="w-full h-full" />
                         {selected && (
-                          <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#244B3B] text-white flex items-center justify-center">
+                          <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#B83B6A] text-white flex items-center justify-center">
                             <Check className="w-3 h-3" />
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] leading-snug font-bold text-[#141518] line-clamp-2">
+                      <p className="text-[11px] leading-snug font-bold text-[#22131A] line-clamp-2">
                         {formatCompactProductTitle(prod, 24)}
                       </p>
-                      <p className="text-[10.5px] font-semibold text-[#244B3B]">
+                      <p className="text-[10.5px] font-semibold text-[#962953]">
                         ${prod.price} • {prod.category}
                       </p>
                     </div>

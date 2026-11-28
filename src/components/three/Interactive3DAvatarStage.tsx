@@ -1130,7 +1130,7 @@ export function Interactive3DAvatarStage({
     };
 
     const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) > 0 && (window.innerWidth > 820 || e.ctrlKey)) {
+      if (Math.abs(e.deltaY) > 0 && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         targetZoomRef.current = clamp(
           targetZoomRef.current - Math.sign(e.deltaY) * 0.08,

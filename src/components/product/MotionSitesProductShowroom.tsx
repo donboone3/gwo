@@ -43,6 +43,7 @@ import {
   getCuratedOutfitsForProduct,
 } from "@/lib/stylist/curated-100-outfits";
 import { routeProductTo360Tier } from "@/lib/higgsfield/credit-smart-360-pipeline";
+import { launchFlyToBag } from "@/lib/motion/fly-to-bag";
 import { Product } from "@/lib/types";
 
 interface MotionSitesProductShowroomProps {
@@ -263,7 +264,13 @@ export function MotionSitesProductShowroom({
   const isBelt =
     product.category === "accessory" && /belt|cincher/i.test(product.title);
 
-  const handleAddSingle = (buyImmediately: boolean) => {
+  const handleAddSingle = (
+    buyImmediately: boolean,
+    sourceEl?: HTMLElement | null
+  ) => {
+    if (!buyImmediately && sourceEl) {
+      launchFlyToBag(sourceEl, product.imageUrl);
+    }
     addToBag({
       productId: product.id,
       title: product.title,
@@ -281,40 +288,40 @@ export function MotionSitesProductShowroom({
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] text-[#141518] pb-20">
+    <div className="min-h-screen bg-[#FDF8FA] text-[#22131A] pb-20">
       {/* MotionSites Scroll-Linked Top Hairline Progress Bar */}
       <div className="fixed top-0 inset-x-0 h-[2.5px] z-[120] bg-black/[0.06] pointer-events-none">
         <div
-          className="h-full bg-[#244B3B] origin-left transition-transform duration-75"
+          className="h-full bg-[#B83B6A] origin-left transition-transform duration-75"
           style={{ transform: `scaleX(${scrollPct.toFixed(4)})` }}
         />
       </div>
 
       {/* Editorial Atelier Top Navigation Strip */}
-      <div className="sticky top-16 z-40 bg-[#FAF9F6]/92 backdrop-blur-md border-b border-black/[0.07]">
+      <div className="sticky top-16 z-40 bg-[#FDF8FA]/94 backdrop-blur-md border-b border-[#ECD7E1]">
         <div className="max-w-[1460px] mx-auto px-4 sm:px-6 h-11 flex items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 min-w-0">
             <Link
               href="/shop"
-              className="inline-flex items-center gap-1.5 font-bold text-[#141518] hover:text-[#244B3B] shrink-0"
+              className="inline-flex items-center gap-1.5 font-bold text-[#22131A] hover:text-[#B83B6A] shrink-0"
             >
-              <ArrowLeft className="w-3.5 h-3.5" /> Runway
+              <ArrowLeft className="w-3.5 h-3.5" /> Runway &amp; Boutique
             </Link>
-            <span className="text-black/25">/</span>
+            <span className="text-[#D4A6B8]">/</span>
             <Link
               href="/"
-              className="font-semibold text-[#5E636E] hover:text-[#141518] shrink-0 hidden sm:inline"
+              className="font-semibold text-[#745C67] hover:text-[#22131A] shrink-0 hidden sm:inline"
             >
               3D Closet
             </Link>
-            <span className="text-black/25 hidden sm:inline">/</span>
-            <span className="font-semibold text-[#244B3B] truncate">
+            <span className="text-[#D4A6B8] hidden sm:inline">/</span>
+            <span className="font-semibold text-[#B83B6A] truncate">
               {formatCompactProductTitle(product, 28)}
             </span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#E7F3EE] text-[#1D4232] text-[10.5px] font-bold">
+            <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FCECF3] text-[#962953] text-[10.5px] font-bold">
               <ShieldCheck className="w-3 h-3" /> SKU #{productIndex + 1}/
               {fullCatalog.length} • 360° 3D Certified
             </span>
@@ -529,13 +536,13 @@ export function MotionSitesProductShowroom({
               )}
             </div>
             {/* Brand, Title, Price & PBR Material Spec */}
-            <div className="rounded-[28px] bg-white border border-black/[0.08] p-5 sm:p-6 space-y-4 shadow-[0_12px_32px_rgba(20,21,24,0.04)]">
+            <div className="rounded-[28px] bg-white border border-[#ECD7E1] p-5 sm:p-6 space-y-4 shadow-[0_12px_32px_rgba(150,41,83,0.05)]">
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#244B3B]">
+                  <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#B83B6A]">
                     {product.brand} • {product.category.toUpperCase()}
                   </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#F4F8F5] border border-[#C6E0D0] text-[10.5px] font-bold text-[#1D4232]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#FCECF3] border border-[#F0C5D7] text-[10.5px] font-bold text-[#962953]">
                     {realismCert.realismScorePct}% Realism •{" "}
                     {tierDecision.tierSpec.marginalCreditCostUsd === 0
                       ? "Instant WebGL 360°"
@@ -543,26 +550,26 @@ export function MotionSitesProductShowroom({
                   </span>
                 </div>
 
-                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#141518] leading-snug">
+                <h1 className="font-editorial text-2xl sm:text-3xl font-semibold tracking-tight text-[#22131A] leading-tight">
                   {product.title}
                 </h1>
 
                 <div className="flex items-baseline justify-between gap-3 pt-1">
                   <div className="flex items-baseline gap-2.5">
-                    <span className="text-2xl font-extrabold text-[#141518]">
+                    <span className="font-editorial text-3xl font-bold text-[#22131A]">
                       ${product.price}
                     </span>
-                    <span className="text-xs font-semibold text-[#5E636E]">
+                    <span className="text-xs font-semibold text-[#745C67]">
                       USD • Free Boutique Air ({product.estDeliveryDays || 6}{" "}
                       Days)
                     </span>
                   </div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF9F6] border border-black/[0.08]">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FDF7FA] border border-[#ECD7E1]">
                     <span
                       className="w-3 h-3 rounded-full border border-black/15"
                       style={{ backgroundColor: product.colorHex }}
                     />
-                    <span className="text-[11px] font-bold text-[#141518]">
+                    <span className="text-[11px] font-bold text-[#22131A]">
                       {product.colorName}
                     </span>
                   </div>
@@ -570,7 +577,7 @@ export function MotionSitesProductShowroom({
               </div>
 
               {product.fitMetadata?.descriptionSummary && (
-                <p className="text-xs text-[#4A4E57] leading-relaxed">
+                <p className="text-xs text-[#634B56] leading-relaxed">
                   {product.fitMetadata.descriptionSummary}
                 </p>
               )}
@@ -578,10 +585,10 @@ export function MotionSitesProductShowroom({
               {/* Interactive Size Selector */}
               <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-[#141518]">
+                  <span className="font-bold text-[#22131A]">
                     Select Size (Live 3D Drape &amp; Ease Simulation)
                   </span>
-                  <span className="font-bold text-[#244B3B]">
+                  <span className="font-bold text-[#B83B6A]">
                     Recommended: {fitReport.recommendedSize} (
                     {fitReport.confidencePct}% Match)
                   </span>
@@ -597,8 +604,8 @@ export function MotionSitesProductShowroom({
                         onClick={() => setSelectedSize(sz)}
                         className={`relative px-4 py-2 rounded-2xl text-xs font-extrabold border transition cursor-pointer min-w-[54px] ${
                           isSelected
-                            ? "bg-[#141518] text-white border-[#141518] shadow-sm"
-                            : "bg-white text-[#141518] border-black/12 hover:border-[#141518]"
+                            ? "bg-[#22131A] text-white border-[#22131A] shadow-sm"
+                            : "bg-white text-[#22131A] border-[#ECD7E1] hover:border-[#B83B6A]"
                         }`}
                       >
                         <span>{isShoe ? `US ${sz}` : sz}</span>
@@ -606,8 +613,8 @@ export function MotionSitesProductShowroom({
                           <span
                             className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold ${
                               isSelected
-                                ? "bg-[#244B3B] text-[#C8F0DF]"
-                                : "bg-[#E7F3EE] text-[#1D4232]"
+                                ? "bg-[#B83B6A] text-white"
+                                : "bg-[#FCECF3] text-[#962953]"
                             }`}
                           >
                             Best
@@ -624,34 +631,35 @@ export function MotionSitesProductShowroom({
                 <button
                   type="button"
                   id="gwo-pdp-buy-now-btn"
-                  onClick={() => handleAddSingle(true)}
-                  className="py-3 px-4 rounded-full bg-[#C80815] hover:bg-[#A60611] text-white text-xs font-extrabold uppercase tracking-wider inline-flex items-center justify-center gap-2 shadow-sm cursor-pointer transition"
+                  onClick={(ev) => handleAddSingle(true, ev.currentTarget)}
+                  className="py-3 px-4 rounded-full bg-gradient-to-r from-[#B83B6A] to-[#91244E] hover:brightness-105 text-white text-xs font-extrabold uppercase tracking-wider inline-flex items-center justify-center gap-2 shadow-[0_6px_18px_rgba(184,59,106,0.28)] cursor-pointer transition"
                 >
                   Buy Size {activeSize} • ${product.price}
                 </button>
                 <button
                   type="button"
                   id="gwo-pdp-add-bag-btn"
-                  onClick={() => handleAddSingle(false)}
-                  className="py-3 px-4 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-xs font-extrabold uppercase tracking-wider inline-flex items-center justify-center gap-2 cursor-pointer transition"
+                  onClick={(ev) => handleAddSingle(false, ev.currentTarget)}
+                  className="py-3 px-4 rounded-full bg-[#22131A] hover:bg-[#381F2B] text-white text-xs font-extrabold uppercase tracking-wider inline-flex items-center justify-center gap-2 cursor-pointer transition"
                 >
-                  <ShoppingBag className="w-3.5 h-3.5" /> Add to Bag
+                  <ShoppingBag className="w-3.5 h-3.5 text-[#F6B8D0]" /> Add to
+                  Bag
                 </button>
               </div>
 
               <div className="flex items-center justify-between gap-2 pt-1">
                 <Link
                   href={`/?try=${encodeURIComponent(product.id)}`}
-                  className="flex-1 py-2 px-3 rounded-full bg-[#F4F8F5] hover:bg-[#E6F1EA] border border-[#C6E0D0] text-[#1D4232] text-xs font-bold inline-flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-3 rounded-full bg-[#FCECF3] hover:bg-[#F8DCE8] border border-[#F0C5D7] text-[#962953] text-xs font-bold inline-flex items-center justify-center gap-1.5"
                 >
                   <Layers className="w-3.5 h-3.5" /> Mix &amp; Match in 3D Closet
                 </Link>
                 <button
                   type="button"
                   onClick={() => setAvatarModalOpen(true)}
-                  className="py-2 px-3.5 rounded-full bg-[#F3F4F6] hover:bg-[#E6E8ED] text-[#141518] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                  className="py-2 px-3.5 rounded-full bg-[#F8EAF0] hover:bg-[#F3DCE7] text-[#22131A] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
                 >
-                  <ScanLine className="w-3.5 h-3.5 text-[#244B3B]" /> Edit Body
+                  <ScanLine className="w-3.5 h-3.5 text-[#B83B6A]" /> Edit Body
                   Scan
                 </button>
               </div>
@@ -660,22 +668,22 @@ export function MotionSitesProductShowroom({
             {/* ACUTE BODY-SCAN FIT PREDICTION ENGINE CARD */}
             <div
               id="gwo-pdp-acute-fit-card"
-              className="rounded-[28px] bg-white border border-[#C6E0D0] p-5 sm:p-6 space-y-4 shadow-[0_12px_32px_rgba(20,21,24,0.04)]"
+              className="rounded-[28px] bg-white border border-[#ECD7E1] p-5 sm:p-6 space-y-4 shadow-[0_12px_32px_rgba(150,41,83,0.04)]"
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <span className="inline-flex items-center gap-1 text-[10.5px] font-extrabold uppercase tracking-wider text-[#244B3B]">
+                  <span className="inline-flex items-center gap-1 text-[10.5px] font-extrabold uppercase tracking-wider text-[#B83B6A]">
                     <ScanLine className="w-3.5 h-3.5" /> Acute Body-Scan Fit
                     Prediction
                   </span>
-                  <h2 className="text-sm sm:text-base font-extrabold text-[#141518] mt-0.5">
+                  <h2 className="text-sm sm:text-base font-extrabold text-[#22131A] mt-0.5">
                     Calibrated for Your{" "}
                     {formatHeightFeetInches(bodyDims.heightInches)} Scan (
                     {bodyDims.bustInches}&quot; B • {bodyDims.waistInches}&quot;
                     W • {bodyDims.hipsInches}&quot; H)
                   </h2>
                 </div>
-                <div className="inline-flex items-center p-0.5 rounded-full bg-[#F3F4F6] border border-black/[0.08] shrink-0">
+                <div className="inline-flex items-center p-0.5 rounded-full bg-[#F8EAF0] border border-[#EBD2DE] shrink-0">
                   {(["in", "cm"] as const).map((u) => (
                     <button
                       key={u}
@@ -683,8 +691,8 @@ export function MotionSitesProductShowroom({
                       onClick={() => setUnit(u)}
                       className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase cursor-pointer ${
                         unit === u
-                          ? "bg-[#141518] text-white"
-                          : "text-[#5E636E]"
+                          ? "bg-[#22131A] text-white"
+                          : "text-[#6E5360]"
                       }`}
                     >
                       {u}
@@ -693,12 +701,12 @@ export function MotionSitesProductShowroom({
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-[#F4F8F5] border border-[#C6E0D0] space-y-1">
-                <p className="text-xs font-bold text-[#1D4232]">
+              <div className="p-3.5 rounded-2xl bg-[#FCECF3] border border-[#F0C5D7] space-y-1">
+                <p className="text-xs font-bold text-[#852148]">
                   {fitReport.headlineVerdict}
                 </p>
                 {fitReport.alternateOption && (
-                  <p className="text-[11px] font-medium text-[#244B3B]">
+                  <p className="text-[11px] font-medium text-[#962953]">
                     Alternate sizing ({fitReport.alternateOption.size}):{" "}
                     {fitReport.alternateOption.note}
                   </p>
@@ -711,28 +719,28 @@ export function MotionSitesProductShowroom({
                   {fitReport.zones.map((z) => {
                     const barColor =
                       z.feel === "too_tight"
-                        ? "bg-[#C80815]"
+                        ? "bg-[#D9435A]"
                         : z.feel === "sculpted_snug"
-                        ? "bg-[#D97706]"
+                        ? "bg-[#C96A8B]"
                         : z.feel === "tailored_ideal"
-                        ? "bg-[#244B3B]"
-                        : "bg-[#2563EB]";
+                        ? "bg-[#B83B6A]"
+                        : "bg-[#C48A78]";
                     return (
                       <div
                         key={z.zone}
-                        className="p-3 rounded-2xl bg-[#FAFBFD] border border-black/[0.06] space-y-1.5"
+                        className="p-3 rounded-2xl bg-[#FDF7FA] border border-[#ECD7E1] space-y-1.5"
                       >
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-extrabold text-[#141518]">
+                          <span className="font-extrabold text-[#22131A]">
                             {z.zone} • Your Scan:{" "}
                             {fmtUnit(z.avatarInches, unit)}
                           </span>
-                          <span className="font-bold text-[#244B3B]">
+                          <span className="font-bold text-[#B83B6A]">
                             {z.feelLabel}
                           </span>
                         </div>
 
-                        <div className="relative h-2 rounded-full bg-[#E5E7EB] overflow-hidden">
+                        <div className="relative h-2 rounded-full bg-[#F1E0E8] overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all ${barColor}`}
                             style={{ width: `${z.meterPct}%` }}
@@ -829,7 +837,7 @@ export function MotionSitesProductShowroom({
                 <p className="text-[11px] text-[#5E636E] leading-relaxed">
                   {fitReport.lengthComparison.proportionNote}
                 </p>
-                <p className="text-[11px] font-semibold text-[#244B3B]">
+                <p className="text-[11px] font-semibold text-[#B83B6A]">
                   Material Physics: {realismCert.fabricProfile.displayName} —{" "}
                   {fitReport.fabricSummary}
                 </p>
@@ -841,31 +849,31 @@ export function MotionSitesProductShowroom({
         {/* ==================== SECTION 2: COMPLETE PHYSICAL GARMENT MEASUREMENT MATRIX ==================== */}
         <section
           id="gwo-pdp-measurement-matrix"
-          className="rounded-[28px] bg-white border border-black/[0.08] p-5 sm:p-7 space-y-4 shadow-[0_12px_32px_rgba(20,21,24,0.03)]"
+          className="rounded-[28px] bg-white border border-[#ECD7E1] p-5 sm:p-7 space-y-4 shadow-[0_12px_32px_rgba(150,41,83,0.03)]"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#244B3B]">
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#B83B6A]">
                 Verified Physical Garment Specifications
               </span>
-              <h2 className="text-lg sm:text-xl font-extrabold text-[#141518]">
+              <h2 className="font-editorial text-xl sm:text-2xl font-semibold text-[#22131A]">
                 Exact Garment &amp; Body Measurement Chart ({unit.toUpperCase()}
                 )
               </h2>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-[#5E636E]">
+              <span className="text-xs text-[#745C67]">
                 Highlighted row = Your Size {fitReport.recommendedSize} Body
                 Scan Match
               </span>
-              <div className="inline-flex items-center p-0.5 rounded-full bg-[#F3F4F6] border border-black/[0.08]">
+              <div className="inline-flex items-center p-0.5 rounded-full bg-[#F8EAF0] border border-[#EBD2DE]">
                 {(["in", "cm"] as const).map((u) => (
                   <button
                     key={u}
                     type="button"
                     onClick={() => setUnit(u)}
                     className={`px-3 py-1 rounded-full text-xs font-bold uppercase cursor-pointer ${
-                      unit === u ? "bg-[#141518] text-white" : "text-[#5E636E]"
+                      unit === u ? "bg-[#22131A] text-white" : "text-[#6E5360]"
                     }`}
                   >
                     {u === "in" ? "Inches" : "Centimeters"}
@@ -925,16 +933,16 @@ export function MotionSitesProductShowroom({
                       onClick={() => setSelectedSize(sz)}
                       className={`cursor-pointer transition ${
                         isInspected
-                          ? "bg-[#F4F8F5] font-bold"
-                          : "hover:bg-[#FAFBFD]"
+                          ? "bg-[#FCECF3] font-bold"
+                          : "hover:bg-[#FDF7FA]"
                       }`}
                     >
                       <td className="py-3 px-3 whitespace-nowrap">
-                        <span className="font-extrabold text-[#141518]">
+                        <span className="font-extrabold text-[#22131A]">
                           {isShoe ? `US ${sz}` : sz}
                         </span>
                         {isRec && (
-                          <span className="ml-2 px-2 py-0.5 rounded-full bg-[#244B3B] text-white text-[9.5px] font-extrabold">
+                          <span className="ml-2 px-2 py-0.5 rounded-full bg-[#B83B6A] text-white text-[9.5px] font-extrabold">
                             Your Match
                           </span>
                         )}
@@ -1065,17 +1073,17 @@ export function MotionSitesProductShowroom({
         >
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
-              <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#244B3B]">
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#B83B6A]">
                 100-Outfit Atelier Styling System
               </span>
-              <h2 className="text-lg sm:text-xl font-extrabold text-[#141518]">
+              <h2 className="font-editorial text-xl sm:text-2xl font-semibold text-[#22131A]">
                 Styled in {featuredOutfits.length} Curated Outfits — Try Full
                 Look on Your 3D Body
               </h2>
             </div>
             <Link
               href="/shop"
-              className="text-xs font-bold text-[#244B3B] hover:underline inline-flex items-center gap-1"
+              className="text-xs font-bold text-[#B83B6A] hover:underline inline-flex items-center gap-1"
             >
               Browse All 100 Outfits on Runway <ArrowRight className="w-3.5 h-3.5" />
             </Link>
@@ -1092,27 +1100,27 @@ export function MotionSitesProductShowroom({
               return (
                 <article
                   key={outfit.key}
-                  className={`rounded-[24px] bg-white border p-4 flex flex-col justify-between gap-3 transition shadow-[0_8px_24px_rgba(20,21,24,0.04)] ${
+                  className={`rounded-[24px] bg-white border p-4 flex flex-col justify-between gap-3 transition shadow-[0_8px_24px_rgba(150,41,83,0.04)] ${
                     isPreviewing
-                      ? "border-[#244B3B] ring-2 ring-[#244B3B]/20"
-                      : "border-black/[0.08]"
+                      ? "border-[#B83B6A] ring-2 ring-[#B83B6A]/20"
+                      : "border-[#ECD7E1]"
                   }`}
                 >
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full bg-[#141518] text-white text-[10px] font-extrabold">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#22131A] text-white text-[10px] font-extrabold">
                         Outfit #{String(outfit.outfitNumber).padStart(3, "0")} •{" "}
                         {outfit.occasion}
                       </span>
-                      <span className="text-xs font-extrabold text-[#244B3B]">
+                      <span className="text-xs font-extrabold text-[#B83B6A]">
                         ${sumPrice} Set
                       </span>
                     </div>
 
-                    <h3 className="text-sm font-extrabold text-[#141518]">
+                    <h3 className="text-sm font-extrabold text-[#22131A]">
                       {formatCompactOutfitTitle(outfit.title, 30)}
                     </h3>
-                    <p className="text-[11px] text-[#5E636E] leading-snug">
+                    <p className="text-[11px] text-[#745C67] leading-snug">
                       {outfit.stylistNote}
                     </p>
 
@@ -1121,10 +1129,10 @@ export function MotionSitesProductShowroom({
                         <Link
                           key={op.id}
                           href={`/product/${encodeURIComponent(op.id)}`}
-                          className={`h-20 rounded-xl bg-[#FAFBFD] border overflow-hidden p-1 block ${
+                          className={`h-20 rounded-xl bg-[#FDF8FA] border overflow-hidden p-1 block ${
                             op.id === product.id
-                              ? "border-[#244B3B]"
-                              : "border-black/[0.05]"
+                              ? "border-[#B83B6A]"
+                              : "border-[#ECD7E1]"
                           }`}
                           title={op.title}
                         >
@@ -1149,8 +1157,8 @@ export function MotionSitesProductShowroom({
                       }}
                       className={`flex-1 py-2 px-3 rounded-full text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer transition ${
                         isPreviewing
-                          ? "bg-[#244B3B] text-white"
-                          : "bg-[#F4F8F5] hover:bg-[#E5EFE9] text-[#1D4232]"
+                          ? "bg-[#B83B6A] text-white"
+                          : "bg-[#FCECF3] hover:bg-[#F8DCE8] text-[#962953]"
                       }`}
                     >
                       {isPreviewing ? (
@@ -1208,10 +1216,10 @@ export function MotionSitesProductShowroom({
         {/* ==================== SECTION 4: COMPLETE THE LOOK (DEDICATED PRODUCT PAGES) ==================== */}
         <section className="space-y-4">
           <div>
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#244B3B]">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#B83B6A]">
               Companion 360° Boutique Pieces
             </span>
-            <h2 className="text-lg sm:text-xl font-extrabold text-[#141518]">
+            <h2 className="font-editorial text-xl sm:text-2xl font-semibold text-[#22131A]">
               Complete the Look — Every Piece Has Its Own 360° Product Page
             </h2>
           </div>
@@ -1232,27 +1240,27 @@ export function MotionSitesProductShowroom({
                 <Link
                   key={comp.id}
                   href={`/product/${encodeURIComponent(comp.id)}`}
-                  className="group rounded-[22px] bg-white border border-black/[0.08] hover:border-[#141518] p-3.5 flex flex-col justify-between gap-2 transition shadow-[0_6px_18px_rgba(20,21,24,0.03)]"
+                  className="group rounded-[22px] bg-white border border-[#ECD7E1] hover:border-[#B83B6A] p-3.5 flex flex-col justify-between gap-2 transition shadow-[0_6px_18px_rgba(150,41,83,0.04)]"
                 >
                   <div>
-                    <div className="h-36 rounded-xl bg-white overflow-hidden mb-2 flex items-center justify-center">
+                    <div className="h-36 rounded-xl bg-gradient-to-b from-[#FFFDFE] to-[#FCF3F7] overflow-hidden mb-2 flex items-center justify-center p-2">
                       <GarmentArtwork
                         product={comp}
                         className="w-full h-full group-hover:scale-105 transition-transform"
                       />
                     </div>
-                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#244B3B]">
+                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#B83B6A]">
                       {comp.brand} • Size {cFit.recommendedSize}
                     </p>
-                    <p className="text-xs font-bold text-[#141518] line-clamp-2 mt-0.5 group-hover:underline">
+                    <p className="text-xs font-bold text-[#22131A] line-clamp-2 mt-0.5 group-hover:text-[#B83B6A]">
                       {formatCompactProductTitle(comp, 24)}
                     </p>
                   </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-black/[0.05]">
-                    <span className="text-xs font-extrabold text-[#141518]">
+                  <div className="flex items-center justify-between pt-1 border-t border-[#ECD7E1]">
+                    <span className="font-editorial text-sm font-bold text-[#22131A]">
                       ${comp.price}
                     </span>
-                    <span className="text-[10.5px] font-bold text-[#244B3B]">
+                    <span className="text-[10.5px] font-bold text-[#B83B6A]">
                       360° Page →
                     </span>
                   </div>
