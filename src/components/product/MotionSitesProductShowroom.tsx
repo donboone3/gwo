@@ -1352,48 +1352,33 @@ export function MotionSitesProductShowroom({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            {companionRecommendations.map((comp) => {
-              const cFit = analyzeExactAvatarFit(
-                {
-                  heightInches: bodyDims.heightInches,
-                  bustInches: bodyDims.bustInches,
-                  waistInches: bodyDims.waistInches,
-                  hipsInches: bodyDims.hipsInches,
-                  shoeSize: bodyDims.shoeSize,
-                },
-                comp
-              );
-              return (
-                <Link
-                  key={comp.id}
-                  href={`/product/${encodeURIComponent(comp.id)}`}
-                  className="group rounded-[22px] bg-white border border-[#ECD7E1] hover:border-[#B83B6A] p-3.5 flex flex-col justify-between gap-2 transition shadow-[0_6px_18px_rgba(150,41,83,0.04)]"
-                >
-                  <div>
-                    <div className="h-36 rounded-xl bg-gradient-to-b from-[#FFFDFE] to-[#FCF3F7] overflow-hidden mb-2 flex items-center justify-center p-2">
-                      <GarmentArtwork
-                        product={comp}
-                        className="w-full h-full group-hover:scale-105 transition-transform"
-                      />
-                    </div>
-                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#B83B6A]">
-                      {comp.brand} • Size {cFit.recommendedSize}
-                    </p>
-                    <p className="text-xs font-bold text-[#22131A] line-clamp-2 mt-0.5 group-hover:text-[#B83B6A]">
-                      {formatCompactProductTitle(comp, 24)}
-                    </p>
+            {companionRecommendations.map((comp) => (
+              <Link
+                key={comp.id}
+                href={`/product/${encodeURIComponent(comp.id)}`}
+                className="group rounded-[22px] bg-white border border-[#ECD7E1] hover:border-[#B83B6A] p-3.5 flex flex-col justify-between gap-2 transition shadow-[0_6px_18px_rgba(150,41,83,0.04)]"
+              >
+                <div>
+                  <div className="h-36 rounded-xl bg-gradient-to-b from-[#FFFDFE] to-[#FCF3F7] overflow-hidden mb-2 flex items-center justify-center p-2">
+                    <GarmentArtwork
+                      product={comp}
+                      className="w-full h-full group-hover:scale-105 transition-transform"
+                    />
                   </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-[#ECD7E1]">
-                    <span className="font-editorial text-sm font-bold text-[#22131A]">
-                      ${comp.price}
-                    </span>
-                    <span className="text-[10.5px] font-bold text-[#B83B6A]">
-                      360° Page →
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
+                  <p className="text-xs font-bold text-[#22131A] line-clamp-2 group-hover:text-[#B83B6A]">
+                    {formatCompactProductTitle(comp, 24)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-[#ECD7E1]">
+                  <span className="font-editorial text-sm font-bold text-[#22131A]">
+                    ${comp.price}
+                  </span>
+                  <span className="text-[10.5px] font-bold text-[#B83B6A]">
+                    360° Page →
+                  </span>
+                </div>
+              </Link>
+            ))}
           </div>
         </section>
       </main>
