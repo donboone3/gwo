@@ -9,17 +9,14 @@ import {
   Columns2,
   Rotate3d,
   Ruler,
-  ScanLine,
   ShoppingBag,
   X,
 } from "lucide-react";
 import { useGwo } from "@/context/GwoAppContext";
+import { formatCompactProductTitle } from "@/lib/catalog/compact-title";
 import { analyzeExactAvatarFit } from "@/lib/catalog/fit-intelligence";
 import { resolveLifelikeAvatarPhotos } from "@/lib/catalog/avatar-photo-resolver";
-import {
-  deriveFullBodyDimensionsFromProfile,
-  formatHeightFeetInches,
-} from "@/lib/three/body-scan-analyzer";
+import { deriveFullBodyDimensionsFromProfile } from "@/lib/three/body-scan-analyzer";
 import { Interactive3DAvatarStage } from "../three/Interactive3DAvatarStage";
 
 export function Avatar360Modal() {
@@ -28,7 +25,6 @@ export function Avatar360Modal() {
     closeAvatar360,
     user,
     customAvatar,
-    setAvatarModalOpen,
     addToBag,
   } = useGwo();
 
@@ -120,36 +116,17 @@ export function Avatar360Modal() {
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-4xl rounded-3xl bg-white shadow-2xl border border-black/[0.08] overflow-hidden max-h-[92svh] flex flex-col"
       >
-        {/* Header */}
-        <div className="px-5 py-3.5 border-b border-black/[0.07] flex items-start justify-between gap-3 shrink-0">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#E7F3EE] text-[#1D4232] text-[11px] font-bold">
-                <Rotate3d className="w-3 h-3" /> Lifelike 360° Body &amp; Garment Fit
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  closeAvatar360();
-                  setAvatarModalOpen(true);
-                }}
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#F1F2F5] hover:bg-[#E3E6EC] text-[#141518] text-[11px] font-bold cursor-pointer"
-              >
-                <ScanLine className="w-3 h-3 text-[#244B3B]" />
-                {formatHeightFeetInches(bodyDims.heightInches)} •{" "}
-                {bodyDims.bustInches}&quot; B • {bodyDims.waistInches}&quot; W •{" "}
-                {bodyDims.hipsInches}&quot; H (Edit Scan)
-              </button>
-            </div>
-            <h3 className="text-base sm:text-lg font-bold text-[#141518]">
-              {avatar360Target.title}
-            </h3>
-          </div>
+        {/* Header — Clean Simple Product Name Only */}
+        <div className="px-5 py-3.5 border-b border-black/[0.07] flex items-center justify-between gap-3 shrink-0">
+          <h3 className="text-base font-bold text-[#141518] truncate">
+            {formatCompactProductTitle(primaryProduct, 42)}
+          </h3>
 
           <button
             type="button"
             onClick={closeAvatar360}
-            className="p-2 rounded-full hover:bg-[#F1F2F5] text-[#686D76] cursor-pointer"
+            aria-label="Close"
+            className="p-1.5 rounded-full hover:bg-[#F1F2F5] text-[#686D76] cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -159,39 +136,39 @@ export function Avatar360Modal() {
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-4">
           {/* Left: Interactive 3D Avatar / 3D Standalone Garment Object / Studio Photos */}
           <div className="flex flex-col gap-2.5">
-            <div className="inline-flex items-center gap-1 p-1 rounded-full bg-[#F1F2F5] border border-black/[0.06] self-start">
+            <div className="inline-flex items-center gap-1 p-1 rounded-full bg-[#F1F2F5] border border-black/[0.06] self-start max-w-full overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setViewMode("avatar3d")}
-                className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                className={`px-2.5 py-1 rounded-full text-[11.5px] font-bold inline-flex items-center gap-1 whitespace-nowrap cursor-pointer transition ${
                   viewMode === "avatar3d"
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Rotate3d className="w-3.5 h-3.5" /> 3D Character
+                <Rotate3d className="w-3.5 h-3.5 shrink-0" /> 3D Character
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("product3d")}
-                className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                className={`px-2.5 py-1 rounded-full text-[11.5px] font-bold inline-flex items-center gap-1 whitespace-nowrap cursor-pointer transition ${
                   viewMode === "product3d"
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Box className="w-3.5 h-3.5" /> Item 360°
+                <Box className="w-3.5 h-3.5 shrink-0" /> Item 360°
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("photos")}
-                className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition ${
+                className={`px-2.5 py-1 rounded-full text-[11.5px] font-bold inline-flex items-center gap-1 whitespace-nowrap cursor-pointer transition ${
                   viewMode === "photos"
                     ? "bg-[#141518] text-white"
                     : "text-[#686D76] hover:text-[#141518]"
                 }`}
               >
-                <Columns2 className="w-3.5 h-3.5" /> Front + Back
+                <Columns2 className="w-3.5 h-3.5 shrink-0" /> Front + Back
               </button>
             </div>
 
@@ -373,7 +350,7 @@ export function Avatar360Modal() {
               </div>
 
               <Link
-                href={`/product?id=${encodeURIComponent(primaryProduct.id)}`}
+                href={`/product/${encodeURIComponent(primaryProduct.id)}`}
                 onClick={closeAvatar360}
                 className="w-full py-2 rounded-full bg-[#F4F5F7] hover:bg-[#E7E9EF] text-xs font-bold text-[#141518] inline-flex items-center justify-center gap-1"
               >
