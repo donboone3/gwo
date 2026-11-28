@@ -661,8 +661,17 @@ export function GwoRunwayLookbook() {
         setActiveLookIdx(roundedIdx);
       }
 
+      const heroStageEl = stage.querySelector("[data-3d-engine]");
+      const wantOutfit = people[roundedIdx]?.outfit;
+      const wantSig = wantOutfit
+        ? resolveEffectiveOutfitProducts(wantOutfit)
+            .products.map((pr) => pr.id)
+            .join("|") || "base"
+        : "";
       const heroReady = Boolean(
-        stage.querySelector('[data-frames-ready="true"]')
+        heroStageEl &&
+          heroStageEl.getAttribute("data-frames-ready") === "true" &&
+          heroStageEl.getAttribute("data-ready-sig") === wantSig
       );
       const distFromSlot = Math.abs(p - Math.round(p));
       const isSettled =
@@ -909,15 +918,14 @@ export function GwoRunwayLookbook() {
     window.addEventListener("resize", size);
     window.addEventListener("keydown", onKeyDown);
 
-    let lastHeroReady = Boolean(
-      stage.querySelector('[data-frames-ready="true"]')
-    );
+    let lastHeroAttrSig = "";
     const heroObs = new MutationObserver(() => {
-      const heroNow = Boolean(
-        stage.querySelector('[data-frames-ready="true"]')
-      );
-      if (heroNow !== lastHeroReady) {
-        lastHeroReady = heroNow;
+      const el = stage.querySelector("[data-3d-engine]");
+      const curAttrSig = el
+        ? `${el.getAttribute("data-frames-ready") || ""}:${el.getAttribute("data-ready-sig") || ""}`
+        : "";
+      if (curAttrSig !== lastHeroAttrSig) {
+        lastHeroAttrSig = curAttrSig;
         dirty = true;
         kickRunway();
       }
@@ -925,7 +933,7 @@ export function GwoRunwayLookbook() {
     heroObs.observe(stage, {
       subtree: true,
       attributes: true,
-      attributeFilter: ["data-frames-ready"],
+      attributeFilter: ["data-frames-ready", "data-ready-sig"],
     });
 
     const frame = (now: number) => {

@@ -406,6 +406,7 @@ export function Interactive3DAvatarStage({
     fit?: AvatarExactFitReport;
   } | null>(null);
   const [framesReady, setFramesReady] = useState<boolean>(false);
+  const [readyOutfitSig, setReadyOutfitSig] = useState<string>("");
   const [isLoadingFrames, setIsLoadingFrames] = useState<boolean>(false);
 
   const bundleRef = useRef<CachedFrameBundle | null>(null);
@@ -416,10 +417,15 @@ export function Interactive3DAvatarStage({
   const studioSideRCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const studioBackCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const studioSideLCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const studioGenCounterRef = useRef<number>(0);
   const studioFrontVerRef = useRef<number>(0);
   const studioSideRVerRef = useRef<number>(0);
   const studioBackVerRef = useRef<number>(0);
   const studioSideLVerRef = useRef<number>(0);
+  const studioFrontReadyRef = useRef<boolean>(false);
+  const studioSideRReadyRef = useRef<boolean>(false);
+  const studioBackReadyRef = useRef<boolean>(false);
+  const studioSideLReadyRef = useRef<boolean>(false);
   const studioPreColoredRef = useRef<boolean>(false);
   const paintVersionRef = useRef<number>(0);
   const faceOvalImgRef = useRef<HTMLImageElement | null>(null);
@@ -544,6 +550,13 @@ export function Interactive3DAvatarStage({
 
   const equippedRef = useRef(effectiveEquippedProducts);
   equippedRef.current = effectiveEquippedProducts;
+  const outfitSig = useMemo(
+    () =>
+      wornPieces.map((w) => w.product.id).join("|") ||
+      targetSingleProd?.id ||
+      "base",
+    [targetSingleProd?.id, wornPieces]
+  );
 
   const fitByProductId = useMemo(() => {
     const map = new Map<string, AvatarExactFitReport>();
@@ -738,8 +751,10 @@ export function Interactive3DAvatarStage({
   // - Custom Closet mixes: uses atomic 900x1355 modular studio layers (`composeModularOutfitToCanvas`) with ONLY selected clothes!
   useEffect(() => {
     if (typeof document === "undefined" || mode !== "avatar") {
-      studioFrontVerRef.current = 0;
-      studioBackVerRef.current = 0;
+      studioFrontReadyRef.current = false;
+      studioSideRReadyRef.current = false;
+      studioBackReadyRef.current = false;
+      studioSideLReadyRef.current = false;
       paintVersionRef.current++;
       kickRenderRef.current?.();
       return;
@@ -812,10 +827,13 @@ export function Interactive3DAvatarStage({
       }
       studioPreColoredRef.current = false;
       if (angle === "front") {
-        studioFrontVerRef.current++;
+        studioFrontVerRef.current = ++studioGenCounterRef.current;
+        studioFrontReadyRef.current = true;
+        setReadyOutfitSig(outfitSig);
         setFramesReady(true);
       } else {
-        studioBackVerRef.current++;
+        studioBackVerRef.current = ++studioGenCounterRef.current;
+        studioBackReadyRef.current = true;
       }
       paintVersionRef.current++;
       kickRenderRef.current?.();
@@ -855,27 +873,37 @@ export function Interactive3DAvatarStage({
       if (status === "ready") {
         studioPreColoredRef.current = true;
         if (viewId === "front") {
-          studioFrontVerRef.current++;
+          studioFrontVerRef.current = ++studioGenCounterRef.current;
+          studioFrontReadyRef.current = true;
+          setReadyOutfitSig(outfitSig);
           setFramesReady(true);
         } else if (viewId === "sideR") {
-          studioSideRVerRef.current++;
+          studioSideRVerRef.current = ++studioGenCounterRef.current;
+          studioSideRReadyRef.current = true;
         } else if (viewId === "back") {
-          studioBackVerRef.current++;
+          studioBackVerRef.current = ++studioGenCounterRef.current;
+          studioBackReadyRef.current = true;
         } else {
-          studioSideLVerRef.current++;
+          studioSideLVerRef.current = ++studioGenCounterRef.current;
+          studioSideLReadyRef.current = true;
         }
         paintVersionRef.current++;
         kickRenderRef.current?.();
       }
     };
 
-    studioFrontVerRef.current = 0;
-    studioSideRVerRef.current = 0;
-    studioBackVerRef.current = 0;
-    studioSideLVerRef.current = 0;
+    studioFrontReadyRef.current = false;
+    studioSideRReadyRef.current = false;
+    studioBackReadyRef.current = false;
+    studioSideLReadyRef.current = false;
+    paintVersionRef.current++;
+    kickRenderRef.current?.();
 
     if (isCanonicalNumber) {
       paintCanonicalAngle("front");
+      if (!studioFrontReadyRef.current && seamlessStage) {
+        setFramesReady(false);
+      }
       const backTimer = setTimeout(() => {
         if (!cancelled) paintCanonicalAngle("back");
       }, 140);
@@ -887,7 +915,7 @@ export function Interactive3DAvatarStage({
 
     if (effectiveEquippedProducts.length > 0 || turntableSpec.lookIdx === "base") {
       paintModularAngle("front");
-      if (studioFrontVerRef.current === 0 && turntableSpec.isCustomMix) {
+      if (!studioFrontReadyRef.current && turntableSpec.isCustomMix) {
         setFramesReady(false);
       }
       const sideTimer = setTimeout(() => {
@@ -910,6 +938,8 @@ export function Interactive3DAvatarStage({
     effectiveEquippedProducts,
     faceOvalDataUrl,
     mode,
+    outfitSig,
+    seamlessStage,
     turntableSpec.hasBagEquipped,
     turntableSpec.isCustomMix,
     turntableSpec.lookIdx,
@@ -993,13 +1023,21 @@ export function Interactive3DAvatarStage({
 
     let cancelled = false;
 
+    const markTurntableReady = () => {
+      if (seamlessStage && mode === "avatar" && !studioFrontReadyRef.current) {
+        return;
+      }
+      setReadyOutfitSig(outfitSig);
+      setFramesReady(true);
+    };
+
     // 1. Instant 0ms synchronous QHD LRU hit if already decoded in RAM!
     const syncHit = getCachedTurntableBundleSync(turntableSpec, seamlessStage);
     if (syncHit && (syncHit.atlasBitmap || syncHit.frames.length > 0)) {
       bundleRef.current = syncHit;
       framesRef.current = syncHit.frames;
       paintVersionRef.current++;
-      setFramesReady(true);
+      markTurntableReady();
       setIsLoadingFrames(false);
       kickRenderRef.current?.();
       return;
@@ -1013,18 +1051,18 @@ export function Interactive3DAvatarStage({
       bundleRef.current = syncFast;
       framesRef.current = [];
       paintVersionRef.current++;
-      setFramesReady(true);
+      markTurntableReady();
       setIsLoadingFrames(false);
       kickRenderRef.current?.();
     } else {
-      setFramesReady(false);
-      if (seamlessStage) {
-        bundleRef.current = null;
-        framesRef.current = [];
-        posterBitmapRef.current = null;
-        paintVersionRef.current++;
-        kickRenderRef.current?.();
+      if (!studioFrontReadyRef.current) {
+        setFramesReady(false);
       }
+      bundleRef.current = null;
+      framesRef.current = [];
+      posterBitmapRef.current = null;
+      paintVersionRef.current++;
+      kickRenderRef.current?.();
     }
 
     // Only run 2D poster canvas fallback for custom `.mp4` customer turntables lacking `_fast.webp`!
@@ -1058,7 +1096,7 @@ export function Interactive3DAvatarStage({
         clearTimeout(spinnerTimer);
         framesRef.current = progFrames;
         paintVersionRef.current++;
-        setFramesReady(true);
+        markTurntableReady();
         setIsLoadingFrames(false);
         kickRenderRef.current?.();
       },
@@ -1071,7 +1109,7 @@ export function Interactive3DAvatarStage({
           bundleRef.current = fastBundle;
           framesRef.current = [];
           paintVersionRef.current++;
-          setFramesReady(true);
+          markTurntableReady();
           setIsLoadingFrames(false);
           kickRenderRef.current?.();
         }
@@ -1085,7 +1123,7 @@ export function Interactive3DAvatarStage({
           bundleRef.current = bundle;
           framesRef.current = bundle.frames;
           paintVersionRef.current++;
-          setFramesReady(true);
+          markTurntableReady();
           kickRenderRef.current?.();
         }
         setIsLoadingFrames(false);
@@ -1099,7 +1137,7 @@ export function Interactive3DAvatarStage({
       cancelled = true;
       clearTimeout(spinnerTimer);
     };
-  }, [mode, seamlessStage, turntableSpec]);
+  }, [mode, outfitSig, seamlessStage, turntableSpec]);
 
   // ZERO-COPY SINGLE-TEXTURE WEBGL RENDERER + 120Hz NATIVE TOUCH LOCK + EVENT-DRIVEN SLEEP!
   useEffect(() => {
@@ -2044,9 +2082,9 @@ export function Interactive3DAvatarStage({
         isSpinningFinger || Math.abs(velYawRef.current) > 0.45;
 
       if (gl && glProg) {
-        // Upload 4K Studio Master canvases (~4.8MB -> <2ms upload!)
+        // Upload 4K Studio Master canvases (~4.8MB -> <2ms upload!) using strictly monotonic generation IDs (ZERO ABA collisions!)
         if (
-          studioFrontVerRef.current > 0 &&
+          studioFrontReadyRef.current &&
           studioFrontVerRef.current !== uploadedStudioFrontVer &&
           studioFrontCanvasRef.current
         ) {
@@ -2054,14 +2092,15 @@ export function Interactive3DAvatarStage({
           glTexStudioFront = uploadGpuTexture(studioFrontCanvasRef.current, false);
           uploadedStudioFrontVer = studioFrontVerRef.current;
           lastFrameIdx = -2;
-        } else if (studioFrontVerRef.current === 0 && glTexStudioFront) {
+        } else if (!studioFrontReadyRef.current && glTexStudioFront) {
           gl.deleteTexture(glTexStudioFront);
           glTexStudioFront = null;
-          uploadedStudioFrontVer = 0;
+          uploadedStudioFrontVer = -1;
+          lastFrameIdx = -2;
         }
 
         if (
-          studioSideRVerRef.current > 0 &&
+          studioSideRReadyRef.current &&
           studioSideRVerRef.current !== uploadedStudioSideRVer &&
           studioSideRCanvasRef.current
         ) {
@@ -2069,14 +2108,15 @@ export function Interactive3DAvatarStage({
           glTexStudioSideR = uploadGpuTexture(studioSideRCanvasRef.current, false);
           uploadedStudioSideRVer = studioSideRVerRef.current;
           lastFrameIdx = -2;
-        } else if (studioSideRVerRef.current === 0 && glTexStudioSideR) {
+        } else if (!studioSideRReadyRef.current && glTexStudioSideR) {
           gl.deleteTexture(glTexStudioSideR);
           glTexStudioSideR = null;
-          uploadedStudioSideRVer = 0;
+          uploadedStudioSideRVer = -1;
+          lastFrameIdx = -2;
         }
 
         if (
-          studioBackVerRef.current > 0 &&
+          studioBackReadyRef.current &&
           studioBackVerRef.current !== uploadedStudioBackVer &&
           studioBackCanvasRef.current
         ) {
@@ -2084,14 +2124,15 @@ export function Interactive3DAvatarStage({
           glTexStudioBack = uploadGpuTexture(studioBackCanvasRef.current, false);
           uploadedStudioBackVer = studioBackVerRef.current;
           lastFrameIdx = -2;
-        } else if (studioBackVerRef.current === 0 && glTexStudioBack) {
+        } else if (!studioBackReadyRef.current && glTexStudioBack) {
           gl.deleteTexture(glTexStudioBack);
           glTexStudioBack = null;
-          uploadedStudioBackVer = 0;
+          uploadedStudioBackVer = -1;
+          lastFrameIdx = -2;
         }
 
         if (
-          studioSideLVerRef.current > 0 &&
+          studioSideLReadyRef.current &&
           studioSideLVerRef.current !== uploadedStudioSideLVer &&
           studioSideLCanvasRef.current
         ) {
@@ -2099,15 +2140,28 @@ export function Interactive3DAvatarStage({
           glTexStudioSideL = uploadGpuTexture(studioSideLCanvasRef.current, false);
           uploadedStudioSideLVer = studioSideLVerRef.current;
           lastFrameIdx = -2;
-        } else if (studioSideLVerRef.current === 0 && glTexStudioSideL) {
+        } else if (!studioSideLReadyRef.current && glTexStudioSideL) {
           gl.deleteTexture(glTexStudioSideL);
           glTexStudioSideL = null;
-          uploadedStudioSideLVer = 0;
+          uploadedStudioSideLVer = -1;
+          lastFrameIdx = -2;
         }
 
-        // Primary Turntable Sheet upload
-        if (
-          activeBundle &&
+        // Primary Turntable Sheet upload (immediately purge stale GPU textures when activeBundle is null!)
+        if (!activeBundle) {
+          if (glTexA) {
+            gl.deleteTexture(glTexA);
+            glTexA = null;
+          }
+          if (glTexB) {
+            gl.deleteTexture(glTexB);
+            glTexB = null;
+          }
+          if (uploadedBundleRef) {
+            uploadedBundleRef = null;
+            lastFrameIdx = -2;
+          }
+        } else if (
           activeBundle !== uploadedBundleRef &&
           activeBundle.atlasBitmap
         ) {
@@ -2865,6 +2919,7 @@ export function Interactive3DAvatarStage({
       data-3d-engine="higgsfield-imagebitmap-turntable"
       data-3d-topology="higgsfield-360-turntable"
       data-frames-ready={framesReady ? "true" : "false"}
+      data-ready-sig={framesReady ? readyOutfitSig : ""}
       data-realism-spec={MASTER_REALISM_SPEC_VERSION}
       data-3d-mode={mode}
       data-active-size={visualSizeMorph.activeSize}
