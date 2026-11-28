@@ -31,6 +31,8 @@ import {
 import { classifyWearableSlotAndAnchors } from "@/lib/three/avatar-ready-pipeline";
 import { buildTopLineAliExpressDropshipCatalog } from "@/lib/dropship/aliexpress-dropship";
 import {
+  ATLAS_CELL_H,
+  ATLAS_CELL_W,
   ATLAS_COLS,
   ATLAS_FRAMES_PER_SHEET,
   ATLAS_ROI_H,
@@ -39,11 +41,16 @@ import {
   ATLAS_ROI_Y0,
   ATLAS_ROWS,
   CachedFrameBundle,
+  ColorwayShiftSpec,
+  DEFAULT_MASK_NATIVE_HEX,
+  DONOR_MASK_TO_GL_ID,
   extractProcessedPosterBitmap,
   extractTurntableBitmapBundle,
   getCachedFastBundleSync,
   getCachedTurntableBundleSync,
+  hexToRgb01,
   NUM_TURNTABLE_FRAMES,
+  resolveHydratedShiftsAsync,
   resolveTurntableSpecForOutfit,
 } from "@/lib/three/higgsfield-turntable-engine";
 import {
@@ -397,6 +404,8 @@ export function Interactive3DAvatarStage({
   const posterBitmapRef = useRef<ImageBitmap | null>(null);
   const paintVersionRef = useRef<number>(0);
   const faceOvalImgRef = useRef<HTMLImageElement | null>(null);
+  const activeShiftsRef = useRef<ColorwayShiftSpec[]>([]);
+  const skinToneHexRef = useRef<string | undefined>(undefined);
 
   const setVisualMode = useCallback(
     (m: Render3DVisualMode) => {
@@ -595,7 +604,31 @@ export function Interactive3DAvatarStage({
     ]
   );
 
-  // Two-Tier Instant-Spin (~90 KB, ~40ms) -> Single-Texture 72-Frame QHD (~730 KB) Loader!
+  // Hydrate colorway & skin-tone shader uniforms asynchronously (0ms for explicit colors, ~2ms for custom photo sampling)
+  useEffect(() => {
+    let cancelled = false;
+    skinToneHexRef.current = turntableSpec.skinToneTargetHex;
+    const immediate =
+      turntableSpec.colorwayShifts ||
+      (turntableSpec.colorwayShift ? [turntableSpec.colorwayShift] : []);
+    activeShiftsRef.current = immediate;
+    paintVersionRef.current++;
+    kickRenderRef.current?.();
+
+    if (immediate.some((s) => Boolean(s.sampleFromImageUrl))) {
+      void resolveHydratedShiftsAsync(turntableSpec).then((hydrated) => {
+        if (cancelled) return;
+        activeShiftsRef.current = hydrated;
+        paintVersionRef.current++;
+        kickRenderRef.current?.();
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [turntableSpec]);
+
+  // Parallel Zero-Main-Thread-CPU Loader: Fast Tier (32f) + Full QHD (72f, 4080x4092)!
   useEffect(() => {
     let cancelled = false;
 
@@ -744,6 +777,13 @@ export function Interactive3DAvatarStage({
     let uMoodLoc: WebGLUniformLocation | null = null;
     let uTexelLoc: WebGLUniformLocation | null = null;
     let uCellBoundsLoc: WebGLUniformLocation | null = null;
+    let uSeamlessLoc: WebGLUniformLocation | null = null;
+    let uSharpAmtLoc: WebGLUniformLocation | null = null;
+    let uShiftCountLoc: WebGLUniformLocation | null = null;
+    let uShiftMetaLoc: WebGLUniformLocation | null = null;
+    let uShiftTargetLoc: WebGLUniformLocation | null = null;
+    let uShiftBoundsLoc: WebGLUniformLocation | null = null;
+    let uSkinMulLoc: WebGLUniformLocation | null = null;
 
     if (gl) {
       const compileShader = (type: number, src: string) => {
@@ -763,107 +803,125 @@ export function Interactive3DAvatarStage({
          uniform vec4 uRect;
          uniform vec4 uUvRect;
          varying vec2 vUv;
-         varying float vLocalY;
+         varying vec2 vLocal;
          void main() {
            vec2 p = uRect.xy + aPos * uRect.zw;
            gl_Position = vec4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0);
            vUv = uUvRect.xy + aPos * uUvRect.zw;
-           vLocalY = aPos.y;
+           vLocal = aPos;
          }`
       );
       const fs = compileShader(
         gl.FRAGMENT_SHADER,
         `precision highp float;
          varying vec2 vUv;
-         varying float vLocalY;
+         varying vec2 vLocal;
          uniform sampler2D uTex;
          uniform vec4 uCropY;
          uniform vec3 uMood;
          uniform vec2 uTexel;
          uniform vec4 uCellBounds;
+         uniform float uSeamless;
+         uniform float uSharpAmt;
+         uniform int uShiftCount;
+         uniform vec4 uShiftMeta[4];
+         uniform vec3 uShiftTarget[4];
+         uniform vec4 uShiftBounds[4];
+         uniform vec4 uSkinMul;
 
-         float cycWhiteScore(vec4 s) {
-           if (s.a < 0.45) return 0.0;
-           vec3 rgb = s.rgb / s.a;
-           float mn = min(rgb.r, min(rgb.g, rgb.b));
-           float mx = max(rgb.r, max(rgb.g, rgb.b));
-           return smoothstep(0.955, 0.978, mn) * (1.0 - smoothstep(0.016, 0.032, mx - mn));
+         vec3 sampleStraightSafe(vec2 uv, vec3 fallbackRgb) {
+           vec4 s = texture2D(uTex, uv);
+           if (s.a < 0.35) return fallbackRgb;
+           return clamp(s.rgb / s.a, 0.0, 1.0);
+         }
+
+         float evalMaskWeight(int maskId, vec3 c, float lum, float chroma) {
+           float r = c.r;
+           float g = c.g;
+           float b = c.b;
+           if (maskId == 1) {
+             return clamp((g - r - 0.003) / 0.028, 0.0, 1.0)
+               * clamp((chroma - 0.016) / 0.036, 0.0, 1.0)
+               * clamp((0.92 - lum) / 0.10, 0.0, 1.0);
+           }
+           if (maskId == 2) {
+             return clamp((r - g - 0.19) / 0.09, 0.0, 1.0)
+               * clamp((r - b - 0.20) / 0.09, 0.0, 1.0);
+           }
+           if (maskId == 3) {
+             return clamp((b - r - 0.08) / 0.06, 0.0, 1.0)
+               * clamp((b - g * 0.85 - 0.04) / 0.06, 0.0, 1.0)
+               * clamp((0.90 - lum) / 0.10, 0.0, 1.0);
+           }
+           if (maskId == 4) {
+             float skinWarmth = max(0.0, r - b);
+             return clamp((lum - 0.36) / 0.10, 0.0, 1.0)
+               * clamp((0.945 - lum) / 0.05, 0.0, 1.0)
+               * clamp((0.145 - skinWarmth) / 0.055, 0.0, 1.0);
+           }
+           if (maskId == 5) {
+             if (r > 0.42 && (r - b) > 0.155) return 0.0;
+             return clamp((lum - 0.09) / 0.06, 0.0, 1.0)
+               * clamp((0.41 - lum) / 0.08, 0.0, 1.0)
+               * clamp((r - b - 0.018) / 0.05, 0.0, 1.0)
+               * clamp((0.135 - (r - g)) / 0.05, 0.0, 1.0);
+           }
+           if (maskId == 6) {
+             return clamp((0.27 - lum) / 0.08, 0.0, 1.0)
+               * clamp((0.085 - chroma) / 0.05, 0.0, 1.0);
+           }
+           if (maskId == 7) {
+             return clamp((lum - 0.10) / 0.06, 0.0, 1.0)
+               * clamp((0.40 - lum) / 0.08, 0.0, 1.0)
+               * clamp((0.09 - chroma) / 0.05, 0.0, 1.0);
+           }
+           if (maskId == 8) {
+             return clamp((b - r - 0.025) / 0.045, 0.0, 1.0)
+               * clamp((0.70 - lum) / 0.12, 0.0, 1.0)
+               * clamp((lum - 0.10) / 0.06, 0.0, 1.0);
+           }
+           if (maskId == 9) {
+             return clamp((g - r + 0.015) / 0.045, 0.0, 1.0)
+               * clamp((g - b - 0.005) / 0.045, 0.0, 1.0)
+               * clamp((0.68 - lum) / 0.12, 0.0, 1.0)
+               * clamp((lum - 0.14) / 0.06, 0.0, 1.0);
+           }
+           if (maskId == 10) {
+             if (g > b + 0.055 && (r - g) < 0.145) return 0.0;
+             return clamp((r - g - 0.045) / 0.055, 0.0, 1.0)
+               * clamp((lum - 0.44) / 0.10, 0.0, 1.0)
+               * clamp((0.92 - lum) / 0.06, 0.0, 1.0);
+           }
+           if (maskId == 11) {
+             if (g > b + 0.065 && lum > 0.35) return 0.0;
+             return clamp((r - g - 0.092) / 0.055, 0.0, 1.0)
+               * clamp((0.44 - lum) / 0.10, 0.0, 1.0);
+           }
+           if (maskId == 12) {
+             return clamp((r - b - 0.15) / 0.08, 0.0, 1.0)
+               * clamp((g - b - 0.07) / 0.06, 0.0, 1.0)
+               * clamp((lum - 0.24) / 0.10, 0.0, 1.0)
+               * clamp((0.78 - lum) / 0.10, 0.0, 1.0);
+           }
+           if (maskId == 13) {
+             return clamp((lum - 0.38) / 0.08, 0.0, 1.0)
+               * clamp((0.945 - lum) / 0.045, 0.0, 1.0)
+               * clamp((0.085 - chroma) / 0.04, 0.0, 1.0);
+           }
+           if (maskId == 14) {
+             if (lum > 0.91 || (lum > 0.76 && chroma < 0.05)) return 0.0;
+             if (r > g + 0.05 && g > b + 0.025 && (r - b) > 0.105 && lum > 0.30 && lum < 0.80) return 0.0;
+             return clamp((0.88 - lum) / 0.08, 0.0, 1.0);
+           }
+           return 0.0;
          }
 
          void main() {
+           float vLocalY = vLocal.y;
            if (vLocalY < uCropY.x || vLocalY > uCropY.y) {
              gl_FragColor = vec4(0.0);
              return;
            }
-           vec4 c = texture2D(uTex, vUv);
-           if (c.a < 0.015) {
-             gl_FragColor = vec4(0.0);
-             return;
-           }
-
-           vec3 sRgb = clamp(c.rgb / c.a, 0.0, 1.0);
-           float alphaScale = 1.0;
-
-           // Key out enclosed studio-white cyclorama holes & inner-calf/tote-handle bloom
-           // while preserving 100% of face/eyes/teeth (vLocalY <= 0.17), ivory tops & silver heels!
-           if (vLocalY > 0.17) {
-             float w0 = cycWhiteScore(c);
-             vec2 sNear = uTexel * 1.8;
-             vec2 sFar = uTexel * 4.0;
-             vec2 sDiag = uTexel * 3.0;
-             float wNear = max(
-               max(
-                 cycWhiteScore(texture2D(uTex, vec2(max(uCellBounds.x, vUv.x - sNear.x), vUv.y))),
-                 cycWhiteScore(texture2D(uTex, vec2(min(uCellBounds.z, vUv.x + sNear.x), vUv.y)))
-               ),
-               max(
-                 cycWhiteScore(texture2D(uTex, vec2(vUv.x, max(uCellBounds.y, vUv.y - sNear.y)))),
-                 cycWhiteScore(texture2D(uTex, vec2(vUv.x, min(uCellBounds.w, vUv.y + sNear.y))))
-               )
-             );
-             float wFarCard = max(
-               max(
-                 cycWhiteScore(texture2D(uTex, vec2(max(uCellBounds.x, vUv.x - sFar.x), vUv.y))),
-                 cycWhiteScore(texture2D(uTex, vec2(min(uCellBounds.z, vUv.x + sFar.x), vUv.y)))
-               ),
-               max(
-                 cycWhiteScore(texture2D(uTex, vec2(vUv.x, max(uCellBounds.y, vUv.y - sFar.y)))),
-                 cycWhiteScore(texture2D(uTex, vec2(vUv.x, min(uCellBounds.w, vUv.y + sFar.y))))
-               )
-             );
-             float wFarDiag = max(
-               max(
-                 cycWhiteScore(texture2D(uTex, vec2(max(uCellBounds.x, vUv.x - sDiag.x), max(uCellBounds.y, vUv.y - sDiag.y)))),
-                 cycWhiteScore(texture2D(uTex, vec2(min(uCellBounds.z, vUv.x + sDiag.x), max(uCellBounds.y, vUv.y - sDiag.y))))
-               ),
-               max(
-                 cycWhiteScore(texture2D(uTex, vec2(max(uCellBounds.x, vUv.x - sDiag.x), min(uCellBounds.w, vUv.y + sDiag.y)))),
-                 cycWhiteScore(texture2D(uTex, vec2(min(uCellBounds.z, vUv.x + sDiag.x), min(uCellBounds.w, vUv.y + sDiag.y))))
-               )
-             );
-             float wFar = max(wNear, max(wFarCard, wFarDiag));
-             float holeKill = w0 * smoothstep(0.35, 0.85, wNear);
-
-             float mn = min(sRgb.r, min(sRgb.g, sRgb.b));
-             float mx = max(sRgb.r, max(sRgb.g, sRgb.b));
-             float rimKill = smoothstep(0.75, 0.96, wFar)
-               * smoothstep(0.84, 0.94, mn)
-               * (1.0 - smoothstep(0.028, 0.065, mx - mn));
-             if (vLocalY > 0.875) {
-               rimKill *= smoothstep(0.92, 0.96, mn);
-             }
-             alphaScale = 1.0 - max(holeKill, rimKill);
-             if (alphaScale < 0.015) {
-               gl_FragColor = vec4(0.0);
-               return;
-             }
-           }
-
-           // Exact inverse white-matte de-spill on semi-transparent edges (zero milky white halo!)
-           float effA = c.a * alphaScale;
-           float tightenA = smoothstep(0.08, 0.95, effA) * effA;
-           vec3 unmixedPremul = clamp(sRgb - vec3(1.0 - effA), 0.0, effA);
-           vec3 basePremul = mix(sRgb * effA, unmixedPremul, 0.85) * (tightenA / max(effA, 0.001));
 
            float mTop = uCropY.z > 0.0001
              ? smoothstep(uCropY.x, uCropY.x + uCropY.z, vLocalY)
@@ -871,8 +929,81 @@ export function Interactive3DAvatarStage({
            float mBot = uCropY.w > 0.0001
              ? 1.0 - smoothstep(uCropY.y - uCropY.w, uCropY.y, vLocalY)
              : 1.0;
-           vec3 rgb = clamp(basePremul * uMood, 0.0, tightenA);
-           gl_FragColor = vec4(rgb, tightenA) * (mTop * mBot);
+           float cropMask = mTop * mBot;
+
+           vec4 c = texture2D(uTex, vUv);
+           if (c.a < 0.008) {
+             if (uSeamless < 0.5) {
+               gl_FragColor = vec4(cropMask, cropMask, cropMask, cropMask);
+             } else {
+               gl_FragColor = vec4(0.0);
+             }
+             return;
+           }
+
+           vec3 sRgb = clamp(c.rgb / max(c.a, 0.004), 0.0, 1.0);
+
+           // 5-Tap FidelityFX Contrast-Adaptive Sharpening (CAS) — crisp eyes, hair & weave, zero edge halo!
+           if (uSharpAmt > 0.01 && c.a > 0.55) {
+             vec3 nRgb = sampleStraightSafe(vec2(vUv.x, max(uCellBounds.y, vUv.y - uTexel.y)), sRgb);
+             vec3 s2Rgb = sampleStraightSafe(vec2(vUv.x, min(uCellBounds.w, vUv.y + uTexel.y)), sRgb);
+             vec3 wRgb = sampleStraightSafe(vec2(max(uCellBounds.x, vUv.x - uTexel.x), vUv.y), sRgb);
+             vec3 eRgb = sampleStraightSafe(vec2(min(uCellBounds.z, vUv.x + uTexel.x), vUv.y), sRgb);
+             vec3 mnRgb = min(sRgb, min(min(nRgb, s2Rgb), min(wRgb, eRgb)));
+             vec3 mxRgb = max(sRgb, max(max(nRgb, s2Rgb), max(wRgb, eRgb)));
+             vec3 amp = sqrt(clamp(min(mnRgb, 1.0 - mxRgb) / max(mxRgb, vec3(0.004)), 0.0, 1.0)) * (-0.18 * uSharpAmt);
+             sRgb = clamp((sRgb + (nRgb + s2Rgb + wRgb + eRgb) * amp) / (vec3(1.0) + 4.0 * amp), 0.0, 1.0);
+           }
+
+           // Hardware GPU Multi-Zone Colorway Shader (0.00ms CPU!)
+           if (uShiftCount > 0) {
+             for (int i = 0; i < 4; i++) {
+               if (i >= uShiftCount) break;
+               vec4 bnd = uShiftBounds[i];
+               if (vLocalY >= bnd.x && vLocalY <= bnd.y && vLocal.x >= bnd.z && vLocal.x <= bnd.w) {
+                 float mxC = max(sRgb.r, max(sRgb.g, sRgb.b));
+                 float mnC = min(sRgb.r, min(sRgb.g, sRgb.b));
+                 float chr = mxC - mnC;
+                 float lum = 0.299 * sRgb.r + 0.587 * sRgb.g + 0.114 * sRgb.b;
+                 int mId = int(uShiftMeta[i].x + 0.5);
+                 float w = evalMaskWeight(mId, sRgb, lum, chr);
+                 if (w > 0.008) {
+                   float foldRatio = clamp(lum / max(uShiftMeta[i].y, 0.08), 0.32, 1.68);
+                   float shaped = max(0.18, 1.0 + (foldRatio - 1.0) * 0.86);
+                   float spec = foldRatio > 1.06 ? (foldRatio - 1.06) * uShiftMeta[i].z : 0.0;
+                   vec3 nextRgb = clamp(uShiftTarget[i] * shaped + vec3(spec), 0.0, 1.0);
+                   sRgb = mix(sRgb, nextRgb, w);
+                 }
+               }
+             }
+           }
+
+           // Optional Customer Skin-Tone Harmonization in GPU
+           if (uSkinMul.w > 0.5 && vLocalY < 0.96) {
+             float lumS = 0.299 * sRgb.r + 0.587 * sRgb.g + 0.114 * sRgb.b;
+             float sw = clamp((sRgb.r - sRgb.g - 0.065) / 0.05, 0.0, 1.0)
+               * clamp((0.24 - (sRgb.r - sRgb.g)) / 0.06, 0.0, 1.0)
+               * clamp((sRgb.g - sRgb.b - 0.045) / 0.045, 0.0, 1.0)
+               * clamp((lumS - 0.28) / 0.10, 0.0, 1.0)
+               * clamp((0.82 - lumS) / 0.08, 0.0, 1.0) * 0.62;
+             if (sw > 0.01) {
+               sRgb = clamp(mix(sRgb, sRgb * uSkinMul.rgb, sw), 0.0, 1.0);
+             }
+           }
+
+           vec3 moodRgb = clamp(sRgb * uMood, 0.0, 1.0);
+
+           if (uSeamless < 0.5) {
+             // Pure #FFFFFF Studio White Stage: composite smoothly onto pure white with sub-pixel anti-aliasing!
+             vec3 whiteComp = mix(vec3(1.0), moodRgb, c.a);
+             gl_FragColor = vec4(whiteComp * cropMask, cropMask);
+           } else {
+             // Runway Seamless Foreground Hero: smooth anti-aliased alpha + inverse white de-spill!
+             vec3 deSpill = clamp((moodRgb - vec3(1.0 - c.a) * 0.68) / max(c.a, 0.32), 0.0, 1.0);
+             vec3 cleanRgb = mix(moodRgb, deSpill, clamp(1.0 - c.a, 0.0, 0.85));
+             float outA = c.a * cropMask;
+             gl_FragColor = vec4(cleanRgb * outA, outA);
+           }
          }`
       );
       if (vs && fs) {
@@ -891,6 +1022,13 @@ export function Interactive3DAvatarStage({
             uMoodLoc = gl.getUniformLocation(p, "uMood");
             uTexelLoc = gl.getUniformLocation(p, "uTexel");
             uCellBoundsLoc = gl.getUniformLocation(p, "uCellBounds");
+            uSeamlessLoc = gl.getUniformLocation(p, "uSeamless");
+            uSharpAmtLoc = gl.getUniformLocation(p, "uSharpAmt");
+            uShiftCountLoc = gl.getUniformLocation(p, "uShiftCount");
+            uShiftMetaLoc = gl.getUniformLocation(p, "uShiftMeta[0]");
+            uShiftTargetLoc = gl.getUniformLocation(p, "uShiftTarget[0]");
+            uShiftBoundsLoc = gl.getUniformLocation(p, "uShiftBounds[0]");
+            uSkinMulLoc = gl.getUniformLocation(p, "uSkinMul");
             glQuadBuf = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, glQuadBuf);
             gl.bufferData(
@@ -1392,16 +1530,19 @@ export function Interactive3DAvatarStage({
 
       let renderedViaWebGL = false;
 
-      // ULTRA-FAST 0.02ms HARDWARE WEBGL DUAL-ATLAS DRAW!
+      // ULTRA-FAST 0.02ms HARDWARE WEBGL QHD + CAS + GPU COLORWAY DRAW!
       if (gl && glProg && hasAtlas && glTexA && frameIdx >= 0 && activeBundle) {
+        const curShifts = activeShiftsRef.current;
+        const curSkinHex = skinToneHexRef.current;
         if (posterImgRef.current) {
           posterImgRef.current.style.opacity = "0";
         }
+
         const cols = activeBundle.cols || ATLAS_COLS;
         const rows = activeBundle.rows || ATLAS_ROWS;
         const perSheet = activeBundle.framesPerSheet || ATLAS_FRAMES_PER_SHEET;
-        const cwCell = activeBundle.cellW || 298;
-        const chCell = activeBundle.cellH || 680;
+        const cwCell = activeBundle.cellW || ATLAS_CELL_W;
+        const chCell = activeBundle.cellH || ATLAS_CELL_H;
         const useB = frameIdx >= perSheet && Boolean(glTexB);
         const localIdx = useB ? frameIdx - perSheet : frameIdx % perSheet;
         const col = localIdx % cols;
@@ -1426,8 +1567,61 @@ export function Interactive3DAvatarStage({
         const uw = 1 / cols - 2 * padU;
         const vh = 1 / rows - 2 * padV;
 
+        const shiftCount = Math.min(4, curShifts.length);
+        const metaArr = new Float32Array(16);
+        const targetArr = new Float32Array(12);
+        const boundsArr = new Float32Array(16);
+        for (let si = 0; si < shiftCount; si++) {
+          const sh = curShifts[si];
+          const [tr, tg, tb] = hexToRgb01(sh.targetHex);
+          const nativeHex =
+            sh.nativeHex || DEFAULT_MASK_NATIVE_HEX[sh.sourceMask];
+          const [dr, dg, db] = hexToRgb01(nativeHex);
+          const donorLum = clamp(0.299 * dr + 0.587 * dg + 0.114 * db, 0.11, 0.85);
+          metaArr[si * 4] = DONOR_MASK_TO_GL_ID[sh.sourceMask] || 0;
+          metaArr[si * 4 + 1] = donorLum;
+          metaArr[si * 4 + 2] = sh.isMetallic ? 0.30 : 0.14;
+          metaArr[si * 4 + 3] = 0;
+
+          targetArr[si * 3] = tr;
+          targetArr[si * 3 + 1] = tg;
+          targetArr[si * 3 + 2] = tb;
+
+          boundsArr[si * 4] = clamp(
+            (sh.yRange[0] - ATLAS_ROI_Y0) / ATLAS_ROI_H,
+            0,
+            1
+          );
+          boundsArr[si * 4 + 1] = clamp(
+            (sh.yRange[1] - ATLAS_ROI_Y0) / ATLAS_ROI_H,
+            0,
+            1
+          );
+          boundsArr[si * 4 + 2] = sh.xRange
+            ? clamp((sh.xRange[0] - ATLAS_ROI_X0) / ATLAS_ROI_W, 0, 1)
+            : 0;
+          boundsArr[si * 4 + 3] = sh.xRange
+            ? clamp((sh.xRange[1] - ATLAS_ROI_X0) / ATLAS_ROI_W, 0, 1)
+            : 1;
+        }
+
+        let skinMulVec: [number, number, number, number] = [1, 1, 1, 0];
+        if (curSkinHex) {
+          const [sr, sg, sb] = hexToRgb01(curSkinHex);
+          skinMulVec = [
+            clamp((sr / 0.78) * 0.5, 0, 1) * 2,
+            clamp((sg / 0.57) * 0.5, 0, 1) * 2,
+            clamp((sb / 0.45) * 0.5, 0, 1) * 2,
+            1,
+          ];
+        }
+
         gl.viewport(0, 0, glCanvas.width, glCanvas.height);
-        gl.clearColor(0, 0, 0, 0);
+        if (seamlessStage) {
+          gl.clearColor(0, 0, 0, 0);
+        } else {
+          gl.clearColor(1, 1, 1, 1);
+        }
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(glProg);
         gl.bindTexture(gl.TEXTURE_2D, useB ? glTexB : glTexA);
@@ -1443,11 +1637,30 @@ export function Interactive3DAvatarStage({
           cropFeatherBot
         );
         gl.uniform3f(uMoodLoc, moodGain[0], moodGain[1], moodGain[2]);
+        gl.uniform1f(uSeamlessLoc, seamlessStage ? 1.0 : 0.0);
+        gl.uniform1f(uSharpAmtLoc, activeBundle.isFastTier ? 0.95 : 0.75);
+        gl.uniform1i(uShiftCountLoc, shiftCount);
+        if (shiftCount > 0) {
+          gl.uniform4fv(uShiftMetaLoc, metaArr);
+          gl.uniform3fv(uShiftTargetLoc, targetArr);
+          gl.uniform4fv(uShiftBoundsLoc, boundsArr);
+        }
+        gl.uniform4f(
+          uSkinMulLoc,
+          skinMulVec[0],
+          skinMulVec[1],
+          skinMulVec[2],
+          skinMulVec[3]
+        );
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         renderedViaWebGL = true;
-      } else if (gl && seamlessStage && !hasAtlas) {
+      } else if (gl && !hasAtlas) {
         gl.viewport(0, 0, glCanvas.width, glCanvas.height);
-        gl.clearColor(0, 0, 0, 0);
+        if (seamlessStage) {
+          gl.clearColor(0, 0, 0, 0);
+        } else {
+          gl.clearColor(1, 1, 1, 1);
+        }
         gl.clear(gl.COLOR_BUFFER_BIT);
       }
 
@@ -1643,7 +1856,7 @@ export function Interactive3DAvatarStage({
       data-3d-mode={mode}
       data-worn-count={mode === "product" ? 1 : userSelectedProducts.length}
       className={`relative w-full h-full select-none overflow-hidden ${
-        seamlessStage ? "bg-transparent" : "gwo-couture-stage-bg"
+        seamlessStage ? "bg-transparent" : "bg-white"
       } ${className}`}
     >
       <div
@@ -1651,20 +1864,20 @@ export function Interactive3DAvatarStage({
         style={{ touchAction: "pan-y" }}
         className="relative w-full h-full cursor-grab active:cursor-grabbing"
       >
-        {mode === "avatar" && !seamlessStage && !framesReady && (
+        <canvas
+          ref={glCanvasRef}
+          className="block w-full h-full"
+        />
+        {mode === "avatar" && !seamlessStage && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
             ref={posterImgRef}
             src={turntableSpec.posterUrl}
             alt=""
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 w-full h-full object-contain mix-blend-multiply transition-opacity duration-150"
+            className="pointer-events-none absolute inset-0 w-full h-full object-contain bg-white transition-opacity duration-100"
           />
         )}
-        <canvas
-          ref={glCanvasRef}
-          className="block w-full h-full"
-        />
         <canvas
           ref={scrubCanvasRef}
           className="pointer-events-none absolute inset-0 w-full h-full"

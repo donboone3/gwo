@@ -23,7 +23,15 @@ export default function RootLayout({
           crossOrigin="anonymous"
           href={`${
             process.env.NEXT_PUBLIC_BASE_PATH || ""
-          }/models/turntables/ae_outfit_0_fast.webp?v=hf360v6`}
+          }/models/turntables/ae_outfit_0_fast.webp?v=hf360v7`}
+        />
+        <link
+          rel="preload"
+          as="fetch"
+          crossOrigin="anonymous"
+          href={`${
+            process.env.NEXT_PUBLIC_BASE_PATH || ""
+          }/models/turntables/ae_outfit_0_qhd.webp?v=hf360v7`}
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link

@@ -175,13 +175,45 @@ export function MotionSitesBoutiqueStorefront({
   );
   const [spotlightYaw, setSpotlightYaw] = useState<number | undefined>(0);
   const [spotlightYawSeq, setSpotlightYawSeq] = useState(0);
-  const [liveDeg, setLiveDeg] = useState(0);
+  const [spotlightVisible, setSpotlightVisible] = useState(false);
   const [openAcc, setOpenAcc] = useState<string>("details");
   const [activeHotspot, setActiveHotspot] = useState<number | null>(null);
   const spotlightStageRef = useRef<HTMLDivElement | null>(null);
+  const spotDegNumRef = useRef<HTMLSpanElement | null>(null);
+  const spotDegDotRef = useRef<HTMLSpanElement | null>(null);
+  const spotHotspotsRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = spotlightRef.current;
+    if (!el || spotlightVisible || typeof IntersectionObserver === "undefined") {
+      return;
+    }
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setSpotlightVisible(true);
+          obs.disconnect();
+        }
+      },
+      { rootMargin: "320px 0px", threshold: 0.01 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [spotlightVisible]);
 
   const handleSpotlightYawChange = useCallback((deg: number) => {
-    setLiveDeg(((Math.round(deg) % 360) + 360) % 360);
+    const d = ((Math.round(deg) % 360) + 360) % 360;
+    if (spotDegNumRef.current) {
+      spotDegNumRef.current.textContent = `${String(d).padStart(3, "0")}°`;
+    }
+    if (spotDegDotRef.current) {
+      spotDegDotRef.current.style.left = `${((d / 360) * 100).toFixed(1)}%`;
+    }
+    if (spotHotspotsRef.current) {
+      const show = d <= 24 || d >= 336;
+      spotHotspotsRef.current.style.opacity = show ? "1" : "0";
+      spotHotspotsRef.current.style.pointerEvents = show ? "auto" : "none";
+    }
   }, []);
 
   const counts = useMemo(() => {
@@ -306,6 +338,7 @@ export function MotionSitesBoutiqueStorefront({
   );
 
   const openProductInSpotlight = useCallback((prod: Product) => {
+    setSpotlightVisible(true);
     setSpotlightProductId(prod.id);
     setSpotlightMode(
       prod.category === "shoes" || prod.category === "accessory"
@@ -315,6 +348,8 @@ export function MotionSitesBoutiqueStorefront({
     setSpotlightYaw(0);
     setSpotlightYawSeq((s) => s + 1);
     setActiveHotspot(null);
+    if (spotDegNumRef.current) spotDegNumRef.current.textContent = "000°";
+    if (spotDegDotRef.current) spotDegDotRef.current.style.left = "0%";
     setTimeout(() => {
       spotlightRef.current?.scrollIntoView({
         behavior: "smooth",
@@ -363,8 +398,16 @@ export function MotionSitesBoutiqueStorefront({
     [activeSpotlightSize, bodyDims, spotlightProduct]
   );
 
-  const showFrontHotspots =
-    spotlightMode === "avatar" && (liveDeg <= 24 || liveDeg >= 336);
+  const spotlightPhotos = useMemo(
+    () =>
+      spotlightProduct
+        ? resolveLifelikeAvatarPhotos({
+            product: spotlightProduct,
+            lookIndex: spotlightProduct.studioLookIndex,
+          })
+        : null,
+    [spotlightProduct]
+  );
 
   return (
     <section
@@ -894,13 +937,20 @@ export function MotionSitesBoutiqueStorefront({
                 </div>
               </div>
 
-              {/* CENTER COLUMN (4 COLS): Interactive 360° Spin Stage + Pulsing Hotspots + Degree Scrubber */}
+              {/* CENTER COLUMN (4 COLS): Pure White 360° Spin Stage + Pulsing Hotspots + Degree Scrubber */}
               <div className="lg:col-span-4 flex flex-col items-center gap-3 order-1 lg:order-2">
                 <div
                   ref={spotlightStageRef}
-                  className="relative w-full h-[430px] sm:h-[500px] rounded-[28px] gwo-couture-stage-bg border border-[#ECD7E1] shadow-[0_14px_36px_rgba(150,41,83,0.08)] overflow-hidden"
+                  className="relative w-full h-[430px] sm:h-[500px] rounded-[28px] bg-white border border-[#ECD7E1] shadow-[0_14px_36px_rgba(150,41,83,0.08)] overflow-hidden"
                 >
-                  {spotlightMode === "avatar" ? (
+                  {!spotlightVisible ? (
+                    <img
+                      src={spotlightPhotos?.frontUrl || spotlightProduct.imageUrl}
+                      alt={spotlightProduct.title}
+                      loading="lazy"
+                      className="w-full h-full object-contain object-bottom bg-white"
+                    />
+                  ) : spotlightMode === "avatar" ? (
                     <Interactive3DAvatarStage
                       mode="avatar"
                       dimensions={bodyDims}
@@ -938,62 +988,77 @@ export function MotionSitesBoutiqueStorefront({
                   )}
 
                   {/* Pulsing Garment Construction Hotspots when facing Front 0° */}
-                  {[
-                    {
-                      left: "56%",
-                      top: "34%",
-                      title: spotlightRealism?.fabricProfile.displayName || "Couture Weave",
-                      note: spotlightRealism?.fabricProfile.drapeBehavior || "Fluid studio drape calibrated to your scan.",
-                    },
-                    {
-                      left: "44%",
-                      top: "49%",
-                      title: `Size ${activeSpotlightSize} Waist Fit`,
-                      note: spotlightFit.headlineVerdict,
-                    },
-                  ].map((hs, idx) => {
-                    const isOpenHs = activeHotspot === idx;
-                    return (
-                      <button
-                        key={hs.title}
-                        type="button"
-                        onClick={() =>
-                          setActiveHotspot(isOpenHs ? null : idx)
-                        }
-                        aria-label={hs.title}
-                        style={{ left: hs.left, top: hs.top }}
-                        className={`sp-hs ${showFrontHotspots ? "show" : ""}`}
-                      >
-                        <span>{isOpenHs ? "−" : "+"}</span>
-                        <span
-                          style={
-                            isOpenHs
-                              ? { clipPath: "inset(0 0 0 0 round 14px)" }
-                              : undefined
-                          }
-                          className={`sp-tip ${idx === 0 ? "left" : "right"}`}
-                        >
-                          <span className="sp-tip-title text-[#962953]">
-                            {hs.title}
-                          </span>
-                          {hs.note}
-                        </span>
-                      </button>
-                    );
-                  })}
+                  {spotlightMode === "avatar" && (
+                    <div
+                      ref={spotHotspotsRef}
+                      className="absolute inset-0 pointer-events-auto transition-opacity duration-200"
+                    >
+                      {[
+                        {
+                          left: "56%",
+                          top: "34%",
+                          title:
+                            spotlightRealism?.fabricProfile.displayName ||
+                            "Couture Weave",
+                          note:
+                            spotlightRealism?.fabricProfile.drapeBehavior ||
+                            "Fluid studio drape calibrated to your scan.",
+                        },
+                        {
+                          left: "44%",
+                          top: "49%",
+                          title: `Size ${activeSpotlightSize} Waist Fit`,
+                          note: spotlightFit.headlineVerdict,
+                        },
+                      ].map((hs, idx) => {
+                        const isOpenHs = activeHotspot === idx;
+                        return (
+                          <button
+                            key={hs.title}
+                            type="button"
+                            onClick={() =>
+                              setActiveHotspot(isOpenHs ? null : idx)
+                            }
+                            aria-label={hs.title}
+                            style={{ left: hs.left, top: hs.top }}
+                            className="sp-hs show"
+                          >
+                            <span>{isOpenHs ? "−" : "+"}</span>
+                            <span
+                              style={
+                                isOpenHs
+                                  ? { clipPath: "inset(0 0 0 0 round 14px)" }
+                                  : undefined
+                              }
+                              className={`sp-tip ${idx === 0 ? "left" : "right"}`}
+                            >
+                              <span className="sp-tip-title text-[#962953]">
+                                {hs.title}
+                              </span>
+                              {hs.note}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
-                {/* Live Degree Progress Scrubber Readout */}
-                <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/95 border border-[#ECD7E1] shadow-xs text-[10.5px] font-bold tracking-wider uppercase text-[#745C67]">
+                {/* Live Degree Progress Scrubber Readout (Zero-Re-Render Imperative Refs!) */}
+                <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white border border-[#ECD7E1] shadow-xs text-[10.5px] font-bold tracking-wider uppercase text-[#745C67]">
                   <span>Drag to Rotate</span>
                   <span className="relative w-20 h-[2px] rounded-full bg-[#ECD7E1]">
                     <span
-                      style={{ left: `${((liveDeg / 360) * 100).toFixed(1)}%` }}
+                      ref={spotDegDotRef}
+                      style={{ left: "0%" }}
                       className="absolute top-1/2 -translate-y-1/2 -ml-1 w-2 h-2 rounded-full bg-[#B83B6A]"
                     />
                   </span>
-                  <span className="text-[#22131A] min-w-[34px] text-right">
-                    {String(liveDeg).padStart(3, "0")}°
+                  <span
+                    ref={spotDegNumRef}
+                    className="text-[#22131A] min-w-[34px] text-right"
+                  >
+                    000°
                   </span>
                 </div>
               </div>
@@ -1005,7 +1070,10 @@ export function MotionSitesBoutiqueStorefront({
                   <div className="grid grid-cols-2 gap-1.5 p-1 rounded-full bg-[#F9EEF3]">
                     <button
                       type="button"
-                      onClick={() => setSpotlightMode("avatar")}
+                      onClick={() => {
+                        setSpotlightVisible(true);
+                        setSpotlightMode("avatar");
+                      }}
                       className={`py-1.5 rounded-full text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer transition ${
                         spotlightMode === "avatar"
                           ? "bg-[#22131A] text-white shadow-xs"
@@ -1016,7 +1084,10 @@ export function MotionSitesBoutiqueStorefront({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSpotlightMode("product")}
+                      onClick={() => {
+                        setSpotlightVisible(true);
+                        setSpotlightMode("product");
+                      }}
                       className={`py-1.5 rounded-full text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer transition ${
                         spotlightMode === "product"
                           ? "bg-[#22131A] text-white shadow-xs"
@@ -1036,15 +1107,16 @@ export function MotionSitesBoutiqueStorefront({
                         [180, "Back 180°"],
                       ] as const
                     ).map(([deg, lbl]) => {
-                      const activeAng = Math.abs(liveDeg - deg) <= 15;
+                      const activeAng = (spotlightYaw ?? 0) === deg;
                       return (
                         <button
                           key={deg}
                           type="button"
                           onClick={() => {
+                            setSpotlightVisible(true);
                             setSpotlightYaw(deg);
                             setSpotlightYawSeq((s) => s + 1);
-                            setLiveDeg(deg);
+                            handleSpotlightYawChange(deg);
                           }}
                           className={`py-2 px-1.5 rounded-2xl text-[11px] font-bold border transition cursor-pointer ${
                             activeAng

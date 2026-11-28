@@ -283,12 +283,27 @@ export function GwoSpinProduct() {
     undefined
   );
   const [externalYawSeq, setExternalYawSeq] = useState<number>(0);
-  const [liveDeg, setLiveDeg] = useState<number>(0);
   const [activeHotspot, setActiveHotspot] = useState<number | null>(null);
   const centerStageWrapRef = useRef<HTMLDivElement | null>(null);
+  const pdpDegNumRef = useRef<HTMLSpanElement | null>(null);
+  const pdpDegBadgeRightRef = useRef<HTMLSpanElement | null>(null);
+  const pdpDegDotRef = useRef<HTMLSpanElement | null>(null);
+  const pdpHotspotsRef = useRef<HTMLDivElement | null>(null);
 
   const handleLiveYawChange = useCallback((deg: number) => {
-    setLiveDeg(((Math.round(deg) % 360) + 360) % 360);
+    const d = ((Math.round(deg) % 360) + 360) % 360;
+    const label = `${String(d).padStart(3, "0")}°`;
+    if (pdpDegNumRef.current) pdpDegNumRef.current.textContent = label;
+    if (pdpDegBadgeRightRef.current)
+      pdpDegBadgeRightRef.current.textContent = label;
+    if (pdpDegDotRef.current) {
+      pdpDegDotRef.current.style.left = `${((d / 360) * 100).toFixed(1)}%`;
+    }
+    if (pdpHotspotsRef.current) {
+      const show = d <= 24 || d >= 336;
+      pdpHotspotsRef.current.style.opacity = show ? "1" : "0";
+      pdpHotspotsRef.current.style.pointerEvents = show ? "auto" : "none";
+    }
   }, []);
 
   const [openSection, setOpenSection] = useState<string>("Fit & Description");
@@ -356,8 +371,6 @@ export function GwoSpinProduct() {
   }, [activeProduct]);
 
   const activeSizeIdx = Math.max(0, sizeOptions.indexOf(selectedSize));
-  const showFrontHotspots =
-    stageDisplayMode === "avatar3d" && (liveDeg <= 24 || liveDeg >= 336);
 
   return (
     <div className="sp-root">
@@ -620,7 +633,7 @@ export function GwoSpinProduct() {
                   }
                   setExternalYawDeg(deg);
                   setExternalYawSeq((s) => s + 1);
-                  setLiveDeg(deg);
+                  handleLiveYawChange(deg);
                 }}
                 className="flex-1 py-2 px-2 rounded-2xl border border-[#ECD7E1] bg-white hover:bg-[#FCECF3] text-xs font-bold text-[#22131A] cursor-pointer transition"
               >
@@ -630,13 +643,13 @@ export function GwoSpinProduct() {
           </div>
         </section>
 
-        {/* ==================== CENTER COLUMN: LIFELIKE 360° TURNTABLE STAGE + HOTSPOTS ==================== */}
+        {/* ==================== CENTER COLUMN: PURE #FFFFFF WHITE LIFELIKE 360° TURNTABLE STAGE + HOTSPOTS ==================== */}
         <div
           ref={centerStageWrapRef}
-          className="relative order-1 lg:order-2 min-w-0 h-[calc(82svh-64px)] min-h-[480px] lg:h-full lg:min-h-0 flex flex-col items-center justify-center gwo-couture-stage-bg lg:bg-transparent"
+          className="relative order-1 lg:order-2 min-w-0 h-[calc(82svh-64px)] min-h-[480px] lg:h-full lg:min-h-0 flex flex-col items-center justify-center bg-white lg:bg-transparent"
         >
           {stageDisplayMode === "avatar3d" && (
-            <div className="relative w-full h-full flex-1 min-h-0 lg:rounded-3xl gwo-couture-stage-bg lg:border lg:border-[#ECD7E1] overflow-hidden">
+            <div className="relative w-full h-full flex-1 min-h-0 lg:rounded-3xl bg-white lg:border lg:border-[#ECD7E1] overflow-hidden">
               <Interactive3DAvatarStage
                 mode="avatar"
                 dimensions={bodyDims}
@@ -657,47 +670,52 @@ export function GwoSpinProduct() {
               />
 
               {/* Pulsing Garment Hotspots at Front 0° */}
-              {[
-                {
-                  left: "56%",
-                  top: "33%",
-                  title: realismCert.fabricProfile.displayName,
-                  note: realismCert.fabricProfile.drapeBehavior,
-                },
-                {
-                  left: "44%",
-                  top: "48%",
-                  title: `Size ${selectedSize} Tailored Fit`,
-                  note: liveFitReport.headlineVerdict,
-                },
-              ].map((hs, idx) => {
-                const isOpenHs = activeHotspot === idx;
-                return (
-                  <button
-                    key={hs.title}
-                    type="button"
-                    aria-label={hs.title}
-                    onClick={() => setActiveHotspot(isOpenHs ? null : idx)}
-                    style={{ left: hs.left, top: hs.top }}
-                    className={`sp-hs ${showFrontHotspots ? "show" : ""}`}
-                  >
-                    <span>{isOpenHs ? "−" : "+"}</span>
-                    <span
-                      style={
-                        isOpenHs
-                          ? { clipPath: "inset(0 0 0 0 round 14px)" }
-                          : undefined
-                      }
-                      className={`sp-tip ${idx === 0 ? "left" : "right"}`}
+              <div
+                ref={pdpHotspotsRef}
+                className="absolute inset-0 pointer-events-auto transition-opacity duration-200"
+              >
+                {[
+                  {
+                    left: "56%",
+                    top: "33%",
+                    title: realismCert.fabricProfile.displayName,
+                    note: realismCert.fabricProfile.drapeBehavior,
+                  },
+                  {
+                    left: "44%",
+                    top: "48%",
+                    title: `Size ${selectedSize} Tailored Fit`,
+                    note: liveFitReport.headlineVerdict,
+                  },
+                ].map((hs, idx) => {
+                  const isOpenHs = activeHotspot === idx;
+                  return (
+                    <button
+                      key={hs.title}
+                      type="button"
+                      aria-label={hs.title}
+                      onClick={() => setActiveHotspot(isOpenHs ? null : idx)}
+                      style={{ left: hs.left, top: hs.top }}
+                      className="sp-hs show"
                     >
-                      <span className="sp-tip-title text-[#962953]">
-                        {hs.title}
+                      <span>{isOpenHs ? "−" : "+"}</span>
+                      <span
+                        style={
+                          isOpenHs
+                            ? { clipPath: "inset(0 0 0 0 round 14px)" }
+                            : undefined
+                        }
+                        className={`sp-tip ${idx === 0 ? "left" : "right"}`}
+                      >
+                        <span className="sp-tip-title text-[#962953]">
+                          {hs.title}
+                        </span>
+                        {hs.note}
                       </span>
-                      {hs.note}
-                    </span>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
 
               {/* Bottom-Center Degree Scrubber Pill */}
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
@@ -705,12 +723,13 @@ export function GwoSpinProduct() {
                   <span>DRAG TO ROTATE</span>
                   <span className="sp-deg-bar">
                     <span
+                      ref={pdpDegDotRef}
                       className="sp-deg-dot"
-                      style={{ left: `${((liveDeg / 360) * 100).toFixed(1)}%` }}
+                      style={{ left: "0%" }}
                     />
                   </span>
-                  <span className="sp-deg-num">
-                    {String(liveDeg).padStart(3, "0")}°
+                  <span ref={pdpDegNumRef} className="sp-deg-num">
+                    000°
                   </span>
                 </div>
               </div>
@@ -718,7 +737,7 @@ export function GwoSpinProduct() {
           )}
 
           {stageDisplayMode === "product3d" && (
-            <div className="relative w-full h-full flex-1 min-h-0 lg:rounded-3xl gwo-couture-stage-bg lg:border lg:border-[#ECD7E1] overflow-hidden">
+            <div className="relative w-full h-full flex-1 min-h-0 lg:rounded-3xl bg-white lg:border lg:border-[#ECD7E1] overflow-hidden">
               <Interactive3DAvatarStage
                 mode="product"
                 dimensions={bodyDims}
@@ -737,12 +756,13 @@ export function GwoSpinProduct() {
                   <span>ITEM 360°</span>
                   <span className="sp-deg-bar">
                     <span
+                      ref={pdpDegDotRef}
                       className="sp-deg-dot"
-                      style={{ left: `${((liveDeg / 360) * 100).toFixed(1)}%` }}
+                      style={{ left: "0%" }}
                     />
                   </span>
-                  <span className="sp-deg-num">
-                    {String(liveDeg).padStart(3, "0")}°
+                  <span ref={pdpDegNumRef} className="sp-deg-num">
+                    000°
                   </span>
                 </div>
               </div>
@@ -752,14 +772,14 @@ export function GwoSpinProduct() {
           {stageDisplayMode === "split" && (
             <div className="w-full h-full flex-1 min-h-0 lg:rounded-3xl bg-white lg:border lg:border-[#ECD7E1] p-3 flex flex-col justify-between overflow-hidden">
               <div className="flex-1 min-h-0 grid grid-cols-2 gap-2.5">
-                <div className="relative h-full rounded-2xl bg-gradient-to-b from-[#FFFDFE] to-[#FAECF2] flex items-center justify-center overflow-hidden pt-2 pb-1 px-1">
+                <div className="relative h-full rounded-2xl bg-white border border-[#F2E2EA] flex items-center justify-center overflow-hidden pt-2 pb-1 px-1">
                   <img
                     src={lifelikePhotos.frontUrl}
                     alt="Front 0° Look"
                     className="h-full w-full object-contain object-bottom"
                   />
                 </div>
-                <div className="relative h-full rounded-2xl bg-gradient-to-b from-[#FFFDFE] to-[#FAECF2] flex items-center justify-center overflow-hidden pt-2 pb-1 px-1">
+                <div className="relative h-full rounded-2xl bg-white border border-[#F2E2EA] flex items-center justify-center overflow-hidden pt-2 pb-1 px-1">
                   <img
                     src={lifelikePhotos.backUrl}
                     alt="Back 180° Look"
@@ -838,8 +858,11 @@ export function GwoSpinProduct() {
                   <Images className="w-3 h-3" /> Photo
                 </button>
               </div>
-              <span className="px-2.5 py-0.5 rounded-full bg-[#FCECF3] border border-[#F0C5D7] text-[#962953] text-[10px] font-bold">
-                {String(liveDeg).padStart(3, "0")}°
+              <span
+                ref={pdpDegBadgeRightRef}
+                className="px-2.5 py-0.5 rounded-full bg-[#FCECF3] border border-[#F0C5D7] text-[#962953] text-[10px] font-bold"
+              >
+                000°
               </span>
             </div>
 

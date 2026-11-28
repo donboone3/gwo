@@ -43,11 +43,7 @@
   -webkit-user-select: none;
   cursor: none;
   outline: none;
-  background:
-    radial-gradient(circle at 16% 24%, rgba(246, 198, 219, 0.56) 0%, transparent 52%),
-    radial-gradient(circle at 86% 78%, rgba(246, 215, 202, 0.5) 0%, transparent 54%),
-    radial-gradient(circle at 62% 46%, rgba(255, 255, 255, 0.98) 0%, transparent 58%),
-    linear-gradient(180deg, #fffbfd 0%, #fbf0f5 56%, #fdf5f2 100%);
+  background: #ffffff;
 }
 
 .mv-line {
