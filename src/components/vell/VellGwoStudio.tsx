@@ -262,7 +262,7 @@ export function VellGwoStudio() {
   }));
   const lastTopIdRef = useRef<string>("prod-ae-espresso-corset");
   const lastBottomIdRef = useRef<string>("prod-ae-champagne-trousers");
-  const [closetFitSize, setClosetFitSize] = useState<string>("");
+  const [closetFitSize] = useState<string>("");
   const activeClosetSize = closetFitSize || recSize;
 
   const [stageMode, setStageMode] = useState<"3d" | "lookbook">("3d");
@@ -283,9 +283,7 @@ export function VellGwoStudio() {
   const [outfitCatFilter, setOutfitCatFilter] = useState<string>("all");
   const [outfitQuery, setOutfitQuery] = useState<string>("");
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
-  const [aiSuggestionNote, setAiSuggestionNote] = useState<string | null>(
-    "Tap any piece to dress your 3D scanned body, or use AI Hybrid Stylist to pair your owned closet clothes with 1 new store piece!"
-  );
+  const [, setAiSuggestionNote] = useState<string | null>(null);
   const [hybridCycleIdx, setHybridCycleIdx] = useState(0);
   const [savedOutfits, setSavedOutfits] = useState<SavedCustom3DOutfit[]>([]);
   const [copiedCloset, setCopiedCloset] = useState(false);
@@ -1154,80 +1152,24 @@ export function VellGwoStudio() {
           className="scroll-mt-16 w-full lg:w-[390px] xl:w-[424px] lg:h-full shrink-0 rounded-t-3xl lg:rounded-3xl bg-gradient-to-b from-[#FFFDFD] via-[#FDF6F9] to-[#FCF2F6] backdrop-blur-md border-t lg:border border-[#ECD7E1] shadow-[0_-8px_28px_rgba(150,41,83,0.07)] lg:shadow-[0_14px_34px_rgba(150,41,83,0.08)] px-3.5 sm:px-4 pt-4 pb-8 lg:p-4 flex flex-col justify-between gap-2.5 lg:overflow-hidden"
         >
           <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 space-y-2.5">
-            {/* Header + Two Top-Corner Actions: One Piece Add & Full Store Pull */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <h1 className="text-sm sm:text-base font-bold text-[#22131A] leading-tight">
-                  Closet &amp; Dress-Up Studio
-                </h1>
-                <p className="text-[10.5px] sm:text-[11px] text-[#745C67] leading-snug mt-0.5">
-                  Tap or drag any piece onto your lifelike avatar
-                </p>
-              </div>
-              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 pt-0.5">
-                <button
-                  type="button"
-                  id="gwo-one-piece-add-btn"
-                  onClick={() => openAddUrlModal("url")}
-                  className="px-2 sm:px-2.5 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-gradient-to-r from-[#B83B6A] to-[#962953] hover:brightness-105 text-white inline-flex items-center gap-1 whitespace-nowrap cursor-pointer shadow-xs"
-                >
-                  <Plus className="w-3 h-3 text-[#FDE5EF]" /> One Piece Add
-                </button>
-                <button
-                  type="button"
-                  id="gwo-full-store-pull-btn"
-                  onClick={() => openAddUrlModal("rack")}
-                  className="px-2 sm:px-2.5 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-[#FCECF3] hover:bg-[#F8DCE8] border border-[#F0C5D7] text-[#962953] inline-flex items-center gap-1 whitespace-nowrap cursor-pointer"
-                >
-                  <Store className="w-3 h-3 text-[#B83B6A]" /> Full Store Pull
-                </button>
-              </div>
-            </div>
-
-            {/* AI Suggestion Banner */}
-            {aiSuggestionNote && (
-              <div className="px-3 py-2 rounded-2xl bg-[#FCECF3] border border-[#F0C5D7] flex items-start justify-between gap-2">
-                <p className="text-[10.5px] font-semibold text-[#852148] leading-snug">
-                  {aiSuggestionNote}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setAiSuggestionNote(null)}
-                  aria-label="Dismiss AI suggestion"
-                  className="p-1 rounded-full hover:bg-black/5 text-[#852148] shrink-0 cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            )}
-
-            {/* Live Size-Fit Preview Selector (Compare XS / S / M / L / XL Fit on Body!) */}
-            <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-2xl bg-white border border-[#ECD7E1]">
-              <span className="text-[10.5px] font-bold text-[#22131A] whitespace-nowrap">
-                Try Fit Size:
-              </span>
-              <div className="flex items-center gap-1 overflow-x-auto">
-                {(["XS", "S", "M", "L", "XL"] as const).map((sz) => {
-                  const active = activeClosetSize.toUpperCase() === sz;
-                  const isRec = recSize.toUpperCase() === sz;
-                  return (
-                    <button
-                      key={sz}
-                      type="button"
-                      data-testid={`closet-size-${sz}`}
-                      onClick={() => setClosetFitSize(sz)}
-                      className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border transition cursor-pointer whitespace-nowrap ${
-                        active
-                          ? "bg-[#B83B6A] text-white border-[#B83B6A] shadow-2xs"
-                          : "bg-[#FDF6F9] text-[#6E5360] border-[#ECD7E1] hover:text-[#962953]"
-                      }`}
-                    >
-                      {sz}
-                      {isRec ? "★" : ""}
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Full-Width Top Actions: One Piece Add & Full Store Pull */}
+            <div className="grid grid-cols-2 gap-2 w-full">
+              <button
+                type="button"
+                id="gwo-one-piece-add-btn"
+                onClick={() => openAddUrlModal("url")}
+                className="w-full px-3 py-2.5 rounded-full text-xs font-extrabold bg-gradient-to-r from-[#B83B6A] to-[#962953] hover:brightness-105 active:scale-[0.99] text-white inline-flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer shadow-[0_6px_18px_rgba(184,59,106,0.22)] transition min-h-[38px]"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#FDE5EF]" /> One Piece Add
+              </button>
+              <button
+                type="button"
+                id="gwo-full-store-pull-btn"
+                onClick={() => openAddUrlModal("rack")}
+                className="w-full px-3 py-2.5 rounded-full text-xs font-extrabold bg-[#FCECF3] hover:bg-[#F8DCE8] active:scale-[0.99] border border-[#F0C5D7] text-[#962953] inline-flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer transition min-h-[38px]"
+              >
+                <Store className="w-3.5 h-3.5 text-[#B83B6A]" /> Full Store Pull
+              </button>
             </div>
 
             {/* Wardrobe Source Tabs */}
@@ -1236,7 +1178,6 @@ export function VellGwoStudio() {
                 [
                   ["mix", `All Pieces (${storeCatalog.length + uploadedAsProducts.length})`],
                   ["bought", `My Closet (${ownedProductIds.size})`],
-                  ["store", "Add Store Piece"],
                   ["outfits", `Full Outfits (${STUDIO_LOOKS.length})`],
                   ["uploaded", `Uploaded (${uploadedAsProducts.length})`],
                   ["saved", `Saved (${savedOutfits.length})`],
