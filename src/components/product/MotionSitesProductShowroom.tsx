@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -40,11 +40,116 @@ import {
 } from "@/lib/realism/master-avatar-clothing-realism";
 import {
   CURATED_100_OUTFIT_DESIGNS,
+  CuratedOutfitDesign,
   getCuratedOutfitsForProduct,
 } from "@/lib/stylist/curated-100-outfits";
+import { renderModularOutfitDataUrlAsync } from "@/lib/three/modular-outfit-compositor";
 import { routeProductTo360Tier } from "@/lib/higgsfield/credit-smart-360-pipeline";
 import { launchFlyToBag } from "@/lib/motion/fly-to-bag";
 import { Product } from "@/lib/types";
+
+function OutfitBundleAvatarPreview({
+  outfit,
+  outfitProducts,
+  faceOvalDataUrl,
+  isPreviewing,
+  onTryLook,
+}: {
+  outfit: CuratedOutfitDesign;
+  outfitProducts: Product[];
+  faceOvalDataUrl?: string | null;
+  isPreviewing: boolean;
+  onTryLook: () => void;
+}) {
+  const wrapRef = useRef<HTMLButtonElement | null>(null);
+  const [modularUrl, setModularUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!outfit.isModularRemix || outfitProducts.length === 0) {
+      setModularUrl(null);
+      return;
+    }
+    let cancelled = false;
+    const el = wrapRef.current;
+
+    const triggerRender = () => {
+      void renderModularOutfitDataUrlAsync(outfitProducts, "front").then(
+        (dataUrl) => {
+          if (!cancelled && dataUrl) {
+            setModularUrl(dataUrl);
+          }
+        }
+      );
+    };
+
+    if (!el || typeof IntersectionObserver === "undefined") {
+      triggerRender();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          obs.disconnect();
+          triggerRender();
+        }
+      },
+      { rootMargin: "360px 0px", threshold: 0.01 }
+    );
+    obs.observe(el);
+
+    return () => {
+      cancelled = true;
+      obs.disconnect();
+    };
+  }, [outfit.isModularRemix, outfit.key, outfitProducts]);
+
+  const avatarSrc = modularUrl || outfit.frontAvatarUrl;
+
+  return (
+    <button
+      ref={wrapRef}
+      type="button"
+      onClick={onTryLook}
+      title={`Preview ${outfit.title} on 360° Avatar`}
+      className={`group relative w-[124px] sm:w-[144px] h-[222px] sm:h-[244px] rounded-2xl bg-white border overflow-hidden shrink-0 cursor-pointer transition ${
+        isPreviewing
+          ? "border-[#B83B6A] ring-2 ring-[#B83B6A]/20"
+          : "border-[#ECD7E1] hover:border-[#D797B2]"
+      }`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={avatarSrc}
+        alt={`Avatar wearing ${outfit.title}`}
+        loading="lazy"
+        decoding="async"
+        className="w-full h-full object-contain object-bottom pt-1.5 group-hover:scale-[1.03] transition-transform duration-300"
+      />
+      {faceOvalDataUrl && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={faceOvalDataUrl}
+          alt=""
+          aria-hidden="true"
+          style={{
+            left: "49.95%",
+            top: "14.2%",
+            width: "12.9%",
+            height: "9.5%",
+            transform: "translate(-50%, -50%)",
+          }}
+          className="pointer-events-none absolute object-fill rounded-full"
+        />
+      )}
+      <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-white/95 border border-[#ECD7E1] text-[9px] font-extrabold text-[#962953] inline-flex items-center gap-0.5 shadow-2xs">
+        <Rotate3d className="w-2.5 h-2.5 text-[#B83B6A]" /> 360°
+      </span>
+    </button>
+  );
+}
 
 interface MotionSitesProductShowroomProps {
   productId: string;
@@ -1069,7 +1174,7 @@ export function MotionSitesProductShowroom({
         {/* ==================== SECTION 3: MOTIONSITES OUTFIT CAROUSEL (FROM 100 CURATED OUTFITS) ==================== */}
         <section
           id="gwo-pdp-styled-outfits"
-          className="space-y-4"
+          className="space-y-4 px-3.5 sm:px-0"
         >
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -1089,7 +1194,7 @@ export function MotionSitesProductShowroom({
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {featuredOutfits.slice(0, 6).map((outfit) => {
               const outfitProds = outfit.productIds
                 .map((id) => byId.get(id))
@@ -1097,115 +1202,137 @@ export function MotionSitesProductShowroom({
               const sumPrice = outfitProds.reduce((s, p) => s + p.price, 0);
               const isPreviewing = previewOutfitKey === outfit.key;
 
+              const handleTryLook = () => {
+                setStageView("avatar_3d");
+                setPreviewOutfitKey(isPreviewing ? null : outfit.key);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              };
+
+              const handleBuyBundle = (openCheckoutImmediately: boolean) => {
+                outfitProds.forEach((op) => {
+                  const f = analyzeExactAvatarFit(
+                    {
+                      heightInches: bodyDims.heightInches,
+                      bustInches: bodyDims.bustInches,
+                      waistInches: bodyDims.waistInches,
+                      hipsInches: bodyDims.hipsInches,
+                      shoeSize: bodyDims.shoeSize,
+                    },
+                    op
+                  );
+                  addToBag({
+                    productId: op.id,
+                    title: op.title,
+                    brand: op.brand,
+                    price: op.price,
+                    size: f.recommendedSize,
+                    imageUrl: op.imageUrl,
+                    avatarFrontUrl: outfit.frontAvatarUrl,
+                    avatarBackUrl: outfit.backAvatarUrl,
+                    storeUrl: op.canonicalUrl,
+                  });
+                });
+                if (openCheckoutImmediately) {
+                  openDropshipCheckout("checkout");
+                } else {
+                  showToast(
+                    `Added all ${outfitProds.length} pieces of Outfit #${String(
+                      outfit.outfitNumber
+                    ).padStart(3, "0")} to Bag!`
+                  );
+                }
+              };
+
               return (
                 <article
                   key={outfit.key}
-                  className={`rounded-[24px] bg-white border p-4 flex flex-col justify-between gap-3 transition shadow-[0_8px_24px_rgba(150,41,83,0.04)] ${
+                  data-pdp-outfit-bundle="true"
+                  className={`rounded-[24px] bg-white border p-3.5 sm:p-4 flex items-stretch gap-3.5 transition shadow-[0_8px_24px_rgba(150,41,83,0.05)] ${
                     isPreviewing
                       ? "border-[#B83B6A] ring-2 ring-[#B83B6A]/20"
                       : "border-[#ECD7E1]"
                   }`}
                 >
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full bg-[#22131A] text-white text-[10px] font-extrabold">
-                        Outfit #{String(outfit.outfitNumber).padStart(3, "0")} •{" "}
-                        {outfit.occasion}
-                      </span>
-                      <span className="text-xs font-extrabold text-[#B83B6A]">
-                        ${sumPrice} Set
-                      </span>
+                  {/* Left: Lifelike Avatar Wearing the Complete Full Outfit Bundle */}
+                  <OutfitBundleAvatarPreview
+                    outfit={outfit}
+                    outfitProducts={outfitProds}
+                    faceOvalDataUrl={customAvatar?.faceOvalDataUrl}
+                    isPreviewing={isPreviewing}
+                    onTryLook={handleTryLook}
+                  />
+
+                  {/* Right: Bundle Details, Included Pieces & Full-Outfit Purchase CTA */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-between gap-2.5">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span className="px-2 py-0.5 rounded-full bg-[#22131A] text-white text-[9.5px] font-extrabold truncate">
+                          Outfit #{String(outfit.outfitNumber).padStart(3, "0")} •{" "}
+                          {outfit.occasion}
+                        </span>
+                        <span className="text-xs font-extrabold text-[#B83B6A] shrink-0">
+                          ${sumPrice} Set
+                        </span>
+                      </div>
+
+                      <h3 className="text-[13px] sm:text-sm font-extrabold text-[#22131A] leading-snug truncate">
+                        {formatCompactOutfitTitle(outfit.title, 28)}
+                      </h3>
+                      <p className="text-[10.5px] text-[#745C67] leading-snug line-clamp-2">
+                        {outfit.stylistNote}
+                      </p>
+
+                      <div className="grid grid-cols-4 gap-1 pt-0.5">
+                        {outfitProds.slice(0, 4).map((op) => (
+                          <Link
+                            key={op.id}
+                            href={`/product/${encodeURIComponent(op.id)}`}
+                            className={`h-14 sm:h-16 rounded-xl bg-white border overflow-hidden p-0.5 block ${
+                              op.id === product.id
+                                ? "border-[#B83B6A]"
+                                : "border-[#ECD7E1]"
+                            }`}
+                            title={op.title}
+                          >
+                            <GarmentArtwork
+                              product={op}
+                              cleanCard
+                              className="w-full h-full"
+                            />
+                          </Link>
+                        ))}
+                      </div>
                     </div>
 
-                    <h3 className="text-sm font-extrabold text-[#22131A]">
-                      {formatCompactOutfitTitle(outfit.title, 30)}
-                    </h3>
-                    <p className="text-[11px] text-[#745C67] leading-snug">
-                      {outfit.stylistNote}
-                    </p>
-
-                    <div className="grid grid-cols-4 gap-1.5 pt-1">
-                      {outfitProds.slice(0, 4).map((op) => (
-                        <Link
-                          key={op.id}
-                          href={`/product/${encodeURIComponent(op.id)}`}
-                          className={`h-20 rounded-xl bg-[#FDF8FA] border overflow-hidden p-1 block ${
-                            op.id === product.id
-                              ? "border-[#B83B6A]"
-                              : "border-[#ECD7E1]"
-                          }`}
-                          title={op.title}
-                        >
-                          <GarmentArtwork
-                            product={op}
-                            className="w-full h-full"
-                          />
-                        </Link>
-                      ))}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleBuyBundle(true)}
+                        className="flex-1 py-2 px-3 rounded-full bg-gradient-to-r from-[#B83B6A] to-[#962953] hover:brightness-105 text-white text-[11px] font-extrabold inline-flex items-center justify-center gap-1 shadow-[0_4px_12px_rgba(184,59,106,0.22)] cursor-pointer transition whitespace-nowrap"
+                      >
+                        <ShoppingBag className="w-3 h-3 text-[#FCECF3]" />
+                        Buy Full Outfit (${sumPrice})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleTryLook}
+                        className={`py-2 px-3 rounded-full text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer transition whitespace-nowrap ${
+                          isPreviewing
+                            ? "bg-[#22131A] text-white"
+                            : "bg-[#FCECF3] hover:bg-[#F8DCE8] text-[#962953]"
+                        }`}
+                      >
+                        {isPreviewing ? (
+                          <>
+                            <Check className="w-3 h-3" /> Wearing
+                          </>
+                        ) : (
+                          <>
+                            <Rotate3d className="w-3 h-3" /> Try 3D
+                          </>
+                        )}
+                      </button>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStageView("avatar_3d");
-                        setPreviewOutfitKey(
-                          isPreviewing ? null : outfit.key
-                        );
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
-                      className={`flex-1 py-2 px-3 rounded-full text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer transition ${
-                        isPreviewing
-                          ? "bg-[#B83B6A] text-white"
-                          : "bg-[#FCECF3] hover:bg-[#F8DCE8] text-[#962953]"
-                      }`}
-                    >
-                      {isPreviewing ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" /> Wearing on 3D Stage
-                        </>
-                      ) : (
-                        <>
-                          <Rotate3d className="w-3.5 h-3.5" /> Try Full Look in
-                          3D
-                        </>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        outfitProds.forEach((op) => {
-                          const f = analyzeExactAvatarFit(
-                            {
-                              heightInches: bodyDims.heightInches,
-                              bustInches: bodyDims.bustInches,
-                              waistInches: bodyDims.waistInches,
-                              hipsInches: bodyDims.hipsInches,
-                              shoeSize: bodyDims.shoeSize,
-                            },
-                            op
-                          );
-                          addToBag({
-                            productId: op.id,
-                            title: op.title,
-                            brand: op.brand,
-                            price: op.price,
-                            size: f.recommendedSize,
-                            imageUrl: op.imageUrl,
-                            storeUrl: op.canonicalUrl,
-                          });
-                        });
-                        showToast(
-                          `Added all ${outfitProds.length} pieces of Outfit #${String(
-                            outfit.outfitNumber
-                          ).padStart(3, "0")} to Bag!`
-                        );
-                      }}
-                      className="py-2 px-3.5 rounded-full bg-[#141518] hover:bg-[#27292E] text-white text-[11px] font-bold cursor-pointer"
-                    >
-                      + Full Set
-                    </button>
                   </div>
                 </article>
               );
@@ -1214,7 +1341,7 @@ export function MotionSitesProductShowroom({
         </section>
 
         {/* ==================== SECTION 4: COMPLETE THE LOOK (DEDICATED PRODUCT PAGES) ==================== */}
-        <section className="space-y-4">
+        <section className="space-y-4 px-3.5 sm:px-0">
           <div>
             <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#B83B6A]">
               Companion 360° Boutique Pieces
